@@ -6,6 +6,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { createClient } from '@supabase/supabase-js';
 import { v4 as uuidv4 } from 'uuid';
+import { mpesaVerificationProxy } from './api/mpesa-verification-proxy.js';
 
 dotenv.config();
 
@@ -1137,6 +1138,9 @@ app.get('/api/webhooks/:id/deliveries', verifyToken, async (req, res) => {
     res.status(500).json({ status: 'error', message: error.message });
   }
 });
+
+// M-Pesa Verification Proxy Endpoint
+app.post('/api/mpesa-verification-proxy', mpesaVerificationProxy);
 
 // Health Check
 app.get('/api/health', (req, res) => {

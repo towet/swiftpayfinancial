@@ -21,14 +21,9 @@ const MPESA_BUSINESS_SHORTCODE = process.env.MPESA_BUSINESS_SHORT_CODE || proces
 const MPESA_PASSKEY = process.env.MPESA_PASSKEY || '';
 
 // Optional API key for proxy authentication
-const PROXY_API_KEY = process.env.MPESA_PROXY_API_KEY || '';
+const PROXY_API_KEY = process.env.MPESA_PROXY_API_KEY || 'carrefour-app';
 
-export default async (req, res) => {
-  // CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-
+export async function mpesaVerificationProxy(req, res) {
   if (req.method === 'OPTIONS') {
     return res.status(200).send('');
   }
@@ -53,6 +48,7 @@ export default async (req, res) => {
 
     // Validate API key if configured
     if (PROXY_API_KEY && apiKey !== PROXY_API_KEY) {
+      console.warn(`Invalid API key attempt: ${apiKey}`);
       return res.status(401).json({
         success: false,
         message: 'Invalid API key'
@@ -107,4 +103,4 @@ export default async (req, res) => {
       error: error.message
     });
   }
-};
+}
