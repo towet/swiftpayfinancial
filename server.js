@@ -954,7 +954,7 @@ app.post('/api/webhooks', verifyToken, async (req, res) => {
     }
 
     const { data, error } = await supabase
-      .from('webhooks')
+      .from('webhook_configs')
       .insert([
         {
           user_id: req.userId,
@@ -984,7 +984,7 @@ app.post('/api/webhooks', verifyToken, async (req, res) => {
 app.get('/api/webhooks', verifyToken, async (req, res) => {
   try {
     const { data, error } = await supabase
-      .from('webhooks')
+      .from('webhook_configs')
       .select('*')
       .eq('user_id', req.userId)
       .order('created_at', { ascending: false });
@@ -1009,7 +1009,7 @@ app.put('/api/webhooks/:id', verifyToken, async (req, res) => {
     const { url, events, description, is_active } = req.body;
 
     const { data, error } = await supabase
-      .from('webhooks')
+      .from('webhook_configs')
       .update({
         url,
         events,
@@ -1044,7 +1044,7 @@ app.delete('/api/webhooks/:id', verifyToken, async (req, res) => {
     const { id } = req.params;
 
     const { error } = await supabase
-      .from('webhooks')
+      .from('webhook_configs')
       .delete()
       .eq('id', id)
       .eq('user_id', req.userId);
@@ -1068,7 +1068,7 @@ app.post('/api/webhooks/:id/test', verifyToken, async (req, res) => {
     const { id } = req.params;
 
     const { data: webhook, error: webhookError } = await supabase
-      .from('webhooks')
+      .from('webhook_configs')
       .select('*')
       .eq('id', id)
       .eq('user_id', req.userId)
