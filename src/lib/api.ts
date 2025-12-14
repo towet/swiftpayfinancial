@@ -3,6 +3,18 @@ import axios from 'axios';
 // Hardcoded Render backend URL
 const API_BASE_URL = 'https://swiftpay-backend-uvv9.onrender.com/api';
 
+// Set default base URL for all axios requests
+axios.defaults.baseURL = API_BASE_URL;
+
+// Add token to requests if available
+axios.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 // Create axios instance with base URL
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -11,7 +23,7 @@ export const apiClient = axios.create({
   },
 });
 
-// Add token to requests if available
+// Add token to apiClient requests if available
 apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
