@@ -21,7 +21,7 @@ const MPESA_BUSINESS_SHORTCODE = process.env.MPESA_BUSINESS_SHORT_CODE || proces
 const MPESA_PASSKEY = process.env.MPESA_PASSKEY || '';
 
 // Optional API key for proxy authentication
-const PROXY_API_KEY = process.env.MPESA_PROXY_API_KEY || 'carrefour-app';
+const PROXY_API_KEY = process.env.MPESA_PROXY_API_KEY || '';
 
 export async function mpesaVerificationProxy(req, res) {
   if (req.method === 'OPTIONS') {
@@ -46,13 +46,15 @@ export async function mpesaVerificationProxy(req, res) {
       });
     }
 
-    // Validate API key if configured
-    if (PROXY_API_KEY && apiKey !== PROXY_API_KEY) {
-      console.warn(`Invalid API key attempt: ${apiKey}`);
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid API key'
-      });
+    // Validate API key only if PROXY_API_KEY is configured
+    if (PROXY_API_KEY && PROXY_API_KEY.length > 0) {
+      if (!apiKey || apiKey !== PROXY_API_KEY) {
+        console.warn(`Invalid API key attempt. Expected: ${PROXY_API_KEY}, Got: ${apiKey}`);
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid API key'
+        });
+      }
     }
 
     // Check if credentials are configured
