@@ -431,23 +431,39 @@ initiatePayment();`
           {[
             { icon: FileText, title: "API Reference", desc: "Complete API documentation" },
             { icon: BookOpen, title: "Integration Guide", desc: "Step-by-step integration guide" },
-            { icon: Github, title: "Code Examples", desc: "Ready-to-use code samples" }
+            { icon: Github, title: "Code Examples", desc: "Ready-to-use code samples" },
+            { icon: Shield, title: "M-Pesa Verification", desc: "Reliable payment verification system", highlight: true },
+            { icon: Zap, title: "Direct Integration", desc: "Use M-Pesa utility in your project", highlight: true },
+            { icon: Code2, title: "Proxy Endpoint", desc: "Secure credential management", highlight: true }
           ].map((resource, index) => (
             <motion.div
               key={index}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 1.1 + index * 0.1 }}
-              className="glass rounded-xl p-6 hover:border-primary/30 transition-all cursor-pointer group"
+              className={`glass rounded-xl p-6 hover:border-primary/30 transition-all cursor-pointer group ${
+                resource.highlight ? 'border-safaricom/30 bg-safaricom/5' : ''
+              }`}
             >
+              {resource.highlight && (
+                <div className="absolute top-3 right-3 px-2 py-1 bg-safaricom/20 rounded-full">
+                  <span className="text-xs font-semibold text-safaricom">NEW</span>
+                </div>
+              )}
               <div className="flex items-center gap-3 mb-4">
-                <div className="p-3 rounded-lg gradient-primary group-hover:scale-110 transition-transform">
-                  <resource.icon className="h-5 w-5 text-primary-foreground" />
+                <div className={`p-3 rounded-lg group-hover:scale-110 transition-transform ${
+                  resource.highlight ? 'bg-safaricom/20' : 'gradient-primary'
+                }`}>
+                  <resource.icon className={`h-5 w-5 ${
+                    resource.highlight ? 'text-safaricom' : 'text-primary-foreground'
+                  }`} />
                 </div>
                 <h3 className="font-semibold text-foreground">{resource.title}</h3>
               </div>
               <p className="text-sm text-muted-foreground mb-4">{resource.desc}</p>
-              <div className="flex items-center gap-2 text-primary text-sm font-medium">
+              <div className={`flex items-center gap-2 text-sm font-medium ${
+                resource.highlight ? 'text-safaricom' : 'text-primary'
+              }`}>
                 Learn more <ExternalLink className="h-4 w-4" />
               </div>
             </motion.div>
