@@ -652,21 +652,43 @@ app.post('/api/mpesa/stk-push-api', verifyApiKey, async (req, res) => {
     }
 
     // Use till_id from request body or from API key
-    const tillId = till_id || req.tillId;
+    let tillId = till_id || req.tillId;
 
     if (!tillId) {
       return res.status(400).json({ status: 'error', message: 'Till ID required' });
     }
 
     // Get till details
-    const { data: till } = await supabase
+    let { data: till } = await supabase
       .from('tills')
       .select('*')
       .eq('id', tillId)
       .single();
 
+    // If till doesn't exist, create a default one
     if (!till) {
-      return res.status(404).json({ status: 'error', message: 'Till not found' });
+      console.log(`Till ${tillId} not found, creating default till`);
+      const { data: newTill, error: createError } = await supabase
+        .from('tills')
+        .insert([
+          {
+            id: tillId,
+            user_id: req.userId,
+            till_name: `Till ${tillId}`,
+            till_number: MPESA_BUSINESS_SHORT_CODE,
+            description: 'Auto-created till for API integration'
+          }
+        ])
+        .select()
+        .single();
+
+      if (createError) {
+        console.error('Error creating till:', createError);
+        return res.status(500).json({ status: 'error', message: 'Failed to create till' });
+      }
+
+      till = newTill;
+      console.log('Till created successfully:', till);
     }
 
     const token = await getMpesaAccessToken();
