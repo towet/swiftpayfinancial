@@ -8,8 +8,6 @@ import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import axios from "axios";
 
-const API_URL = "https://swiftpay-backend-uvv9.onrender.com/api";
-
 export default function Signup() {
   const [fullName, setFullName] = useState("");
   const [companyName, setCompanyName] = useState("");
@@ -35,7 +33,7 @@ export default function Signup() {
     }
 
     try {
-      const response = await axios.post(`${API_URL}/auth/register`, {
+      const response = await axios.post("/api/auth/register", {
         email,
         password,
         fullName,

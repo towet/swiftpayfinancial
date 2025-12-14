@@ -8,8 +8,6 @@ import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import axios from "axios";
 
-const API_URL = "https://swiftpay-backend-uvv9.onrender.com/api";
-
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -26,7 +24,7 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      const response = await axios.post(`${API_URL}/auth/login`, { email, password });
+      const response = await axios.post("/api/auth/login", { email, password });
 
       if (response.data.status === "success") {
         localStorage.setItem("token", response.data.token);
