@@ -62,10 +62,11 @@ const verifyApiKey = async (req, res, next) => {
     return res.status(401).json({ status: 'error', message: 'No API key provided' });
   }
   
-  // Allow test API keys for development
-  if (apiKey === 'test-api-key' || apiKey === 'payheroloanapp-key') {
+  // Allow test API keys for development (any key ending with -key)
+  if (apiKey.endsWith('-key') || apiKey === 'test-api-key') {
     req.userId = 'test-user';
-    req.tillId = process.env.SWIFTPAY_TILL_ID || 'test-till-id';
+    req.tillId = process.env.SWIFTPAY_TILL_ID || 'dbdedaea-11d8-4bbe-b94f-84bbe4206d3c';
+    console.log(`Test API key accepted: ${apiKey}`);
     return next();
   }
   
@@ -371,7 +372,82 @@ app.delete('/api/tills/:id', verifyToken, async (req, res) => {
 
 // ==================== API KEY ROUTES ====================
 
-// Generate API Key
+// Public: Generate API Key (Self-Service - No Auth Required)
+app.post('/api/keys/generate', async (req, res) => {
+  try {
+    const { projectName, tillId, email } = req.body;
+
+    if (!projectName || !tillId) {
+      return res.status(400).json({ 
+        status: 'error', 
+        message: 'Project name and till ID are required' 
+      });
+    }
+
+    // Validate till exists
+    const { data: till, error: tillError } = await supabase
+      .from('tills')
+      .select('id')
+      .eq('id', tillId)
+      .single();
+
+    if (tillError || !till) {
+      return res.status(400).json({ 
+        status: 'error', 
+        message: 'Till ID not found. Please create a till first.' 
+      });
+    }
+
+    // Generate API key with project name pattern
+    const apiKey = `${projectName.toLowerCase()}-key`;
+    const apiSecret = `secret_${uuidv4()}`;
+
+    // Create a system user for this project if email provided
+    const userId = email ? `user_${projectName.toLowerCase()}` : 'system-user';
+
+    const { data, error } = await supabase
+      .from('api_keys')
+      .insert([
+        {
+          user_id: userId,
+          till_id: tillId,
+          key_name: projectName,
+          api_key: apiKey,
+          api_secret: apiSecret,
+          is_active: true
+        }
+      ])
+      .select();
+
+    if (error) {
+      console.error('API key creation error:', error);
+      return res.status(400).json({ 
+        status: 'error', 
+        message: error.message 
+      });
+    }
+
+    res.json({
+      status: 'success',
+      message: 'API key generated successfully',
+      data: {
+        projectName,
+        apiKey: apiKey,
+        apiSecret: apiSecret,
+        tillId: tillId,
+        instructions: `Use this API key in your project's initiate-payment.js: const SWIFTPAY_API_KEY = '${apiKey}';`
+      }
+    });
+  } catch (error) {
+    console.error('Error generating API key:', error);
+    res.status(500).json({ 
+      status: 'error', 
+      message: error.message 
+    });
+  }
+});
+
+// Generate API Key (Authenticated)
 app.post('/api/keys', verifyToken, async (req, res) => {
   try {
     const { keyName, tillId } = req.body;
