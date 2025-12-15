@@ -21,23 +21,29 @@ export default function DeveloperPortal() {
   const codeExamples = [
     {
       id: "nodejs",
-      language: "Node.js",
+      language: "Node.js - Complete Integration",
       code: `const axios = require('axios');
+const { createClient } = require('@supabase/supabase-js');
 
 const apiKey = 'your_api_key_here';
-const baseURL = 'http://localhost:5000/api';
+const baseURL = 'https://swiftpay-backend-uvv9.onrender.com';
 
-// STK Push Request
-async function initiatePayment() {
+// Initialize Supabase
+const supabase = createClient(
+  'https://your-supabase-url.supabase.co',
+  'your-supabase-key'
+);
+
+// STK Push Request with Database Storage
+async function initiatePayment(phoneNumber, amount) {
   try {
+    // Call SwiftPay STK Push API
     const response = await axios.post(
-      \`\${baseURL}/mpesa/stk-push-api\`,
+      \`\${baseURL}/api/mpesa/stk-push-api\`,
       {
-        phone_number: '254712345678',
-        amount: 100,
-        till_id: 'your_till_id',
-        reference: 'ORDER123',
-        description: 'Payment for order'
+        phone_number: phoneNumber,
+        amount: amount,
+        till_id: 'your_till_id'
       },
       {
         headers: {
@@ -46,13 +52,36 @@ async function initiatePayment() {
         }
       }
     );
-    console.log('Payment initiated:', response.data);
+
+    if (response.data.success) {
+      const checkoutId = response.data.data.checkout_id;
+      
+      // Store transaction in Supabase (IMPORTANT: Only these 2 columns)
+      const { error: dbError } = await supabase
+        .from('transactions')
+        .insert({
+          transaction_request_id: checkoutId,
+          amount: parseFloat(amount)
+        });
+
+      if (dbError) {
+        console.error('Database error:', dbError.message);
+        // Continue - payment was initiated even if DB fails
+      }
+
+      return {
+        success: true,
+        checkoutId: checkoutId
+      };
+    }
   } catch (error) {
-    console.error('Error:', error.response?.data);
+    console.error('Error:', error.response?.data || error.message);
+    return { success: false, error: error.message };
   }
 }
 
-initiatePayment();`
+// Usage
+initiatePayment('254712345678', 100);`
     },
     {
       id: "python",
@@ -415,6 +444,86 @@ initiatePayment();`
               <p className="text-sm text-muted-foreground text-right">{endpoint.desc}</p>
             </motion.div>
           ))}
+        </div>
+      </motion.div>
+
+      {/* Database Schema */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.92 }}
+        className="max-w-6xl mx-auto px-6 py-16 bg-gradient-to-r from-red-500/5 to-orange-500/5 rounded-2xl border border-red-500/10 mb-8"
+      >
+        <div className="flex items-start gap-4 mb-6">
+          <div className="p-3 rounded-lg bg-red-500/20">
+            <AlertCircle className="h-6 w-6 text-red-500" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold text-foreground mb-2">Database Schema - Transactions Table</h2>
+            <p className="text-muted-foreground">Critical: Only insert these 2 columns to avoid errors</p>
+          </div>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-8 mb-8">
+          <div>
+            <h3 className="font-semibold text-foreground mb-4">✅ Correct Columns</h3>
+            <div className="bg-green-500/10 rounded-lg p-4 border border-green-500/20">
+              <ul className="space-y-3 text-sm">
+                <li className="flex items-start gap-2">
+                  <span className="text-green-500 font-bold mt-0.5">✓</span>
+                  <div>
+                    <code className="text-xs font-mono bg-background/50 px-2 py-1 rounded">transaction_request_id</code>
+                    <p className="text-xs text-muted-foreground mt-1">The checkout ID from SwiftPay response</p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-green-500 font-bold mt-0.5">✓</span>
+                  <div>
+                    <code className="text-xs font-mono bg-background/50 px-2 py-1 rounded">amount</code>
+                    <p className="text-xs text-muted-foreground mt-1">Payment amount as number (e.g., 100, 139)</p>
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="font-semibold text-foreground mb-4">❌ Do NOT Use</h3>
+            <div className="bg-red-500/10 rounded-lg p-4 border border-red-500/20">
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li className="flex items-center gap-2">
+                  <span className="text-red-500">✕</span>
+                  <code className="text-xs font-mono">description</code>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-red-500">✕</span>
+                  <code className="text-xs font-mono">phone</code>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-red-500">✕</span>
+                  <code className="text-xs font-mono">reference</code>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-red-500">✕</span>
+                  <code className="text-xs font-mono">status</code>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-red-500">✕</span>
+                  <code className="text-xs font-mono">payment_provider</code>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-background/50 rounded-lg p-4 border border-border/50 font-mono text-xs overflow-auto">
+          <p className="text-muted-foreground mb-2">✅ Correct Insert:</p>
+          <pre className="text-foreground">{`const { error } = await supabase
+  .from('transactions')
+  .insert({
+    transaction_request_id: checkoutId,
+    amount: parseFloat(amount)
+  });`}</pre>
         </div>
       </motion.div>
 
