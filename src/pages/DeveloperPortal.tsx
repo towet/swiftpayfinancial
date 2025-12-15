@@ -418,6 +418,79 @@ initiatePayment();`
         </div>
       </motion.div>
 
+      {/* API Key Generation */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.95 }}
+        className="max-w-6xl mx-auto px-6 py-16 bg-gradient-to-r from-primary/5 to-safaricom/5 rounded-2xl border border-primary/10 mb-8"
+      >
+        <div className="flex items-start gap-4 mb-6">
+          <div className="p-3 rounded-lg bg-primary/20">
+            <Shield className="h-6 w-6 text-primary" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold text-foreground mb-2">Generate Your API Key</h2>
+            <p className="text-muted-foreground">Get instant access without creating an account</p>
+          </div>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-8">
+          <div>
+            <h3 className="font-semibold text-foreground mb-4">Quick Start</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Call this endpoint to generate your unique API key. No authentication required!
+            </p>
+            <div className="bg-background/50 rounded-lg p-4 border border-border/50 mb-4">
+              <code className="text-xs font-mono text-primary">
+                POST /api/keys/generate
+              </code>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              <strong>Base URL:</strong> https://swiftpay-backend-uvv9.onrender.com
+            </p>
+          </div>
+
+          <div>
+            <h3 className="font-semibold text-foreground mb-4">Request Body</h3>
+            <div className="bg-background/50 rounded-lg p-4 border border-border/50 font-mono text-xs overflow-auto">
+              <pre className="text-foreground">{`{
+  "projectName": "my-project",
+  "tillId": "your-till-id",
+  "email": "optional@email.com"
+}`}</pre>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-8 pt-8 border-t border-border/50">
+          <h3 className="font-semibold text-foreground mb-4">Response Example</h3>
+          <div className="bg-background/50 rounded-lg p-4 border border-border/50 font-mono text-xs overflow-auto">
+            <pre className="text-foreground">{`{
+  "status": "success",
+  "data": {
+    "projectName": "my-project",
+    "apiKey": "my-project-key",
+    "apiSecret": "secret_xxxxx",
+    "tillId": "your-till-id",
+    "instructions": "Use in your code: const SWIFTPAY_API_KEY = 'my-project-key';"
+  }
+}`}</pre>
+          </div>
+        </div>
+
+        <div className="mt-8 pt-8 border-t border-border/50">
+          <h3 className="font-semibold text-foreground mb-4">Integration Steps</h3>
+          <ol className="space-y-3 text-sm text-muted-foreground">
+            <li><span className="font-semibold text-foreground">1.</span> Call /api/keys/generate with your project name and till ID</li>
+            <li><span className="font-semibold text-foreground">2.</span> Copy the generated API key</li>
+            <li><span className="font-semibold text-foreground">3.</span> Add to your project: <code className="bg-background/50 px-2 py-1 rounded text-xs">const SWIFTPAY_API_KEY = 'your-api-key';</code></li>
+            <li><span className="font-semibold text-foreground">4.</span> Use the STK Push endpoint with your API key</li>
+            <li><span className="font-semibold text-foreground">5.</span> Done! Your project is ready to accept payments</li>
+          </ol>
+        </div>
+      </motion.div>
+
       {/* Resources */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
