@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Code2, BookOpen, Zap, Shield, Copy, Check, ExternalLink, Github, FileText } from "lucide-react";
+import { Code2, BookOpen, Zap, Shield, Copy, Check, ExternalLink, Github, FileText, ChevronRight, AlertCircle, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function DeveloperPortal() {
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [activeSection, setActiveSection] = useState("quickstart");
   const { toast } = useToast();
 
   const copyToClipboard = (code: string, id: string) => {
@@ -18,36 +20,331 @@ export default function DeveloperPortal() {
     });
   };
 
-  const codeExamples = [
+  const sections = [
     {
-      id: "nodejs",
-      language: "Node.js - Complete Integration",
-      code: `const axios = require('axios');
+      id: "quickstart",
+      title: "Quick Start",
+      icon: Zap,
+      description: "Get started in 5 minutes"
+    },
+    {
+      id: "apikey",
+      title: "Generate API Key",
+      icon: Shield,
+      description: "Create your unique API key"
+    },
+    {
+      id: "database",
+      title: "Database Schema",
+      icon: FileText,
+      description: "Transaction table structure"
+    },
+    {
+      id: "integration",
+      title: "Complete Integration",
+      icon: Code2,
+      description: "Full code example"
+    },
+    {
+      id: "endpoints",
+      title: "API Endpoints",
+      icon: BookOpen,
+      description: "All available endpoints"
+    }
+  ];
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Hero */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="relative overflow-hidden py-16 px-6 bg-gradient-to-b from-primary/10 to-transparent"
+      >
+        <div className="max-w-6xl mx-auto text-center">
+          <h1 className="text-5xl md:text-6xl font-bold gradient-text mb-4">
+            SwiftPay Developer Guide
+          </h1>
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            Simple, straightforward integration for M-Pesa payments
+          </p>
+        </div>
+      </motion.div>
+
+      {/* Navigation Tabs */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="max-w-6xl mx-auto px-6 py-8"
+      >
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-12">
+          {sections.map((section, index) => (
+            <motion.button
+              key={section.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 + index * 0.05 }}
+              onClick={() => setActiveSection(section.id)}
+              className={`p-4 rounded-lg border-2 transition-all text-left group ${
+                activeSection === section.id
+                  ? 'border-primary bg-primary/10'
+                  : 'border-border hover:border-primary/50'
+              }`}
+            >
+              <div className="flex items-start justify-between mb-2">
+                <section.icon className={`h-5 w-5 ${
+                  activeSection === section.id ? 'text-primary' : 'text-muted-foreground'
+                }`} />
+                <ChevronRight className={`h-4 w-4 transition-transform ${
+                  activeSection === section.id ? 'translate-x-1' : ''
+                }`} />
+              </div>
+              <h3 className="font-semibold text-foreground text-sm">{section.title}</h3>
+              <p className="text-xs text-muted-foreground mt-1">{section.description}</p>
+            </motion.button>
+          ))}
+        </div>
+
+        {/* Content Sections */}
+        <motion.div
+          key={activeSection}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="space-y-8"
+        >
+          {/* Quick Start */}
+          {activeSection === "quickstart" && (
+            <div className="space-y-6">
+              <div className="bg-gradient-to-r from-primary/5 to-safaricom/5 rounded-xl p-8 border border-primary/10">
+                <h2 className="text-3xl font-bold text-foreground mb-6">Quick Start (5 Minutes)</h2>
+                
+                <div className="space-y-6">
+                  {[
+                    {
+                      step: 1,
+                      title: "Generate API Key",
+                      desc: "Call the self-service endpoint to get your unique API key",
+                      code: `POST https://swiftpay-backend-uvv9.onrender.com/api/keys/generate
+
+{
+  "projectName": "my-project",
+  "tillId": "dbdedaea-11d8-4bbe-b94f-84bbe4206d3c"
+}`
+                    },
+                    {
+                      step: 2,
+                      title: "Copy Your API Key",
+                      desc: "You'll receive: my-project-key",
+                      code: `const SWIFTPAY_API_KEY = 'my-project-key';`
+                    },
+                    {
+                      step: 3,
+                      title: "Initiate Payment",
+                      desc: "Send STK Push to user's phone",
+                      code: `const response = await fetch(
+  'https://swiftpay-backend-uvv9.onrender.com/api/mpesa/stk-push-api',
+  {
+    method: 'POST',
+    headers: {
+      'Authorization': \`Bearer \${SWIFTPAY_API_KEY}\`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      phone_number: '254712345678',
+      amount: 100,
+      till_id: 'dbdedaea-11d8-4bbe-b94f-84bbe4206d3c'
+    })
+  }
+);`
+                    },
+                    {
+                      step: 4,
+                      title: "Store Transaction",
+                      desc: "Save to Supabase (IMPORTANT: Only 2 columns)",
+                      code: `const { error } = await supabase
+  .from('transactions')
+  .insert({
+    transaction_request_id: checkoutId,
+    amount: parseFloat(amount)
+  });`
+                    },
+                    {
+                      step: 5,
+                      title: "Check Payment Status",
+                      desc: "Poll for payment confirmation",
+                      code: `const response = await fetch(
+  \`/api/payment-status?reference=\${checkoutId}\`
+);
+const result = await response.json();
+if (result.payment.status === 'SUCCESS') {
+  // Show success screen
+}`
+                    }
+                  ].map((item, idx) => (
+                    <div key={idx} className="flex gap-4">
+                      <div className="flex-shrink-0">
+                        <div className="flex items-center justify-center h-10 w-10 rounded-full bg-primary text-primary-foreground font-bold">
+                          {item.step}
+                        </div>
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-foreground mb-1">{item.title}</h3>
+                        <p className="text-sm text-muted-foreground mb-3">{item.desc}</p>
+                        <div className="bg-background/50 rounded-lg p-3 border border-border/50 overflow-auto">
+                          <code className="text-xs font-mono text-foreground">{item.code}</code>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* API Key Generation */}
+          {activeSection === "apikey" && (
+            <div className="space-y-6">
+              <div className="bg-gradient-to-r from-safaricom/5 to-primary/5 rounded-xl p-8 border border-safaricom/10">
+                <h2 className="text-3xl font-bold text-foreground mb-6">Generate Your API Key</h2>
+                
+                <div className="grid md:grid-cols-2 gap-8 mb-8">
+                  <div>
+                    <h3 className="font-semibold text-foreground mb-4">Endpoint</h3>
+                    <div className="bg-background/50 rounded-lg p-4 border border-border/50">
+                      <code className="text-sm font-mono text-primary">POST /api/keys/generate</code>
+                      <p className="text-xs text-muted-foreground mt-2">Base URL: https://swiftpay-backend-uvv9.onrender.com</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="font-semibold text-foreground mb-4">Request Body</h3>
+                    <div className="bg-background/50 rounded-lg p-4 border border-border/50 font-mono text-xs overflow-auto">
+                      <pre className="text-foreground">{`{
+  "projectName": "naivasmpya",
+  "tillId": "dbdedaea-11d8-4bbe-b94f-84bbe4206d3c",
+  "email": "optional@email.com"
+}`}</pre>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold text-foreground mb-4">Response</h3>
+                  <div className="bg-background/50 rounded-lg p-4 border border-border/50 font-mono text-xs overflow-auto">
+                    <pre className="text-foreground">{`{
+  "status": "success",
+  "data": {
+    "projectName": "naivasmpya",
+    "apiKey": "naivasmpya-key",
+    "apiSecret": "secret_xxxxx",
+    "tillId": "dbdedaea-11d8-4bbe-b94f-84bbe4206d3c",
+    "instructions": "Use in your code: const SWIFTPAY_API_KEY = 'naivasmpya-key';"
+  }
+}`}</pre>
+                  </div>
+                </div>
+
+                <div className="mt-8 p-4 bg-green-500/10 rounded-lg border border-green-500/20">
+                  <div className="flex gap-3">
+                    <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold text-green-900 dark:text-green-100">No Authentication Required</p>
+                      <p className="text-sm text-green-800 dark:text-green-200 mt-1">Anyone can generate an API key instantly without creating an account</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Database Schema */}
+          {activeSection === "database" && (
+            <div className="space-y-6">
+              <div className="bg-gradient-to-r from-red-500/5 to-orange-500/5 rounded-xl p-8 border border-red-500/10">
+                <h2 className="text-3xl font-bold text-foreground mb-6">Database Schema - Transactions</h2>
+                
+                <div className="grid md:grid-cols-2 gap-8 mb-8">
+                  <div>
+                    <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+                      <CheckCircle2 className="h-5 w-5 text-green-500" />
+                      Correct Columns
+                    </h3>
+                    <div className="bg-green-500/10 rounded-lg p-4 border border-green-500/20 space-y-4">
+                      <div>
+                        <code className="text-xs font-mono bg-background/50 px-2 py-1 rounded text-primary">transaction_request_id</code>
+                        <p className="text-xs text-muted-foreground mt-2">The checkout ID from SwiftPay response (string)</p>
+                      </div>
+                      <div>
+                        <code className="text-xs font-mono bg-background/50 px-2 py-1 rounded text-primary">amount</code>
+                        <p className="text-xs text-muted-foreground mt-2">Payment amount as number (e.g., 100, 139, 129)</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+                      <AlertCircle className="h-5 w-5 text-red-500" />
+                      Do NOT Use
+                    </h3>
+                    <div className="bg-red-500/10 rounded-lg p-4 border border-red-500/20">
+                      <ul className="space-y-2 text-xs text-muted-foreground">
+                        <li>❌ description</li>
+                        <li>❌ phone</li>
+                        <li>❌ reference</li>
+                        <li>❌ status</li>
+                        <li>❌ payment_provider</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-background/50 rounded-lg p-4 border border-border/50">
+                  <p className="text-sm font-semibold text-foreground mb-3">✅ Correct Insert Code:</p>
+                  <code className="text-xs font-mono text-foreground block overflow-auto">{`const { error } = await supabase
+  .from('transactions')
+  .insert({
+    transaction_request_id: checkoutId,
+    amount: parseFloat(amount)
+  });`}</code>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Complete Integration */}
+          {activeSection === "integration" && (
+            <div className="space-y-6">
+              <div className="bg-gradient-to-r from-primary/5 to-safaricom/5 rounded-xl p-8 border border-primary/10">
+                <h2 className="text-3xl font-bold text-foreground mb-6">Complete Node.js Integration</h2>
+                
+                <div className="bg-background/50 rounded-lg p-4 border border-border/50 overflow-auto">
+                  <code className="text-xs font-mono text-foreground whitespace-pre-wrap">{`const axios = require('axios');
 const { createClient } = require('@supabase/supabase-js');
 
-const apiKey = 'your_api_key_here';
-const baseURL = 'https://swiftpay-backend-uvv9.onrender.com';
+const SWIFTPAY_API_KEY = 'your-api-key';
+const SWIFTPAY_BACKEND_URL = 'https://swiftpay-backend-uvv9.onrender.com';
+const SWIFTPAY_TILL_ID = 'dbdedaea-11d8-4bbe-b94f-84bbe4206d3c';
 
-// Initialize Supabase
 const supabase = createClient(
   'https://your-supabase-url.supabase.co',
   'your-supabase-key'
 );
 
-// STK Push Request with Database Storage
 async function initiatePayment(phoneNumber, amount) {
   try {
-    // Call SwiftPay STK Push API
+    // 1. Call SwiftPay STK Push API
     const response = await axios.post(
-      \`\${baseURL}/api/mpesa/stk-push-api\`,
+      \`\${SWIFTPAY_BACKEND_URL}/api/mpesa/stk-push-api\`,
       {
         phone_number: phoneNumber,
         amount: amount,
-        till_id: 'your_till_id'
+        till_id: SWIFTPAY_TILL_ID
       },
       {
         headers: {
-          'Authorization': \`Bearer \${apiKey}\`,
+          'Authorization': \`Bearer \${SWIFTPAY_API_KEY}\`,
           'Content-Type': 'application/json'
         }
       }
@@ -56,7 +353,7 @@ async function initiatePayment(phoneNumber, amount) {
     if (response.data.success) {
       const checkoutId = response.data.data.checkout_id;
       
-      // Store transaction in Supabase (IMPORTANT: Only these 2 columns)
+      // 2. Store transaction (ONLY 2 columns!)
       const { error: dbError } = await supabase
         .from('transactions')
         .insert({
@@ -65,607 +362,102 @@ async function initiatePayment(phoneNumber, amount) {
         });
 
       if (dbError) {
-        console.error('Database error:', dbError.message);
-        // Continue - payment was initiated even if DB fails
+        console.error('DB error:', dbError.message);
       }
 
+      // 3. Return checkout ID for polling
       return {
         success: true,
         checkoutId: checkoutId
       };
     }
   } catch (error) {
-    console.error('Error:', error.response?.data || error.message);
+    console.error('Error:', error.message);
     return { success: false, error: error.message };
   }
 }
 
 // Usage
-initiatePayment('254712345678', 100);`
-    },
-    {
-      id: "python",
-      language: "Python",
-      code: `import requests
-import json
+initiatePayment('254712345678', 100);`}</code>
+                </div>
 
-api_key = 'your_api_key_here'
-base_url = 'http://localhost:5000/api'
-
-def initiate_payment():
-    headers = {
-        'Authorization': f'Bearer {api_key}',
-        'Content-Type': 'application/json'
-    }
-    
-    payload = {
-        'phone_number': '254712345678',
-        'amount': 100,
-        'till_id': 'your_till_id',
-        'reference': 'ORDER123',
-        'description': 'Payment for order'
-    }
-    
-    try:
-        response = requests.post(
-            f'{base_url}/mpesa/stk-push-api',
-            headers=headers,
-            json=payload
-        )
-        print('Payment initiated:', response.json())
-    except requests.exceptions.RequestException as e:
-        print('Error:', str(e))
-
-if __name__ == '__main__':
-    initiate_payment()`
-    },
-    {
-      id: "php",
-      language: "PHP",
-      code: `<?php
-$apiKey = 'your_api_key_here';
-$baseURL = 'http://localhost:5000/api';
-
-function initiatePayment() {
-    global $apiKey, $baseURL;
-    
-    $headers = [
-        'Authorization: Bearer ' . $apiKey,
-        'Content-Type: application/json'
-    ];
-    
-    $payload = [
-        'phone_number' => '254712345678',
-        'amount' => 100,
-        'till_id' => 'your_till_id',
-        'reference' => 'ORDER123',
-        'description' => 'Payment for order'
-    ];
-    
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $baseURL . '/mpesa/stk-push-api');
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    
-    $response = curl_exec($ch);
-    curl_close($ch);
-    
-    echo 'Payment initiated: ' . $response;
-}
-
-initiatePayment();
-?>`
-    },
-    {
-      id: "javascript",
-      language: "JavaScript (Browser)",
-      code: `const apiKey = 'your_api_key_here';
-const baseURL = 'http://localhost:5000/api';
-
-async function initiatePayment() {
-  try {
-    const response = await fetch(
-      \`\${baseURL}/mpesa/stk-push-api\`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': \`Bearer \${apiKey}\`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          phone_number: '254712345678',
-          amount: 100,
-          till_id: 'your_till_id',
-          reference: 'ORDER123',
-          description: 'Payment for order'
-        })
-      }
-    );
-    
-    const data = await response.json();
-    console.log('Payment initiated:', data);
-  } catch (error) {
-    console.error('Error:', error);
-  }
-}
-
-initiatePayment();`
-    }
-  ];
-
-  const features = [
-    {
-      icon: Zap,
-      title: "Lightning Fast",
-      description: "Instant payment processing with real-time updates"
-    },
-    {
-      icon: Shield,
-      title: "Secure",
-      description: "Bank-level security with JWT and API key authentication"
-    },
-    {
-      icon: Code2,
-      title: "Easy Integration",
-      description: "Simple REST API with comprehensive documentation"
-    },
-    {
-      icon: BookOpen,
-      title: "Well Documented",
-      description: "Complete guides and examples in multiple languages"
-    }
-  ];
-
-  return (
-    <div className="min-h-screen bg-background">
-      {/* Hero Section */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden py-20 px-6"
-      >
-        <div className="absolute inset-0 mesh-gradient opacity-30" />
-        <div className="relative z-10 max-w-6xl mx-auto text-center">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.1 }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-6"
-          >
-            <Code2 className="h-4 w-4 text-primary" />
-            <span className="text-sm font-medium text-primary">Developer Portal</span>
-          </motion.div>
-
-          <h1 className="text-5xl md:text-6xl font-bold gradient-text mb-6">
-            Build with SwiftPay
-          </h1>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
-            Integrate M-Pesa payments into your application with our powerful and easy-to-use API
-          </p>
-
-          <div className="flex flex-wrap gap-4 justify-center">
-            <Button variant="glow" size="lg">
-              <BookOpen className="h-5 w-5 mr-2" />
-              Read Documentation
-            </Button>
-            <Button variant="outline" size="lg">
-              <Github className="h-5 w-5 mr-2" />
-              View Examples
-            </Button>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Features Grid */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="max-w-6xl mx-auto px-6 py-16"
-      >
-        <h2 className="text-3xl font-bold text-foreground mb-12 text-center">Why Choose SwiftPay?</h2>
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {features.map((feature, index) => (
-            <motion.div
-              key={index}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 + index * 0.1 }}
-              className="glass rounded-xl p-6 text-center hover:border-primary/30 transition-all"
-            >
-              <div className="flex justify-center mb-4">
-                <div className="p-3 rounded-lg gradient-primary">
-                  <feature.icon className="h-6 w-6 text-primary-foreground" />
+                <div className="mt-6 p-4 bg-blue-500/10 rounded-lg border border-blue-500/20">
+                  <p className="text-sm font-semibold text-blue-900 dark:text-blue-100">💡 Key Points:</p>
+                  <ul className="text-sm text-blue-800 dark:text-blue-200 mt-2 space-y-1">
+                    <li>✓ Only insert 2 columns: transaction_request_id and amount</li>
+                    <li>✓ Use parseFloat() for amount</li>
+                    <li>✓ Extract checkout_id from response.data.data.checkout_id</li>
+                    <li>✓ Continue even if database insert fails (payment was initiated)</li>
+                  </ul>
                 </div>
               </div>
-              <h3 className="font-semibold text-foreground mb-2">{feature.title}</h3>
-              <p className="text-sm text-muted-foreground">{feature.description}</p>
-            </motion.div>
-          ))}
-        </div>
-      </motion.div>
+            </div>
+          )}
 
-      {/* Quick Start */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
-        className="max-w-6xl mx-auto px-6 py-16"
-      >
-        <h2 className="text-3xl font-bold text-foreground mb-12">Quick Start</h2>
-        
-        <div className="grid md:grid-cols-2 gap-8">
-          {/* Steps */}
-          <div className="space-y-6">
-            {[
-              { step: 1, title: "Create Account", desc: "Sign up and create your developer account" },
-              { step: 2, title: "Create a Till", desc: "Set up a payment till in your dashboard" },
-              { step: 3, title: "Generate API Key", desc: "Create an API key for your till" },
-              { step: 4, title: "Start Integrating", desc: "Use our API to accept payments" }
-            ].map((item, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.5 + index * 0.1 }}
-                className="flex gap-4"
-              >
-                <div className="flex-shrink-0">
-                  <div className="flex items-center justify-center h-10 w-10 rounded-lg gradient-primary">
-                    <span className="text-primary-foreground font-bold">{item.step}</span>
-                  </div>
+          {/* API Endpoints */}
+          {activeSection === "endpoints" && (
+            <div className="space-y-6">
+              <div className="bg-gradient-to-r from-primary/5 to-safaricom/5 rounded-xl p-8 border border-primary/10">
+                <h2 className="text-3xl font-bold text-foreground mb-6">API Endpoints</h2>
+                
+                <div className="space-y-4">
+                  {[
+                    {
+                      method: "POST",
+                      path: "/api/keys/generate",
+                      desc: "Generate API key (no auth required)",
+                      color: "bg-green-500"
+                    },
+                    {
+                      method: "POST",
+                      path: "/api/mpesa/stk-push-api",
+                      desc: "Initiate M-Pesa STK Push",
+                      color: "bg-green-500"
+                    },
+                    {
+                      method: "GET",
+                      path: "/api/payment-status",
+                      desc: "Check payment status",
+                      color: "bg-blue-500"
+                    },
+                    {
+                      method: "POST",
+                      path: "/api/mpesa-verification-proxy",
+                      desc: "Verify M-Pesa payment (secure proxy)",
+                      color: "bg-green-500"
+                    }
+                  ].map((endpoint, idx) => (
+                    <div key={idx} className="flex items-center gap-4 p-4 bg-background/50 rounded-lg border border-border/50">
+                      <span className={`px-3 py-1 rounded text-xs font-bold text-white ${endpoint.color}`}>
+                        {endpoint.method}
+                      </span>
+                      <div className="flex-1">
+                        <code className="text-sm font-mono text-foreground">{endpoint.path}</code>
+                        <p className="text-xs text-muted-foreground mt-1">{endpoint.desc}</p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <div>
-                  <h3 className="font-semibold text-foreground">{item.title}</h3>
-                  <p className="text-sm text-muted-foreground">{item.desc}</p>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-
-          {/* Code Example */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.5 }}
-            className="glass rounded-xl p-6 h-fit"
-          >
-            <h3 className="font-semibold text-foreground mb-4">Example Request</h3>
-            <div className="bg-secondary rounded-lg p-4 overflow-x-auto">
-              <pre className="text-sm text-foreground font-mono">
-{`curl -X POST \\
-  http://localhost:5000/api/mpesa/stk-push-api \\
-  -H 'Authorization: Bearer YOUR_API_KEY' \\
-  -H 'Content-Type: application/json' \\
-  -d '{
-    "phone_number": "254712345678",
-    "amount": 100,
-    "till_id": "your_till_id",
-    "reference": "ORDER123",
-    "description": "Payment"
-  }'`}
-              </pre>
-            </div>
-          </motion.div>
-        </div>
-      </motion.div>
-
-      {/* Code Examples */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.6 }}
-        className="max-w-6xl mx-auto px-6 py-16"
-      >
-        <h2 className="text-3xl font-bold text-foreground mb-12">Code Examples</h2>
-        
-        <div className="space-y-8">
-          {codeExamples.map((example, index) => (
-            <motion.div
-              key={example.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.7 + index * 0.1 }}
-              className="glass rounded-xl overflow-hidden"
-            >
-              <div className="flex items-center justify-between p-6 border-b border-border">
-                <h3 className="font-semibold text-foreground">{example.language}</h3>
-                <button
-                  onClick={() => copyToClipboard(example.code, example.id)}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-secondary transition-colors"
-                >
-                  {copiedCode === example.id ? (
-                    <>
-                      <Check className="h-4 w-4 text-success" />
-                      <span className="text-sm text-success">Copied</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm text-muted-foreground">Copy</span>
-                    </>
-                  )}
-                </button>
               </div>
-              <div className="bg-secondary p-6 overflow-x-auto">
-                <pre className="text-sm text-foreground font-mono whitespace-pre-wrap break-words">
-                  {example.code}
-                </pre>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      </motion.div>
-
-      {/* API Endpoints */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.8 }}
-        className="max-w-6xl mx-auto px-6 py-16"
-      >
-        <h2 className="text-3xl font-bold text-foreground mb-12">Core API Endpoints</h2>
-        
-        <div className="space-y-4">
-          {[
-            { method: "POST", path: "/api/auth/register", desc: "Register a new user account" },
-            { method: "POST", path: "/api/auth/login", desc: "Login to your account" },
-            { method: "GET", path: "/api/tills", desc: "Get all your tills" },
-            { method: "POST", path: "/api/tills", desc: "Create a new till" },
-            { method: "PUT", path: "/api/tills/:id", desc: "Update a till" },
-            { method: "DELETE", path: "/api/tills/:id", desc: "Delete a till" },
-            { method: "GET", path: "/api/keys", desc: "Get all API keys" },
-            { method: "POST", path: "/api/keys", desc: "Generate new API key" },
-            { method: "DELETE", path: "/api/keys/:id", desc: "Delete API key" },
-            { method: "POST", path: "/api/mpesa/stk-push-api", desc: "Initiate STK Push payment" },
-            { method: "GET", path: "/api/transactions", desc: "Get transaction history" },
-            { method: "GET", path: "/api/dashboard/stats", desc: "Get dashboard statistics" }
-          ].map((endpoint, index) => (
-            <motion.div
-              key={index}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.9 + index * 0.05 }}
-              className="glass rounded-lg p-4 flex items-center justify-between hover:border-primary/30 transition-all"
-            >
-              <div className="flex items-center gap-4 flex-1">
-                <span className={`px-3 py-1 rounded text-xs font-bold text-white ${
-                  endpoint.method === 'GET' ? 'bg-blue-500' :
-                  endpoint.method === 'POST' ? 'bg-green-500' :
-                  endpoint.method === 'PUT' ? 'bg-yellow-500' :
-                  'bg-red-500'
-                }`}>
-                  {endpoint.method}
-                </span>
-                <code className="text-sm font-mono text-foreground">{endpoint.path}</code>
-              </div>
-              <p className="text-sm text-muted-foreground text-right">{endpoint.desc}</p>
-            </motion.div>
-          ))}
-        </div>
-      </motion.div>
-
-      {/* Database Schema */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.92 }}
-        className="max-w-6xl mx-auto px-6 py-16 bg-gradient-to-r from-red-500/5 to-orange-500/5 rounded-2xl border border-red-500/10 mb-8"
-      >
-        <div className="flex items-start gap-4 mb-6">
-          <div className="p-3 rounded-lg bg-red-500/20">
-            <AlertCircle className="h-6 w-6 text-red-500" />
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold text-foreground mb-2">Database Schema - Transactions Table</h2>
-            <p className="text-muted-foreground">Critical: Only insert these 2 columns to avoid errors</p>
-          </div>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-8 mb-8">
-          <div>
-            <h3 className="font-semibold text-foreground mb-4">✅ Correct Columns</h3>
-            <div className="bg-green-500/10 rounded-lg p-4 border border-green-500/20">
-              <ul className="space-y-3 text-sm">
-                <li className="flex items-start gap-2">
-                  <span className="text-green-500 font-bold mt-0.5">✓</span>
-                  <div>
-                    <code className="text-xs font-mono bg-background/50 px-2 py-1 rounded">transaction_request_id</code>
-                    <p className="text-xs text-muted-foreground mt-1">The checkout ID from SwiftPay response</p>
-                  </div>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-500 font-bold mt-0.5">✓</span>
-                  <div>
-                    <code className="text-xs font-mono bg-background/50 px-2 py-1 rounded">amount</code>
-                    <p className="text-xs text-muted-foreground mt-1">Payment amount as number (e.g., 100, 139)</p>
-                  </div>
-                </li>
-              </ul>
             </div>
-          </div>
-
-          <div>
-            <h3 className="font-semibold text-foreground mb-4">❌ Do NOT Use</h3>
-            <div className="bg-red-500/10 rounded-lg p-4 border border-red-500/20">
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li className="flex items-center gap-2">
-                  <span className="text-red-500">✕</span>
-                  <code className="text-xs font-mono">description</code>
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="text-red-500">✕</span>
-                  <code className="text-xs font-mono">phone</code>
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="text-red-500">✕</span>
-                  <code className="text-xs font-mono">reference</code>
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="text-red-500">✕</span>
-                  <code className="text-xs font-mono">status</code>
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="text-red-500">✕</span>
-                  <code className="text-xs font-mono">payment_provider</code>
-                </li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-background/50 rounded-lg p-4 border border-border/50 font-mono text-xs overflow-auto">
-          <p className="text-muted-foreground mb-2">✅ Correct Insert:</p>
-          <pre className="text-foreground">{`const { error } = await supabase
-  .from('transactions')
-  .insert({
-    transaction_request_id: checkoutId,
-    amount: parseFloat(amount)
-  });`}</pre>
-        </div>
+          )}
+        </motion.div>
       </motion.div>
 
-      {/* API Key Generation */}
+      {/* Footer CTA */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.95 }}
-        className="max-w-6xl mx-auto px-6 py-16 bg-gradient-to-r from-primary/5 to-safaricom/5 rounded-2xl border border-primary/10 mb-8"
+        transition={{ delay: 0.3 }}
+        className="max-w-6xl mx-auto px-6 py-16 text-center"
       >
-        <div className="flex items-start gap-4 mb-6">
-          <div className="p-3 rounded-lg bg-primary/20">
-            <Shield className="h-6 w-6 text-primary" />
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold text-foreground mb-2">Generate Your API Key</h2>
-            <p className="text-muted-foreground">Get instant access without creating an account</p>
-          </div>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-8">
-          <div>
-            <h3 className="font-semibold text-foreground mb-4">Quick Start</h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              Call this endpoint to generate your unique API key. No authentication required!
-            </p>
-            <div className="bg-background/50 rounded-lg p-4 border border-border/50 mb-4">
-              <code className="text-xs font-mono text-primary">
-                POST /api/keys/generate
-              </code>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              <strong>Base URL:</strong> https://swiftpay-backend-uvv9.onrender.com
-            </p>
-          </div>
-
-          <div>
-            <h3 className="font-semibold text-foreground mb-4">Request Body</h3>
-            <div className="bg-background/50 rounded-lg p-4 border border-border/50 font-mono text-xs overflow-auto">
-              <pre className="text-foreground">{`{
-  "projectName": "my-project",
-  "tillId": "your-till-id",
-  "email": "optional@email.com"
-}`}</pre>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-8 pt-8 border-t border-border/50">
-          <h3 className="font-semibold text-foreground mb-4">Response Example</h3>
-          <div className="bg-background/50 rounded-lg p-4 border border-border/50 font-mono text-xs overflow-auto">
-            <pre className="text-foreground">{`{
-  "status": "success",
-  "data": {
-    "projectName": "my-project",
-    "apiKey": "my-project-key",
-    "apiSecret": "secret_xxxxx",
-    "tillId": "your-till-id",
-    "instructions": "Use in your code: const SWIFTPAY_API_KEY = 'my-project-key';"
-  }
-}`}</pre>
-          </div>
-        </div>
-
-        <div className="mt-8 pt-8 border-t border-border/50">
-          <h3 className="font-semibold text-foreground mb-4">Integration Steps</h3>
-          <ol className="space-y-3 text-sm text-muted-foreground">
-            <li><span className="font-semibold text-foreground">1.</span> Call /api/keys/generate with your project name and till ID</li>
-            <li><span className="font-semibold text-foreground">2.</span> Copy the generated API key</li>
-            <li><span className="font-semibold text-foreground">3.</span> Add to your project: <code className="bg-background/50 px-2 py-1 rounded text-xs">const SWIFTPAY_API_KEY = 'your-api-key';</code></li>
-            <li><span className="font-semibold text-foreground">4.</span> Use the STK Push endpoint with your API key</li>
-            <li><span className="font-semibold text-foreground">5.</span> Done! Your project is ready to accept payments</li>
-          </ol>
-        </div>
-      </motion.div>
-
-      {/* Resources */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 1.0 }}
-        className="max-w-6xl mx-auto px-6 py-16"
-      >
-        <h2 className="text-3xl font-bold text-foreground mb-12">Resources</h2>
-        
-        <div className="grid md:grid-cols-3 gap-6">
-          {[
-            { icon: FileText, title: "API Reference", desc: "Complete API documentation" },
-            { icon: BookOpen, title: "Integration Guide", desc: "Step-by-step integration guide" },
-            { icon: Github, title: "Code Examples", desc: "Ready-to-use code samples" },
-            { icon: Shield, title: "M-Pesa Verification", desc: "Reliable payment verification system", highlight: true },
-            { icon: Zap, title: "Direct Integration", desc: "Use M-Pesa utility in your project", highlight: true },
-            { icon: Code2, title: "Proxy Endpoint", desc: "Secure credential management", highlight: true }
-          ].map((resource, index) => (
-            <motion.div
-              key={index}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 1.1 + index * 0.1 }}
-              className={`glass rounded-xl p-6 hover:border-primary/30 transition-all cursor-pointer group ${
-                resource.highlight ? 'border-safaricom/30 bg-safaricom/5' : ''
-              }`}
-            >
-              {resource.highlight && (
-                <div className="absolute top-3 right-3 px-2 py-1 bg-safaricom/20 rounded-full">
-                  <span className="text-xs font-semibold text-safaricom">NEW</span>
-                </div>
-              )}
-              <div className="flex items-center gap-3 mb-4">
-                <div className={`p-3 rounded-lg group-hover:scale-110 transition-transform ${
-                  resource.highlight ? 'bg-safaricom/20' : 'gradient-primary'
-                }`}>
-                  <resource.icon className={`h-5 w-5 ${
-                    resource.highlight ? 'text-safaricom' : 'text-primary-foreground'
-                  }`} />
-                </div>
-                <h3 className="font-semibold text-foreground">{resource.title}</h3>
-              </div>
-              <p className="text-sm text-muted-foreground mb-4">{resource.desc}</p>
-              <div className={`flex items-center gap-2 text-sm font-medium ${
-                resource.highlight ? 'text-safaricom' : 'text-primary'
-              }`}>
-                Learn more <ExternalLink className="h-4 w-4" />
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      </motion.div>
-
-      {/* CTA Section */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 1.2 }}
-        className="max-w-4xl mx-auto px-6 py-20 text-center"
-      >
-        <h2 className="text-3xl font-bold text-foreground mb-6">Ready to Get Started?</h2>
-        <p className="text-lg text-muted-foreground mb-8">
-          Join thousands of developers building payment solutions with SwiftPay
+        <h2 className="text-3xl font-bold text-foreground mb-4">Ready to Get Started?</h2>
+        <p className="text-muted-foreground mb-8">
+          Start with "Quick Start" or "Generate API Key" above
         </p>
         <Button variant="glow" size="lg">
-          Create Your First Till
+          <BookOpen className="h-5 w-5 mr-2" />
+          View Full Documentation
         </Button>
       </motion.div>
     </div>
