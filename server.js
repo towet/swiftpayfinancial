@@ -28,7 +28,7 @@ const MPESA_CONSUMER_KEY = 'QNDgt0ltfcmiiDAEVWfwAwWq2uHq3XeXv7BEXKGJKS7X7wVg';
 const MPESA_CONSUMER_SECRET = 'TD6vam4JJs7ghG5eGutL4zsNFFNLBF9yEBxUNZRopGPVNv77yqQvYo0OhsMy3eSq';
 const MPESA_BUSINESS_SHORT_CODE = '3581047';
 const MPESA_PASSKEY = 'cb9041a559db0ad7cbd8debaa5574661c5bf4e1fb7c7e99a8116c83dcaa8474d';
-const CALLBACK_URL = 'https://89810f24d6fb.ngrok-free.app/php';
+const CALLBACK_URL = process.env.RENDER_EXTERNAL_URL || 'http://localhost:5000';
 
 // M-Pesa API Endpoints
 const OAUTH_URL = 'https://api.safaricom.co.ke/oauth/v1/generate';
@@ -569,7 +569,7 @@ app.post('/api/mpesa/stk-push', verifyToken, async (req, res) => {
       PartyA: phone,
       PartyB: till.till_number,
       PhoneNumber: phone,
-      CallBackURL: `${CALLBACK_URL}/callback.php`,
+      CallBackURL: `${CALLBACK_URL}/api/callbacks/stk-push`,
       AccountReference: reference || 'SwiftPay',
       TransactionDesc: description || 'Payment via SwiftPay'
     };
