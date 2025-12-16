@@ -944,6 +944,55 @@ app.get('/api/transactions', verifyToken, async (req, res) => {
   }
 });
 
+// Update Transaction Status (Called by M-Pesa callback)
+app.post('/api/transactions/update-status', async (req, res) => {
+  try {
+    const { mpesa_request_id, checkout_request_id, status, callback_data, result_code } = req.body;
+
+    if (!mpesa_request_id && !checkout_request_id) {
+      return res.status(400).json({ status: 'error', message: 'Request ID or Checkout ID required' });
+    }
+
+    // Determine transaction status based on result code
+    let transactionStatus = 'pending';
+    if (result_code === 0 || status === 'success' || status === 'SUCCESS') {
+      transactionStatus = 'success';
+    } else if (result_code !== 0 && result_code !== null) {
+      transactionStatus = 'failed';
+    }
+
+    // Update transaction
+    const { data, error } = await supabase
+      .from('transactions')
+      .update({
+        status: transactionStatus,
+        callback_data: callback_data || null,
+        completed_at: transactionStatus !== 'pending' ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('mpesa_request_id', mpesa_request_id)
+      .select();
+
+    if (error) {
+      console.error('Transaction update error:', error);
+      return res.status(400).json({ status: 'error', message: error.message });
+    }
+
+    if (!data || data.length === 0) {
+      return res.status(404).json({ status: 'error', message: 'Transaction not found' });
+    }
+
+    res.json({
+      status: 'success',
+      message: `Transaction status updated to ${transactionStatus}`,
+      transaction: data[0]
+    });
+  } catch (error) {
+    console.error('Status update error:', error);
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
 // Get Dashboard Stats
 app.get('/api/dashboard/stats', verifyToken, async (req, res) => {
   try {
