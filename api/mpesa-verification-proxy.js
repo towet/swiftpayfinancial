@@ -85,6 +85,34 @@ export async function mpesaVerificationProxy(req, res) {
 
     console.log(`Payment verification result for ${checkoutId}:`, result);
 
+    // Update transaction status in database if payment is successful or failed
+    if (result.success || result.status === 'failed') {
+      try {
+        const updatePayload = {
+          checkout_request_id: checkoutId,
+          mpesa_request_id: result.merchantRequestId,
+          result_code: result.resultCode,
+          status: result.status,
+          callback_data: result.rawResponse
+        };
+
+        const updateResponse = await fetch(`${process.env.API_BASE_URL || 'http://localhost:5000'}/api/transactions/update-status`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatePayload)
+        });
+
+        if (updateResponse.ok) {
+          const updateData = await updateResponse.json();
+          console.log(`✅ Transaction updated for ${checkoutId}:`, updateData);
+        } else {
+          console.warn(`⚠️ Failed to update transaction for ${checkoutId}:`, updateResponse.status);
+        }
+      } catch (updateError) {
+        console.error(`❌ Error updating transaction for ${checkoutId}:`, updateError.message);
+      }
+    }
+
     // Return normalized response
     return res.status(200).json({
       success: result.success,
