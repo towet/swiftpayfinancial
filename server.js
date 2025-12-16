@@ -1008,10 +1008,12 @@ app.get('/api/dashboard/stats', verifyToken, async (req, res) => {
       .select('*')
       .in('till_id', tillIds);
 
+    const successfulTransactions = transactions.filter(t => t.status === 'success');
+    
     const stats = {
       totalTransactions: transactions.length,
-      totalAmount: transactions.reduce((sum, t) => sum + (t.amount || 0), 0),
-      successfulTransactions: transactions.filter(t => t.status === 'success').length,
+      totalAmount: successfulTransactions.reduce((sum, t) => sum + (t.amount || 0), 0),
+      successfulTransactions: successfulTransactions.length,
       failedTransactions: transactions.filter(t => t.status === 'failed').length,
       pendingTransactions: transactions.filter(t => t.status === 'pending').length
     };
