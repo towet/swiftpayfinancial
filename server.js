@@ -961,17 +961,23 @@ app.post('/api/transactions/update-status', async (req, res) => {
       transactionStatus = 'failed';
     }
 
-    // Update transaction
-    const { data, error } = await supabase
+    // Update transaction by mpesa_request_id
+    let updateQuery = supabase
       .from('transactions')
       .update({
         status: transactionStatus,
         callback_data: callback_data || null,
         completed_at: transactionStatus !== 'pending' ? new Date().toISOString() : null,
         updated_at: new Date().toISOString()
-      })
-      .eq('mpesa_request_id', mpesa_request_id)
-      .select();
+      });
+
+    if (mpesa_request_id) {
+      updateQuery = updateQuery.eq('mpesa_request_id', mpesa_request_id);
+    } else if (checkout_request_id) {
+      updateQuery = updateQuery.eq('checkout_request_id', checkout_request_id);
+    }
+
+    const { data, error } = await updateQuery.select();
 
     if (error) {
       console.error('Transaction update error:', error);
@@ -979,8 +985,11 @@ app.post('/api/transactions/update-status', async (req, res) => {
     }
 
     if (!data || data.length === 0) {
+      console.warn(`No transaction found with mpesa_request_id: ${mpesa_request_id}, checkout_request_id: ${checkout_request_id}`);
       return res.status(404).json({ status: 'error', message: 'Transaction not found' });
     }
+
+    console.log(`Transaction ${mpesa_request_id || checkout_request_id} updated to status: ${transactionStatus}`, data[0]);
 
     res.json({
       status: 'success',
@@ -989,6 +998,39 @@ app.post('/api/transactions/update-status', async (req, res) => {
     });
   } catch (error) {
     console.error('Status update error:', error);
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+// Test endpoint: Mark all pending transactions as success (for testing only)
+app.post('/api/transactions/test-mark-success', verifyToken, async (req, res) => {
+  try {
+    const { data: tills } = await supabase
+      .from('tills')
+      .select('id')
+      .eq('user_id', req.userId);
+
+    const tillIds = tills.map(t => t.id);
+
+    const { data, error } = await supabase
+      .from('transactions')
+      .update({ status: 'success', completed_at: new Date().toISOString() })
+      .in('till_id', tillIds)
+      .eq('status', 'pending')
+      .select();
+
+    if (error) {
+      return res.status(400).json({ status: 'error', message: error.message });
+    }
+
+    console.log(`Marked ${data.length} transactions as success`);
+
+    res.json({
+      status: 'success',
+      message: `Marked ${data.length} transactions as success`,
+      updatedCount: data.length
+    });
+  } catch (error) {
     res.status(500).json({ status: 'error', message: error.message });
   }
 });
