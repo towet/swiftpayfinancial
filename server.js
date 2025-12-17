@@ -1049,6 +1049,138 @@ app.post('/api/transactions/test-mark-success', verifyToken, async (req, res) =>
   }
 });
 
+// Get Advanced Dashboard Analytics
+app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
+  try {
+    const { data: tills } = await supabase
+      .from('tills')
+      .select('id')
+      .eq('user_id', req.userId);
+
+    const tillIds = tills.map(t => t.id);
+
+    const { data: transactions, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .in('till_id', tillIds);
+
+    if (error) {
+      return res.status(400).json({ status: 'error', message: error.message });
+    }
+
+    // Analytics Calculations
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const weekStart = new Date(today.setDate(today.getDate() - today.getDay()));
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const filterByDate = (tx, startDate) => new Date(tx.created_at) >= startDate;
+
+    const todayTransactions = transactions.filter(tx => filterByDate(tx, today));
+    const weekTransactions = transactions.filter(tx => filterByDate(tx, weekStart));
+    const monthTransactions = transactions.filter(tx => filterByDate(tx, monthStart));
+
+    const calculateStats = (txs) => {
+      const successful = txs.filter(t => t.status === 'success');
+      const failed = txs.filter(t => t.status === 'failed');
+      const totalRevenue = successful.reduce((sum, t) => sum + (t.amount || 0), 0);
+      const totalTransactions = txs.length;
+      const successRate = totalTransactions > 0 ? (successful.length / totalTransactions) * 100 : 0;
+
+      return {
+        totalRevenue,
+        totalTransactions,
+        successfulTransactions: successful.length,
+        failedTransactions: failed.length,
+        successRate: successRate.toFixed(1) + '%',
+        averageTransactionValue: successful.length > 0 ? (totalRevenue / successful.length).toFixed(2) : 0,
+      };
+    };
+
+        // Status Distribution
+    const statusCounts = transactions.reduce((acc, tx) => {
+      const status = tx.status || 'unknown';
+      acc[status] = (acc[status] || 0) + 1;
+      return acc;
+    }, {});
+
+    const statusDistribution = {
+      data: Object.keys(statusCounts).map(status => ({
+        name: status.charAt(0).toUpperCase() + status.slice(1),
+        value: statusCounts[status]
+      }))
+    };
+
+    // Revenue Over Time (Last 7 days)
+    const revenueOverTimeData = Array.from({ length: 7 }).map((_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateString = d.toISOString().split('T')[0];
+      return { name: dateString, revenue: 0 };
+    }).reverse();
+
+    transactions.forEach(tx => {
+      if (tx.status === 'success' && tx.created_at) {
+        const txDate = tx.created_at.split('T')[0];
+        const dayData = revenueOverTimeData.find(d => d.name === txDate);
+        if (dayData) {
+          dayData.revenue += tx.amount || 0;
+        }
+      }
+    });
+
+    const revenueOverTime = {
+        data: revenueOverTimeData.map(d => ({...d, name: new Date(d.name).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) }))
+    };
+
+        // Daily Revenue by Amount
+    const dailyRevenueByAmount = transactions.reduce((acc, tx) => {
+      if (tx.status === 'success' && tx.created_at) {
+        const date = tx.created_at.split('T')[0];
+        if (!acc[date]) {
+          acc[date] = {};
+        }
+        const amount = tx.amount || 0;
+        if (!acc[date][amount]) {
+          acc[date][amount] = 0;
+        }
+        acc[date][amount] += 1;
+      }
+      return acc;
+    }, {});
+
+    // Totals by Amount
+    const totalsByAmount = transactions.reduce((acc, tx) => {
+      if (tx.status === 'success') {
+        const amount = tx.amount || 0;
+        if (!acc[amount]) {
+          acc[amount] = { count: 0, totalRevenue: 0 };
+        }
+        acc[amount].count += 1;
+        acc[amount].totalRevenue += amount;
+      }
+      return acc;
+    }, {});
+
+    const analytics = {
+      today: calculateStats(todayTransactions),
+      thisWeek: calculateStats(weekTransactions),
+      thisMonth: calculateStats(monthTransactions),
+      allTime: calculateStats(transactions),
+      revenueOverTime,
+      statusDistribution,
+      dailyRevenueByAmount,
+      totalsByAmount
+    };
+
+    res.json({ status: 'success', analytics });
+
+  } catch (error) {
+    console.error('Analytics Error:', error);
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
 // Get Dashboard Stats
 app.get('/api/dashboard/stats', verifyToken, async (req, res) => {
   try {
