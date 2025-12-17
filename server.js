@@ -1052,6 +1052,7 @@ app.post('/api/transactions/test-mark-success', verifyToken, async (req, res) =>
 // Get Advanced Dashboard Analytics
 app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
   try {
+    const { range } = req.query; // Get time range from query params
     // First try to get user's tills
     const { data: tills } = await supabase
       .from('tills')
@@ -1094,9 +1095,27 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
 
     const filterByDate = (tx, startDate) => new Date(tx.created_at) >= startDate;
 
-    const todayTransactions = transactions.filter(tx => filterByDate(tx, today));
-    const weekTransactions = transactions.filter(tx => filterByDate(tx, weekStart));
-    const monthTransactions = transactions.filter(tx => filterByDate(tx, monthStart));
+    // Filter transactions based on requested range
+    let todayTransactions, weekTransactions, monthTransactions;
+    
+    if (range === 'today') {
+      todayTransactions = transactions.filter(tx => filterByDate(tx, today));
+      weekTransactions = todayTransactions;
+      monthTransactions = todayTransactions;
+    } else if (range === 'week') {
+      todayTransactions = transactions.filter(tx => filterByDate(tx, today));
+      weekTransactions = transactions.filter(tx => filterByDate(tx, weekStart));
+      monthTransactions = weekTransactions;
+    } else if (range === 'month') {
+      todayTransactions = transactions.filter(tx => filterByDate(tx, today));
+      weekTransactions = transactions.filter(tx => filterByDate(tx, weekStart));
+      monthTransactions = transactions.filter(tx => filterByDate(tx, monthStart));
+    } else {
+      // Default to all time
+      todayTransactions = transactions;
+      weekTransactions = transactions;
+      monthTransactions = transactions;
+    }
 
     const calculateStats = (txs) => {
       const successful = txs.filter(t => t.status === 'success');

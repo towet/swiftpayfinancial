@@ -112,11 +112,16 @@ export default function DashboardAnalytics() {
     fetchAnalyticsData();
   }, []);
 
+  useEffect(() => {
+    fetchAnalyticsData();
+  }, [activeRange]);
+
   const fetchAnalyticsData = async () => {
     try {
       const token = localStorage.getItem("token");
       const response = await axios.get("/api/dashboard/analytics", {
         headers: { Authorization: `Bearer ${token}` },
+        params: { range: activeRange.toLowerCase() },
       });
       setAnalytics(response.data.analytics);
     } catch (error) {
