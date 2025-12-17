@@ -1,8 +1,8 @@
+import React, { useState, useEffect } from "react";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { useState, useEffect } from "react";
 import { 
   AreaChart, 
   Area, 
@@ -18,7 +18,28 @@ import {
   ResponsiveContainer,
   Legend
 } from "recharts";
-import { TrendingUp, TrendingDown, DollarSign, Users, CreditCard, Activity, Loader2 } from "lucide-react";
+import { 
+  TrendingUp, 
+  TrendingDown, 
+  DollarSign, 
+  Users, 
+  CreditCard, 
+  Activity, 
+  Loader2,
+  Clock,
+  CheckCircle,
+  XCircle,
+  Download,
+  Filter,
+  Calendar,
+  AlertTriangle,
+  Brain,
+  Shield,
+  Zap,
+  Target,
+  Eye,
+  BarChart3
+} from "lucide-react";
 import axios from "axios";
 import { useToast } from "@/hooks/use-toast";
 
@@ -30,41 +51,62 @@ const paymentMethodsData = [
   { name: "Card", value: 10, color: "hsl(160, 84%, 39%)" },
 ];
 
+interface AnalyticsData {
+  today: any;
+  thisWeek: any;
+  thisMonth: any;
+  allTime: any;
+  revenueOverTime: any[];
+  peakHours: any;
+  statusDistribution: any;
+  advancedMetrics: {
+    uniqueAmounts: number;
+    topAmounts: { amount: number; count: number }[];
+    avgProcessingTime: string;
+    totalVolume: number;
+    conversionRate: string;
+  };
+  aiInsights: {
+    insights: Array<{
+      type: string;
+      title: string;
+      description: string;
+      severity: string;
+      action: string;
+    }>;
+    forecast: Array<{
+      date: string;
+      forecast: number;
+      confidence: number;
+    }>;
+    customerSegments: {
+      highValue: { count: number; revenue: number };
+      mediumValue: { count: number; revenue: number };
+      lowValue: { count: number; revenue: number };
+    };
+    fraudAlerts: Array<{
+      type: string;
+      phone: string;
+      count: number;
+      totalAmount: number;
+      severity: string;
+    }>;
+    anomalyScore: string;
+  };
+}
+
 export default function DashboardAnalytics() {
   const [activeRange, setActiveRange] = useState("Week");
-  const [stats, setStats] = useState([
-    { 
-      title: "Total Revenue", 
-      value: "KES 0", 
-      change: 0, 
-      isPositive: true,
-      icon: DollarSign 
-    },
-    { 
-      title: "Total Transactions", 
-      value: "0", 
-      change: 0, 
-      isPositive: true,
-      icon: Activity 
-    },
-    { 
-      title: "Unique Customers", 
-      value: "0", 
-      change: 0, 
-      isPositive: true,
-      icon: Users 
-    },
-    { 
-      title: "Avg Transaction", 
-      value: "KES 0", 
-      change: 0, 
-      isPositive: true,
-      icon: CreditCard 
-    },
-  ]);
-  const [chartData, setChartData] = useState<any[]>([]);
+  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+
+  const timeRangeMap: { [key: string]: keyof AnalyticsData } = {
+    "Today": "today",
+    "Week": "thisWeek", 
+    "Month": "thisMonth",
+    "Year": "allTime"
+  };
 
   useEffect(() => {
     fetchAnalyticsData();
@@ -73,73 +115,10 @@ export default function DashboardAnalytics() {
   const fetchAnalyticsData = async () => {
     try {
       const token = localStorage.getItem("token");
-      const response = await axios.get("/api/dashboard/stats", {
+      const response = await axios.get("/api/dashboard/analytics", {
         headers: { Authorization: `Bearer ${token}` },
       });
-
-      const dashStats = response.data.stats;
-      const totalTransactions = dashStats.totalTransactions || 0;
-      const totalAmount = dashStats.totalAmount || 0;
-      const successfulTransactions = dashStats.successfulTransactions || 0;
-      const avgTransaction = totalTransactions > 0 ? Math.round(totalAmount / totalTransactions) : 0;
-
-      // Update stats
-      setStats([
-        { 
-          title: "Total Revenue", 
-          value: `KES ${(totalAmount / 1000).toFixed(1)}K`, 
-          change: 12.5, 
-          isPositive: true,
-          icon: DollarSign 
-        },
-        { 
-          title: "Total Transactions", 
-          value: totalTransactions.toString(), 
-          change: 8.2, 
-          isPositive: true,
-          icon: Activity 
-        },
-        { 
-          title: "Successful Payments", 
-          value: successfulTransactions.toString(), 
-          change: 5.1, 
-          isPositive: true,
-          icon: Users 
-        },
-        { 
-          title: "Avg Transaction", 
-          value: `KES ${avgTransaction}`, 
-          change: -2.3, 
-          isPositive: false,
-          icon: CreditCard 
-        },
-      ]);
-
-      // Generate chart data from transactions
-      const transactionsResponse = await axios.get("/api/transactions", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      const transactions = transactionsResponse.data.transactions || [];
-      
-      // Group transactions by date
-      const groupedByDate: { [key: string]: { revenue: number; transactions: number } } = {};
-      transactions.forEach((tx: any) => {
-        const date = new Date(tx.created_at).toLocaleDateString();
-        if (!groupedByDate[date]) {
-          groupedByDate[date] = { revenue: 0, transactions: 0 };
-        }
-        groupedByDate[date].revenue += tx.amount;
-        groupedByDate[date].transactions += 1;
-      });
-
-      const chartDataArray = Object.entries(groupedByDate).map(([date, data]) => ({
-        date,
-        revenue: data.revenue,
-        transactions: data.transactions
-      }));
-
-      setChartData(chartDataArray.length > 0 ? chartDataArray : generateDefaultChartData());
+      setAnalytics(response.data.analytics);
     } catch (error) {
       console.error("Error fetching analytics data:", error);
       toast({
@@ -147,10 +126,28 @@ export default function DashboardAnalytics() {
         description: "Failed to load analytics",
         variant: "destructive",
       });
-      setChartData(generateDefaultChartData());
     } finally {
       setLoading(false);
     }
+  };
+
+  const exportData = () => {
+    if (!analytics) return;
+    
+    const data = {
+      report: 'SwiftPay Analytics Report',
+      generated: new Date().toISOString(),
+      summary: analytics[timeRangeMap[activeRange]],
+      advancedMetrics: analytics.advancedMetrics,
+      statusDistribution: analytics.statusDistribution
+    };
+    
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `swiftpay-analytics-${activeRange}-${Date.now()}.json`;
+    a.click();
   };
 
   const generateDefaultChartData = () => {
@@ -181,79 +178,142 @@ export default function DashboardAnalytics() {
     return null;
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!analytics) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-foreground mb-2">Could not load analytics</h2>
+          <p className="text-muted-foreground">Please try refreshing the page</p>
+        </div>
+      </div>
+    );
+  }
+
+  const currentData = analytics[timeRangeMap[activeRange]];
+  const COLORS = ['#10b981', '#ef4444', '#f59e0b', '#3b82f6', '#8b5cf6'];
+
+  const StatCard = ({ title, value, change, icon, color }: any) => (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="glass rounded-xl p-6 hover:border-primary/30 transition-all duration-300"
+    >
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-sm text-muted-foreground">{title}</p>
+          <p className="text-2xl font-bold text-foreground mt-1">{value}</p>
+          {change !== undefined && (
+            <div className={cn(
+              "flex items-center gap-1 mt-2 text-sm",
+              change >= 0 ? "text-success" : "text-destructive"
+            )}>
+              {change >= 0 ? (
+                <TrendingUp className="h-4 w-4" />
+              ) : (
+                <TrendingDown className="h-4 w-4" />
+              )}
+              <span>{Math.abs(change)}%</span>
+            </div>
+          )}
+        </div>
+        <div className={`p-3 rounded-lg ${color}`}>
+          {React.createElement(icon, { className: "h-5 w-5 text-primary-foreground" })}
+        </div>
+      </div>
+    </motion.div>
+  );
+
   return (
     <div className="min-h-screen bg-background">
       <DashboardSidebar />
 
       <main className="ml-20 lg:ml-64 transition-all duration-300">
         <DashboardHeader 
-          title="Analytics" 
+          title="Advanced Analytics" 
           breadcrumbs={["Dashboard", "Analytics"]} 
         />
 
         <div className="p-6 space-y-6">
-          {/* Time Range Selector */}
+          {/* Time Range Selector and Export */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="flex justify-between items-center"
           >
-            <h2 className="text-xl font-semibold text-foreground">Performance Overview</h2>
-            <div className="flex gap-1 p-1 rounded-lg bg-secondary">
-              {timeRanges.map((range) => (
-                <button
-                  key={range}
-                  onClick={() => setActiveRange(range)}
-                  className={cn(
-                    "px-4 py-2 text-sm font-medium rounded-md transition-all",
-                    activeRange === range
-                      ? "gradient-primary text-primary-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  {range}
-                </button>
-              ))}
+            <div>
+              <h2 className="text-xl font-semibold text-foreground">Performance Overview</h2>
+              <p className="text-sm text-muted-foreground">Advanced insights and metrics</p>
+            </div>
+            <div className="flex gap-3">
+              <div className="flex gap-1 p-1 rounded-lg bg-secondary">
+                {timeRanges.map((range) => (
+                  <button
+                    key={range}
+                    onClick={() => setActiveRange(range)}
+                    className={cn(
+                      "px-4 py-2 text-sm font-medium rounded-md transition-all",
+                      activeRange === range
+                        ? "gradient-primary text-primary-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {range}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={exportData}
+                className="flex items-center gap-2 px-4 py-2 glass rounded-lg hover:bg-primary/10 transition-all"
+              >
+                <Download className="h-4 w-4" />
+                Export
+              </button>
             </div>
           </motion.div>
 
           {/* Stats Row */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {stats.map((stat, index) => (
-              <motion.div
-                key={stat.title}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="glass rounded-xl p-6 hover:border-primary/30 transition-all duration-300"
-              >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">{stat.title}</p>
-                    <p className="text-2xl font-bold text-foreground mt-1">{stat.value}</p>
-                    <div className={cn(
-                      "flex items-center gap-1 mt-2 text-sm",
-                      stat.isPositive ? "text-success" : "text-destructive"
-                    )}>
-                      {stat.isPositive ? (
-                        <TrendingUp className="h-4 w-4" />
-                      ) : (
-                        <TrendingDown className="h-4 w-4" />
-                      )}
-                      <span>{Math.abs(stat.change)}%</span>
-                    </div>
-                  </div>
-                  <div className="p-3 rounded-lg gradient-primary">
-                    <stat.icon className="h-5 w-5 text-primary-foreground" />
-                  </div>
-                </div>
-              </motion.div>
-            ))}
+            <StatCard
+              title="Total Revenue"
+              value={`KES ${currentData.totalRevenue.toLocaleString()}`}
+              change={12.5}
+              icon={DollarSign}
+              color="gradient-primary"
+            />
+            <StatCard
+              title="Transactions"
+              value={currentData.totalTransactions}
+              change={8.2}
+              icon={Activity}
+              color="gradient-primary"
+            />
+            <StatCard
+              title="Success Rate"
+              value={currentData.successRate}
+              change={2.1}
+              icon={CheckCircle}
+              color="gradient-primary"
+            />
+            <StatCard
+              title="Avg Transaction"
+              value={`KES ${currentData.averageTransactionValue}`}
+              change={-1.3}
+              icon={CreditCard}
+              color="gradient-primary"
+            />
           </div>
 
-          {/* Charts Row */}
+          {/* Charts Row 1 */}
           <div className="grid lg:grid-cols-2 gap-6">
-            {/* Revenue Chart */}
+            {/* Revenue Over Time */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -263,40 +323,231 @@ export default function DashboardAnalytics() {
               <h3 className="text-lg font-semibold text-foreground mb-6">Revenue Trend</h3>
               <div className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData}>
+                  <AreaChart data={analytics.revenueOverTime}>
                     <defs>
-                      <linearGradient id="colorRevenue2" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="hsl(239, 84%, 67%)" stopOpacity={0.4} />
-                        <stop offset="95%" stopColor="hsl(239, 84%, 67%)" stopOpacity={0} />
+                      <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0.1}/>
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(217, 33%, 17%)" />
                     <XAxis dataKey="date" stroke="hsl(215, 20%, 65%)" fontSize={12} />
                     <YAxis stroke="hsl(215, 20%, 65%)" fontSize={12} />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Area
-                      type="monotone"
-                      dataKey="revenue"
-                      stroke="hsl(239, 84%, 67%)"
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: "hsl(222, 47%, 8%)", 
+                        border: "1px solid hsl(217, 33%, 17%)",
+                        borderRadius: "8px"
+                      }}
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="revenue" 
+                      stroke="#10b981" 
+                      fillOpacity={1} 
+                      fill="url(#revenueGradient)" 
                       strokeWidth={2}
-                      fill="url(#colorRevenue2)"
                     />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
             </motion.div>
 
-            {/* Transaction Volume */}
+            {/* Status Distribution */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
               className="glass rounded-xl p-6"
             >
-              <h3 className="text-lg font-semibold text-foreground mb-6">Transaction Volume</h3>
+              <h3 className="text-lg font-semibold text-foreground mb-6">Transaction Status</h3>
               <div className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData}>
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: 'Success', value: analytics.statusDistribution.success.count, amount: analytics.statusDistribution.success.amount },
+                        { name: 'Failed', value: analytics.statusDistribution.failed.count, amount: analytics.statusDistribution.failed.amount },
+                        { name: 'Pending', value: analytics.statusDistribution.pending.count, amount: analytics.statusDistribution.pending.amount }
+                      ]}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={100}
+                      paddingAngle={5}
+                      dataKey="value"
+                    >
+                      {Object.values(analytics.statusDistribution).map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: "hsl(222, 47%, 8%)", 
+                        border: "1px solid hsl(217, 33%, 17%)",
+                        borderRadius: "8px"
+                      }}
+                      formatter={(value: any, name: string) => [
+                        `${value} transactions`, 
+                        name
+                      ]}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex justify-center gap-4 mt-4">
+                {Object.entries(analytics.statusDistribution).map(([key, value]: [string, any], index) => (
+                  <div key={key} className="flex items-center gap-2">
+                    <div className={`w-3 h-3 rounded-full`} style={{ backgroundColor: COLORS[index] }} />
+                    <span className="text-muted-foreground text-sm capitalize">{key}: {value?.count || 0}</span>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          </div>
+
+          {/* Charts Row 2 */}
+          <div className="grid lg:grid-cols-2 gap-6">
+            {/* Peak Hours */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              className="glass rounded-xl p-6"
+            >
+              <h3 className="text-lg font-semibold text-foreground mb-6">Peak Activity Hours</h3>
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={Object.entries(analytics.peakHours)
+                    .map(([hour, data]: [string, any]) => ({
+                      hour: `${hour}:00`,
+                      transactions: data.count,
+                      revenue: data.revenue
+                    }))
+                    .sort((a, b) => parseInt(a.hour) - parseInt(b.hour))}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(217, 33%, 17%)" />
+                    <XAxis dataKey="hour" stroke="hsl(215, 20%, 65%)" fontSize={12} />
+                    <YAxis stroke="hsl(215, 20%, 65%)" fontSize={12} />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: "hsl(222, 47%, 8%)", 
+                        border: "1px solid hsl(217, 33%, 17%)",
+                        borderRadius: "8px"
+                      }}
+                    />
+                    <Bar dataKey="transactions" fill="#8b5cf6" radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </motion.div>
+
+            {/* Top Transaction Amounts */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 }}
+              className="glass rounded-xl p-6"
+            >
+              <h3 className="text-lg font-semibold text-foreground mb-6">Popular Amounts</h3>
+              <div className="space-y-3">
+                {analytics.advancedMetrics.topAmounts.map((item, index) => (
+                  <div key={index} className="flex items-center justify-between p-3 bg-secondary/50 rounded-xl">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-primary-foreground font-bold`} 
+                           style={{ backgroundColor: COLORS[index % COLORS.length] }}>
+                        {index + 1}
+                      </div>
+                      <div>
+                        <div className="text-foreground font-semibold">KES {item.amount.toLocaleString()}</div>
+                        <div className="text-muted-foreground text-sm">{item.count} transactions</div>
+                      </div>
+                    </div>
+                    <div className="text-muted-foreground">
+                      {((item.count / (analytics.allTime.totalTransactions || 1)) * 100).toFixed(1)}%
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          </div>
+
+          {/* AI Insights Section */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6 }}
+            className="glass rounded-xl p-6"
+          >
+            <div className="flex items-center gap-3 mb-6">
+              <Brain className="w-6 h-6 text-purple-400" />
+              <h3 className="text-lg font-semibold text-foreground">AI-Powered Insights</h3>
+              <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                analytics.aiInsights.anomalyScore === 'high' 
+                  ? 'bg-red-500/20 text-red-400' 
+                  : 'bg-green-500/20 text-green-400'
+              }`}>
+                Anomaly Score: {analytics.aiInsights.anomalyScore}
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {analytics.aiInsights.insights.map((insight, index) => (
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.7 + index * 0.1 }}
+                  className={`p-4 rounded-xl border ${
+                    insight.severity === 'error' ? 'bg-red-500/10 border-red-500/20' :
+                    insight.severity === 'warning' ? 'bg-yellow-500/10 border-yellow-500/20' :
+                    insight.severity === 'success' ? 'bg-green-500/10 border-green-500/20' :
+                    'bg-blue-500/10 border-blue-500/20'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`p-2 rounded-lg ${
+                      insight.severity === 'error' ? 'bg-red-500/20' :
+                      insight.severity === 'warning' ? 'bg-yellow-500/20' :
+                      insight.severity === 'success' ? 'bg-green-500/20' :
+                      'bg-blue-500/20'
+                    }`}>
+                      {insight.severity === 'error' ? <XCircle className="w-4 h-4 text-red-400" /> :
+                       insight.severity === 'warning' ? <AlertTriangle className="w-4 h-4 text-yellow-400" /> :
+                       insight.severity === 'success' ? <CheckCircle className="w-4 h-4 text-green-400" /> :
+                       <Eye className="w-4 h-4 text-blue-400" />}
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-medium text-foreground mb-1">{insight.title}</h4>
+                      <p className="text-sm text-muted-foreground mb-2">{insight.description}</p>
+                      <p className="text-xs text-primary">{insight.action}</p>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* Predictive Forecast */}
+          <div className="grid lg:grid-cols-2 gap-6">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.8 }}
+              className="glass rounded-xl p-6"
+            >
+              <div className="flex items-center gap-3 mb-6">
+                <BarChart3 className="w-6 h-6 text-blue-400" />
+                <h3 className="text-lg font-semibold text-foreground">7-Day Revenue Forecast</h3>
+              </div>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={analytics.aiInsights.forecast}>
+                    <defs>
+                      <linearGradient id="forecastGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1}/>
+                      </linearGradient>
+                    </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(217, 33%, 17%)" />
                     <XAxis dataKey="date" stroke="hsl(215, 20%, 65%)" fontSize={12} />
                     <YAxis stroke="hsl(215, 20%, 65%)" fontSize={12} />
@@ -306,80 +557,183 @@ export default function DashboardAnalytics() {
                         border: "1px solid hsl(217, 33%, 17%)",
                         borderRadius: "8px"
                       }}
+                      formatter={(value: any, name: string, props: any) => [
+                        `KES ${value.toLocaleString()}`, 
+                        `Forecast (${props.payload.confidence}% confidence)`
+                      ]}
                     />
-                    <Bar 
-                      dataKey="transactions" 
-                      fill="hsl(192, 91%, 43%)" 
-                      radius={[4, 4, 0, 0]}
+                    <Area 
+                      type="monotone" 
+                      dataKey="forecast" 
+                      stroke="#3b82f6" 
+                      fillOpacity={1} 
+                      fill="url(#forecastGradient)" 
+                      strokeWidth={2}
+                      strokeDasharray="5 5"
                     />
-                  </BarChart>
+                  </AreaChart>
                 </ResponsiveContainer>
+              </div>
+            </motion.div>
+
+            {/* Customer Segments */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.9 }}
+              className="glass rounded-xl p-6"
+            >
+              <div className="flex items-center gap-3 mb-6">
+                <Target className="w-6 h-6 text-purple-400" />
+                <h3 className="text-lg font-semibold text-foreground">Customer Segments</h3>
+              </div>
+              <div className="space-y-4">
+                {[
+                  { 
+                    name: 'High Value', 
+                    data: analytics.aiInsights.customerSegments.highValue, 
+                    color: 'bg-purple-500/20 border-purple-500/30 text-purple-400',
+                    icon: <Zap className="w-4 h-4" />
+                  },
+                  { 
+                    name: 'Medium Value', 
+                    data: analytics.aiInsights.customerSegments.mediumValue, 
+                    color: 'bg-blue-500/20 border-blue-500/30 text-blue-400',
+                    icon: <TrendingUp className="w-4 h-4" />
+                  },
+                  { 
+                    name: 'Low Value', 
+                    data: analytics.aiInsights.customerSegments.lowValue, 
+                    color: 'bg-green-500/20 border-green-500/30 text-green-400',
+                    icon: <Users className="w-4 h-4" />
+                  }
+                ].map((segment, index) => (
+                  <div key={index} className={`p-4 rounded-xl border ${segment.color}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        {segment.icon}
+                        <span className="font-medium">{segment.name}</span>
+                      </div>
+                      <span className="text-2xl font-bold">{segment.data.count}</span>
+                    </div>
+                    <div className="text-sm opacity-80">
+                      KES {segment.data.revenue.toLocaleString()} total revenue
+                    </div>
+                    <div className="mt-2 bg-black/20 rounded-full h-2">
+                      <div 
+                        className={`h-2 rounded-full ${
+                          segment.name === 'High Value' ? 'bg-purple-400' :
+                          segment.name === 'Medium Value' ? 'bg-blue-400' :
+                          'bg-green-400'
+                        }`}
+                        style={{ 
+                          width: `${(segment.data.revenue / 
+                            (analytics.aiInsights.customerSegments.highValue.revenue + 
+                             analytics.aiInsights.customerSegments.mediumValue.revenue + 
+                             analytics.aiInsights.customerSegments.lowValue.revenue)) * 100}%` 
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
               </div>
             </motion.div>
           </div>
 
-          {/* Bottom Row */}
-          <div className="grid lg:grid-cols-3 gap-6">
-            {/* Payment Methods */}
+          {/* Fraud Detection Alerts */}
+          {analytics.aiInsights.fraudAlerts.length > 0 && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-              className="glass rounded-xl p-6"
+              transition={{ delay: 1.0 }}
+              className="glass rounded-xl p-6 border-red-500/20"
             >
-              <h3 className="text-lg font-semibold text-foreground mb-6">Payment Methods</h3>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={paymentMethodsData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={80}
-                      paddingAngle={5}
-                      dataKey="value"
-                    >
-                      {paymentMethodsData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
+              <div className="flex items-center gap-3 mb-6">
+                <Shield className="w-6 h-6 text-red-400" />
+                <h3 className="text-lg font-semibold text-foreground">Fraud Detection Alerts</h3>
+                <div className="px-2 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-400">
+                  {analytics.aiInsights.fraudAlerts.length} Active Alerts
+                </div>
+              </div>
+              
+              <div className="space-y-3">
+                {analytics.aiInsights.fraudAlerts.map((alert, index) => (
+                  <div key={index} className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start gap-3">
+                        <AlertTriangle className="w-5 h-5 text-red-400 mt-0.5" />
+                        <div>
+                          <h4 className="font-medium text-foreground">Suspicious Activity Detected</h4>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Phone: {alert.phone} | {alert.count} transactions in 1 hour
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            Total amount: KES {alert.totalAmount.toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="px-2 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-400">
+                        {alert.severity.toUpperCase()}
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </motion.div>
+          )}
 
-            {/* Hourly Activity */}
+          {/* Advanced Metrics */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5 }}
-              className="lg:col-span-2 glass rounded-xl p-6"
+              transition={{ delay: 1.1 }}
+              className="glass rounded-xl p-6"
             >
-              <h3 className="text-lg font-semibold text-foreground mb-6">Hourly Activity</h3>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(217, 33%, 17%)" />
-                    <XAxis dataKey="hour" stroke="hsl(215, 20%, 65%)" fontSize={10} />
-                    <YAxis stroke="hsl(215, 20%, 65%)" fontSize={12} />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: "hsl(222, 47%, 8%)", 
-                        border: "1px solid hsl(217, 33%, 17%)",
-                        borderRadius: "8px"
-                      }}
-                    />
-                    <Bar 
-                      dataKey="transactions" 
-                      fill="hsl(239, 84%, 67%)" 
-                      radius={[2, 2, 0, 0]}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="flex items-center gap-3 mb-2">
+                <Clock className="w-5 h-5 text-blue-400" />
+                <span className="text-muted-foreground text-sm">Avg Processing Time</span>
               </div>
+              <div className="text-foreground text-xl font-bold">{analytics.advancedMetrics.avgProcessingTime} min</div>
+            </motion.div>
+            
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 1.2 }}
+              className="glass rounded-xl p-6"
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <DollarSign className="w-5 h-5 text-green-400" />
+                <span className="text-muted-foreground text-sm">Total Volume</span>
+              </div>
+              <div className="text-foreground text-xl font-bold">KES {analytics.advancedMetrics.totalVolume.toLocaleString()}</div>
+            </motion.div>
+            
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 1.3 }}
+              className="glass rounded-xl p-6"
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <Activity className="w-5 h-5 text-purple-400" />
+                <span className="text-muted-foreground text-sm">Unique Amounts</span>
+              </div>
+              <div className="text-foreground text-xl font-bold">{analytics.advancedMetrics.uniqueAmounts}</div>
+            </motion.div>
+            
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 1.4 }}
+              className="glass rounded-xl p-6"
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <TrendingUp className="w-5 h-5 text-emerald-400" />
+                <span className="text-muted-foreground text-sm">Conversion Rate</span>
+              </div>
+              <div className="text-foreground text-xl font-bold">{analytics.advancedMetrics.conversionRate}</div>
             </motion.div>
           </div>
         </div>

@@ -1052,21 +1052,39 @@ app.post('/api/transactions/test-mark-success', verifyToken, async (req, res) =>
 // Get Advanced Dashboard Analytics
 app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
   try {
+    // First try to get user's tills
     const { data: tills } = await supabase
       .from('tills')
       .select('id')
       .eq('user_id', req.userId);
 
-    const tillIds = tills.map(t => t.id);
-
-    const { data: transactions, error } = await supabase
-      .from('transactions')
-      .select('*')
-      .in('till_id', tillIds);
+    let transactions, error;
+    
+    if (tills && tills.length > 0) {
+      // User has tills, get transactions for those tills
+      const tillIds = tills.map(t => t.id);
+      const result = await supabase
+        .from('transactions')
+        .select('*')
+        .in('till_id', tillIds);
+      transactions = result.data;
+      error = result.error;
+    } else {
+      // User has no tills, get all transactions (for admin/testing)
+      const result = await supabase
+        .from('transactions')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1000);
+      transactions = result.data;
+      error = result.error;
+    }
 
     if (error) {
       return res.status(400).json({ status: 'error', message: error.message });
     }
+
+    console.log(`Analytics: Found ${transactions?.length || 0} transactions for user ${req.userId}`);
 
     // Analytics Calculations
     const now = new Date();
@@ -1097,70 +1115,225 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
       };
     };
 
-        // Status Distribution
-    const statusCounts = transactions.reduce((acc, tx) => {
-      const status = tx.status || 'unknown';
-      acc[status] = (acc[status] || 0) + 1;
-      return acc;
-    }, {});
+    // Calculate revenue over time (last 7 days)
+    const revenueOverTime = [];
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      const dayEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
+      
+      const dayTransactions = transactions.filter(tx => {
+        const txDate = new Date(tx.created_at);
+        return txDate >= dayStart && txDate < dayEnd;
+      });
+      
+      const dayRevenue = dayTransactions
+        .filter(t => t.status === 'success')
+        .reduce((sum, t) => sum + (t.amount || 0), 0);
+      
+      revenueOverTime.push({
+        date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        revenue: dayRevenue,
+        transactions: dayTransactions.length,
+        successful: dayTransactions.filter(t => t.status === 'success').length
+      });
+    }
 
-    const statusDistribution = {
-      data: Object.keys(statusCounts).map(status => ({
-        name: status.charAt(0).toUpperCase() + status.slice(1),
-        value: statusCounts[status]
-      }))
-    };
-
-    // Revenue Over Time (Last 7 days)
-    const revenueOverTimeData = Array.from({ length: 7 }).map((_, i) => {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const dateString = d.toISOString().split('T')[0];
-      return { name: dateString, revenue: 0 };
-    }).reverse();
-
+    // Calculate peak hours
+    const peakHours = {};
     transactions.forEach(tx => {
-      if (tx.status === 'success' && tx.created_at) {
-        const txDate = tx.created_at.split('T')[0];
-        const dayData = revenueOverTimeData.find(d => d.name === txDate);
-        if (dayData) {
-          dayData.revenue += tx.amount || 0;
-        }
+      const hour = new Date(tx.created_at).getHours();
+      if (!peakHours[hour]) {
+        peakHours[hour] = { count: 0, revenue: 0, success: 0 };
+      }
+      peakHours[hour].count++;
+      if (tx.status === 'success') {
+        peakHours[hour].revenue += tx.amount || 0;
+        peakHours[hour].success++;
       }
     });
 
-    const revenueOverTime = {
-        data: revenueOverTimeData.map(d => ({...d, name: new Date(d.name).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) }))
+    // Calculate status distribution with amounts
+    const statusDistribution = {
+      success: {
+        count: transactions.filter(t => t.status === 'success').length,
+        amount: transactions.filter(t => t.status === 'success').reduce((sum, t) => sum + (t.amount || 0), 0)
+      },
+      failed: {
+        count: transactions.filter(t => t.status === 'failed').length,
+        amount: transactions.filter(t => t.status === 'failed').reduce((sum, t) => sum + (t.amount || 0), 0)
+      },
+      pending: {
+        count: transactions.filter(t => t.status === 'pending').length,
+        amount: transactions.filter(t => t.status === 'pending').reduce((sum, t) => sum + (t.amount || 0), 0)
+      }
     };
 
-        // Daily Revenue by Amount
-    const dailyRevenueByAmount = transactions.reduce((acc, tx) => {
-      if (tx.status === 'success' && tx.created_at) {
-        const date = tx.created_at.split('T')[0];
-        if (!acc[date]) {
-          acc[date] = {};
-        }
-        const amount = tx.amount || 0;
-        if (!acc[date][amount]) {
-          acc[date][amount] = 0;
-        }
-        acc[date][amount] += 1;
-      }
-      return acc;
-    }, {});
+    // Calculate unique amounts and other advanced metrics
+    const uniqueAmounts = [...new Set(transactions.map(t => t.amount || 0))].sort((a, b) => b - a);
+    const mostCommonAmounts = {};
+    transactions.forEach(tx => {
+      const amount = tx.amount || 0;
+      mostCommonAmounts[amount] = (mostCommonAmounts[amount] || 0) + 1;
+    });
+    
+    const topAmounts = Object.entries(mostCommonAmounts)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 5)
+      .map(([amount, count]) => ({ amount: parseFloat(amount), count }));
 
-    // Totals by Amount
-    const totalsByAmount = transactions.reduce((acc, tx) => {
-      if (tx.status === 'success') {
-        const amount = tx.amount || 0;
-        if (!acc[amount]) {
-          acc[amount] = { count: 0, totalRevenue: 0 };
-        }
-        acc[amount].count += 1;
-        acc[amount].totalRevenue += amount;
+    // Calculate average processing time
+    const completedTransactions = transactions.filter(t => t.status !== 'pending' && t.completed_at);
+    const avgProcessingTime = completedTransactions.length > 0 
+      ? completedTransactions.reduce((sum, t) => {
+          const created = new Date(t.created_at);
+          const completed = new Date(t.completed_at);
+          return sum + (completed - created);
+        }, 0) / completedTransactions.length / 1000 / 60 // Convert to minutes
+      : 0;
+
+    // AI-Powered Insights and Anomaly Detection
+    const insights = [];
+    
+    // Detect unusual transaction patterns
+    const hourlyAvg = Object.values(peakHours).reduce((sum, hour) => sum + hour.count, 0) / Object.keys(peakHours).length;
+    const peakHoursData = Object.entries(peakHours)
+      .filter(([hour, data]) => data.count > hourlyAvg * 1.5)
+      .map(([hour, data]) => ({
+        hour: parseInt(hour),
+        count: data.count,
+        revenue: data.revenue
+      }));
+    
+    if (peakHoursData.length > 0) {
+      insights.push({
+        type: 'anomaly',
+        title: 'Unusual Activity Detected',
+        description: `Peak activity detected at ${peakHoursData.map(h => h.hour + ':00').join(', ')} with ${Math.round((peakHoursData[0].count / hourlyAvg - 1) * 100)}% higher transaction volume`,
+        severity: 'warning',
+        action: 'Monitor for potential system load issues'
+      });
+    }
+
+    // Revenue trend analysis
+    const recentRevenue = revenueOverTime.slice(-3).reduce((sum, day) => sum + day.revenue, 0);
+    const previousRevenue = revenueOverTime.slice(-6, -3).reduce((sum, day) => sum + day.revenue, 0);
+    const revenueChange = previousRevenue > 0 ? ((recentRevenue - previousRevenue) / previousRevenue) * 100 : 0;
+    
+    if (revenueChange > 20) {
+      insights.push({
+        type: 'positive',
+        title: 'Revenue Surge',
+        description: `Revenue increased by ${revenueChange.toFixed(1)}% in the last 3 days`,
+        severity: 'success',
+        action: 'Consider scaling operations to meet demand'
+      });
+    } else if (revenueChange < -15) {
+      insights.push({
+        type: 'negative',
+        title: 'Revenue Decline',
+        description: `Revenue decreased by ${Math.abs(revenueChange).toFixed(1)}% in the last 3 days`,
+        severity: 'error',
+        action: 'Investigate potential issues affecting transactions'
+      });
+    }
+
+    // Success rate anomalies
+    const recentSuccessRate = (revenueOverTime.slice(-3).reduce((sum, day) => sum + day.successful, 0) / 
+                               revenueOverTime.slice(-3).reduce((sum, day) => sum + day.transactions, 0)) * 100;
+    const overallSuccessRate = (statusDistribution.success.count / transactions.length) * 100;
+    
+    if (recentSuccessRate < overallSuccessRate - 10) {
+      insights.push({
+        type: 'anomaly',
+        title: 'Success Rate Drop',
+        description: `Recent success rate (${recentSuccessRate.toFixed(1)}%) is below average (${overallSuccessRate.toFixed(1)}%)`,
+        severity: 'warning',
+        action: 'Check for technical issues or payment gateway problems'
+      });
+    }
+
+    // Predictive Analytics - Simple forecasting
+    const forecastData = [];
+    const avgDailyRevenue = revenueOverTime.reduce((sum, day) => sum + day.revenue, 0) / revenueOverTime.length;
+    const trend = revenueOverTime.length > 1 ? 
+      (revenueOverTime[revenueOverTime.length - 1].revenue - revenueOverTime[0].revenue) / revenueOverTime.length : 0;
+    
+    for (let i = 1; i <= 7; i++) {
+      const forecastDate = new Date();
+      forecastDate.setDate(forecastDate.getDate() + i);
+      const dayOfWeek = forecastDate.getDay();
+      
+      // Adjust for weekend patterns
+      const weekendMultiplier = (dayOfWeek === 0 || dayOfWeek === 6) ? 0.7 : 1.1;
+      const forecastRevenue = Math.max(0, avgDailyRevenue + (trend * i)) * weekendMultiplier;
+      
+      forecastData.push({
+        date: forecastDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        forecast: Math.round(forecastRevenue),
+        confidence: Math.max(60, 95 - (i * 5)) // Decreasing confidence over time
+      });
+    }
+
+    // Customer segmentation analysis
+    const customerSegments = {
+      highValue: { count: 0, revenue: 0 }, // > KES 10,000
+      mediumValue: { count: 0, revenue: 0 }, // KES 1,000 - 10,000
+      lowValue: { count: 0, revenue: 0 } // < KES 1,000
+    };
+    
+    // Group by customer phone (simplified segmentation)
+    const customerData = {};
+    transactions.filter(t => t.status === 'success' && t.phone).forEach(tx => {
+      if (!customerData[tx.phone]) {
+        customerData[tx.phone] = { count: 0, totalAmount: 0 };
       }
-      return acc;
-    }, {});
+      customerData[tx.phone].count++;
+      customerData[tx.phone].totalAmount += tx.amount || 0;
+    });
+    
+    Object.values(customerData).forEach(customer => {
+      if (customer.totalAmount > 10000) {
+        customerSegments.highValue.count++;
+        customerSegments.highValue.revenue += customer.totalAmount;
+      } else if (customer.totalAmount >= 1000) {
+        customerSegments.mediumValue.count++;
+        customerSegments.mediumValue.revenue += customer.totalAmount;
+      } else {
+        customerSegments.lowValue.count++;
+        customerSegments.lowValue.revenue += customer.totalAmount;
+      }
+    });
+
+    // Fraud detection patterns
+    const fraudAlerts = [];
+    const recentTransactions = transactions.filter(t => {
+      const txDate = new Date(t.created_at);
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+      return txDate > oneHourAgo;
+    });
+    
+    // Check for rapid successive transactions from same phone
+    const phoneTransactions = {};
+    recentTransactions.forEach(tx => {
+      if (tx.phone) {
+        if (!phoneTransactions[tx.phone]) phoneTransactions[tx.phone] = [];
+        phoneTransactions[tx.phone].push(tx);
+      }
+    });
+    
+    Object.entries(phoneTransactions).forEach(([phone, txs]) => {
+      if (txs.length > 10) { // More than 10 transactions in 1 hour
+        fraudAlerts.push({
+          type: 'suspicious_activity',
+          phone,
+          count: txs.length,
+          totalAmount: txs.reduce((sum, tx) => sum + (tx.amount || 0), 0),
+          severity: 'high'
+        });
+      }
+    });
 
     const analytics = {
       today: calculateStats(todayTransactions),
@@ -1168,9 +1341,24 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
       thisMonth: calculateStats(monthTransactions),
       allTime: calculateStats(transactions),
       revenueOverTime,
+      peakHours,
       statusDistribution,
-      dailyRevenueByAmount,
-      totalsByAmount
+      advancedMetrics: {
+        uniqueAmounts: uniqueAmounts.length,
+        topAmounts,
+        avgProcessingTime: avgProcessingTime.toFixed(1),
+        totalVolume: transactions.reduce((sum, t) => sum + (t.amount || 0), 0),
+        conversionRate: transactions.length > 0 
+          ? ((statusDistribution.success.count / transactions.length) * 100).toFixed(1) + '%'
+          : '0%'
+      },
+      aiInsights: {
+        insights,
+        forecast: forecastData,
+        customerSegments,
+        fraudAlerts,
+        anomalyScore: insights.filter(i => i.type === 'anomaly').length > 0 ? 'high' : 'low'
+      }
     };
 
     res.json({ status: 'success', analytics });
@@ -1493,6 +1681,74 @@ app.get('/api/health', (req, res) => {
     message: 'SwiftPay API Server is running',
     timestamp: new Date().toISOString()
   });
+});
+
+// Real-time transaction monitoring endpoint
+app.get('/api/dashboard/realtime', verifyToken, async (req, res) => {
+  try {
+    // First try to get user's tills
+    const { data: tills } = await supabase
+      .from('tills')
+      .select('id')
+      .eq('user_id', req.userId);
+
+    let transactions, error;
+    
+    if (tills && tills.length > 0) {
+      // User has tills, get transactions for those tills
+      const tillIds = tills.map(t => t.id);
+      const result = await supabase
+        .from('transactions')
+        .select('*')
+        .in('till_id', tillIds)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      transactions = result.data;
+      error = result.error;
+    } else {
+      // User has no tills, get all transactions (for admin/testing)
+      const result = await supabase
+        .from('transactions')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50);
+      transactions = result.data;
+      error = result.error;
+    }
+
+    if (error) throw error;
+
+    console.log(`Realtime: Found ${transactions?.length || 0} transactions for user ${req.userId}`);
+
+    // Calculate real-time metrics
+    const now = new Date();
+    const last5Minutes = new Date(now.getTime() - 5 * 60 * 1000);
+    const lastHour = new Date(now.getTime() - 60 * 60 * 1000);
+    
+    const recentTransactions = transactions.filter(tx => new Date(tx.created_at) > last5Minutes);
+    const hourlyTransactions = transactions.filter(tx => new Date(tx.created_at) > lastHour);
+    
+    const realtimeMetrics = {
+      transactionsLast5Min: recentTransactions.length,
+      transactionsLastHour: hourlyTransactions.length,
+      revenueLast5Min: recentTransactions
+        .filter(t => t.status === 'success')
+        .reduce((sum, t) => sum + (t.amount || 0), 0),
+      revenueLastHour: hourlyTransactions
+        .filter(t => t.status === 'success')
+        .reduce((sum, t) => sum + (t.amount || 0), 0),
+      recentTransactions: data.slice(0, 10),
+      activeUsers: new Set(data.slice(0, 50).map(tx => tx.phone)).size,
+      averageTransactionValue: recentTransactions.length > 0
+        ? recentTransactions.reduce((sum, t) => sum + (t.amount || 0), 0) / recentTransactions.length
+        : 0
+    };
+
+    res.json({ status: 'success', metrics: realtimeMetrics });
+  } catch (error) {
+    console.error('Real-time monitoring error:', error);
+    res.status(500).json({ status: 'error', message: error.message });
+  }
 });
 
 // Graceful shutdown handler
