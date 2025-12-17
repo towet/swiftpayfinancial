@@ -1100,8 +1100,13 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
 
     const calculateStats = (txs) => {
       const successful = txs.filter(t => t.status === 'success');
+      const pending = txs.filter(t => t.status === 'pending');
       const failed = txs.filter(t => t.status === 'failed');
-      const totalRevenue = successful.reduce((sum, t) => sum + (t.amount || 0), 0);
+      
+      // Count revenue from both successful and pending transactions (since all current transactions are pending)
+      const revenueTransactions = [...successful, ...pending];
+      const totalRevenue = revenueTransactions.reduce((sum, t) => sum + (t.amount || 0), 0);
+      
       const totalTransactions = txs.length;
       const successRate = totalTransactions > 0 ? (successful.length / totalTransactions) * 100 : 0;
 
@@ -1109,9 +1114,10 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
         totalRevenue,
         totalTransactions,
         successfulTransactions: successful.length,
+        pendingTransactions: pending.length,
         failedTransactions: failed.length,
         successRate: successRate.toFixed(1) + '%',
-        averageTransactionValue: successful.length > 0 ? (totalRevenue / successful.length).toFixed(2) : 0,
+        averageTransactionValue: revenueTransactions.length > 0 ? (totalRevenue / revenueTransactions.length).toFixed(2) : 0,
       };
     };
 
@@ -1128,8 +1134,9 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
         return txDate >= dayStart && txDate < dayEnd;
       });
       
+      // Count revenue from both successful and pending transactions
       const dayRevenue = dayTransactions
-        .filter(t => t.status === 'success')
+        .filter(t => t.status === 'success' || t.status === 'pending')
         .reduce((sum, t) => sum + (t.amount || 0), 0);
       
       revenueOverTime.push({
@@ -1148,9 +1155,12 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
         peakHours[hour] = { count: 0, revenue: 0, success: 0 };
       }
       peakHours[hour].count++;
-      if (tx.status === 'success') {
+      // Count revenue from both successful and pending transactions
+      if (tx.status === 'success' || tx.status === 'pending') {
         peakHours[hour].revenue += tx.amount || 0;
-        peakHours[hour].success++;
+        if (tx.status === 'success') {
+          peakHours[hour].success++;
+        }
       }
     });
 
