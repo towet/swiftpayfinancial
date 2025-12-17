@@ -818,11 +818,16 @@ app.post('/api/mpesa/stk-push-api', verifyApiKey, async (req, res) => {
           reference,
           description,
           mpesa_request_id: response.data.RequestId,
+          checkout_request_id: response.data.CheckoutRequestID,
           mpesa_response: response.data
         }
       ]);
 
     console.log('STK Push API success:', response.data);
+    console.log(`Transaction created with RequestId: ${response.data.RequestId}, CheckoutRequestID: ${response.data.CheckoutRequestID}`);
+    
+    // Log the actual structure to debug
+    console.log('Full STK Push response structure:', JSON.stringify(response.data, null, 2));
 
     res.json({
       success: true,
