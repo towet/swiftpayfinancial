@@ -27,9 +27,15 @@ interface TransactionsTableProps {
 export function TransactionsTable({ limit, showViewAll = true }: TransactionsTableProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [, setTimeTick] = useState(0);
 
   useEffect(() => {
     fetchTransactions();
+  }, []);
+
+  useEffect(() => {
+    const id = setInterval(() => setTimeTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
   }, []);
 
   const fetchTransactions = async () => {
@@ -60,12 +66,14 @@ export function TransactionsTable({ limit, showViewAll = true }: TransactionsTab
     const date = new Date(timestamp);
     const now = new Date();
     const diff = now.getTime() - date.getTime();
-    const minutes = Math.floor(diff / 60000);
+    const seconds = Math.max(0, Math.floor(diff / 1000));
+    const minutes = Math.floor(seconds / 60);
     const hours = Math.floor(minutes / 60);
     const days = Math.floor(hours / 24);
 
-    if (minutes < 60) return `${minutes}m ago`;
-    if (hours < 24) return `${hours}h ago`;
+    if (seconds < 60) return `${seconds}s ago`;
+    if (minutes < 60) return `${minutes}m ${seconds % 60}s ago`;
+    if (hours < 24) return `${hours}h ${minutes % 60}m ago`;
     return `${days}d ago`;
   };
 

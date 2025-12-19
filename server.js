@@ -1053,6 +1053,10 @@ app.post('/api/transactions/test-mark-success', verifyToken, async (req, res) =>
 app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
   try {
     const { range } = req.query; // Get time range from query params
+    const isPaidStatus = (status) => {
+      const s = String(status || '').toLowerCase();
+      return s === 'success' || s === 'paid' || s === 'completed';
+    };
     // First try to get user's tills
     const { data: tills } = await supabase
       .from('tills')
@@ -1089,43 +1093,34 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
 
     // Analytics Calculations
     const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const weekStart = new Date(today.setDate(today.getDate() - today.getDay()));
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    const weekStart = new Date(todayStart);
+    weekStart.setDate(todayStart.getDate() - todayStart.getDay());
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 7);
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const yearStart = new Date(now.getFullYear(), 0, 1);
+    const yearEnd = new Date(now.getFullYear() + 1, 0, 1);
 
-    const filterByDate = (tx, startDate) => new Date(tx.created_at) >= startDate;
+    const filterByWindow = (tx, startDate, endDate) => {
+      const txDate = new Date(tx.created_at);
+      return txDate >= startDate && txDate < endDate;
+    };
 
-    // Filter transactions based on requested range
-    let todayTransactions, weekTransactions, monthTransactions;
-    
-    if (range === 'today') {
-      todayTransactions = transactions.filter(tx => filterByDate(tx, today));
-      weekTransactions = todayTransactions;
-      monthTransactions = todayTransactions;
-    } else if (range === 'week') {
-      todayTransactions = transactions.filter(tx => filterByDate(tx, today));
-      weekTransactions = transactions.filter(tx => filterByDate(tx, weekStart));
-      monthTransactions = weekTransactions;
-    } else if (range === 'month') {
-      todayTransactions = transactions.filter(tx => filterByDate(tx, today));
-      weekTransactions = transactions.filter(tx => filterByDate(tx, weekStart));
-      monthTransactions = transactions.filter(tx => filterByDate(tx, monthStart));
-    } else {
-      // Default to all time
-      todayTransactions = transactions;
-      weekTransactions = transactions;
-      monthTransactions = transactions;
-    }
+    const todayTransactions = transactions.filter(tx => filterByWindow(tx, todayStart, todayEnd));
+    const weekTransactions = transactions.filter(tx => filterByWindow(tx, weekStart, weekEnd));
+    const monthTransactions = transactions.filter(tx => filterByWindow(tx, monthStart, monthEnd));
+    const yearTransactions = transactions.filter(tx => filterByWindow(tx, yearStart, yearEnd));
 
     const calculateStats = (txs) => {
-      const successful = txs.filter(t => t.status === 'success');
-      const pending = txs.filter(t => t.status === 'pending');
-      const failed = txs.filter(t => t.status === 'failed');
-      
-      // Count revenue from both successful and pending transactions (since all current transactions are pending)
-      const revenueTransactions = [...successful, ...pending];
-      const totalRevenue = revenueTransactions.reduce((sum, t) => sum + (t.amount || 0), 0);
-      
+      const successful = txs.filter(t => isPaidStatus(t.status));
+      const pending = txs.filter(t => String(t.status || '').toLowerCase() === 'pending');
+      const failed = txs.filter(t => String(t.status || '').toLowerCase() === 'failed');
+
+      const totalRevenue = successful.reduce((sum, t) => sum + (t.amount || 0), 0);
+
       const totalTransactions = txs.length;
       const successRate = totalTransactions > 0 ? (successful.length / totalTransactions) * 100 : 0;
 
@@ -1136,7 +1131,7 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
         pendingTransactions: pending.length,
         failedTransactions: failed.length,
         successRate: successRate.toFixed(1) + '%',
-        averageTransactionValue: revenueTransactions.length > 0 ? (totalRevenue / revenueTransactions.length).toFixed(2) : 0,
+        averageTransactionValue: successful.length > 0 ? (totalRevenue / successful.length).toFixed(2) : 0,
       };
     };
 
@@ -1153,16 +1148,16 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
         return txDate >= dayStart && txDate < dayEnd;
       });
       
-      // Count revenue from both successful and pending transactions
+      // Count revenue from paid transactions only
       const dayRevenue = dayTransactions
-        .filter(t => t.status === 'success' || t.status === 'pending')
+        .filter(t => isPaidStatus(t.status))
         .reduce((sum, t) => sum + (t.amount || 0), 0);
       
       revenueOverTime.push({
         date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
         revenue: dayRevenue,
         transactions: dayTransactions.length,
-        successful: dayTransactions.filter(t => t.status === 'success').length
+        successful: dayTransactions.filter(t => isPaidStatus(t.status)).length
       });
     }
 
@@ -1174,28 +1169,26 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
         peakHours[hour] = { count: 0, revenue: 0, success: 0 };
       }
       peakHours[hour].count++;
-      // Count revenue from both successful and pending transactions
-      if (tx.status === 'success' || tx.status === 'pending') {
+      // Count revenue from paid transactions only
+      if (isPaidStatus(tx.status)) {
         peakHours[hour].revenue += tx.amount || 0;
-        if (tx.status === 'success') {
-          peakHours[hour].success++;
-        }
+        peakHours[hour].success++;
       }
     });
 
     // Calculate status distribution with amounts
     const statusDistribution = {
       success: {
-        count: transactions.filter(t => t.status === 'success').length,
-        amount: transactions.filter(t => t.status === 'success').reduce((sum, t) => sum + (t.amount || 0), 0)
+        count: transactions.filter(t => isPaidStatus(t.status)).length,
+        amount: transactions.filter(t => isPaidStatus(t.status)).reduce((sum, t) => sum + (t.amount || 0), 0)
       },
       failed: {
-        count: transactions.filter(t => t.status === 'failed').length,
-        amount: transactions.filter(t => t.status === 'failed').reduce((sum, t) => sum + (t.amount || 0), 0)
+        count: transactions.filter(t => String(t.status || '').toLowerCase() === 'failed').length,
+        amount: transactions.filter(t => String(t.status || '').toLowerCase() === 'failed').reduce((sum, t) => sum + (t.amount || 0), 0)
       },
       pending: {
-        count: transactions.filter(t => t.status === 'pending').length,
-        amount: transactions.filter(t => t.status === 'pending').reduce((sum, t) => sum + (t.amount || 0), 0)
+        count: transactions.filter(t => String(t.status || '').toLowerCase() === 'pending').length,
+        amount: transactions.filter(t => String(t.status || '').toLowerCase() === 'pending').reduce((sum, t) => sum + (t.amount || 0), 0)
       }
     };
 
@@ -1213,7 +1206,7 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
       .map(([amount, count]) => ({ amount: parseFloat(amount), count }));
 
     // Calculate average processing time
-    const completedTransactions = transactions.filter(t => t.status !== 'pending' && t.completed_at);
+    const completedTransactions = transactions.filter(t => isPaidStatus(t.status) && t.completed_at);
     const avgProcessingTime = completedTransactions.length > 0 
       ? completedTransactions.reduce((sum, t) => {
           const created = new Date(t.created_at);
@@ -1314,12 +1307,12 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
     
     // Group by customer phone (simplified segmentation)
     const customerData = {};
-    transactions.filter(t => t.status === 'success' && t.phone).forEach(tx => {
-      if (!customerData[tx.phone]) {
-        customerData[tx.phone] = { count: 0, totalAmount: 0 };
+    transactions.filter(t => isPaidStatus(t.status) && t.phone_number).forEach(tx => {
+      if (!customerData[tx.phone_number]) {
+        customerData[tx.phone_number] = { count: 0, totalAmount: 0 };
       }
-      customerData[tx.phone].count++;
-      customerData[tx.phone].totalAmount += tx.amount || 0;
+      customerData[tx.phone_number].count++;
+      customerData[tx.phone_number].totalAmount += tx.amount || 0;
     });
     
     Object.values(customerData).forEach(customer => {
@@ -1346,9 +1339,9 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
     // Check for rapid successive transactions from same phone
     const phoneTransactions = {};
     recentTransactions.forEach(tx => {
-      if (tx.phone) {
-        if (!phoneTransactions[tx.phone]) phoneTransactions[tx.phone] = [];
-        phoneTransactions[tx.phone].push(tx);
+      if (tx.phone_number) {
+        if (!phoneTransactions[tx.phone_number]) phoneTransactions[tx.phone_number] = [];
+        phoneTransactions[tx.phone_number].push(tx);
       }
     });
     
@@ -1368,6 +1361,7 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
       today: calculateStats(todayTransactions),
       thisWeek: calculateStats(weekTransactions),
       thisMonth: calculateStats(monthTransactions),
+      thisYear: calculateStats(yearTransactions),
       allTime: calculateStats(transactions),
       revenueOverTime,
       peakHours,
@@ -1377,6 +1371,7 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
         topAmounts,
         avgProcessingTime: avgProcessingTime.toFixed(1),
         totalVolume: transactions.reduce((sum, t) => sum + (t.amount || 0), 0),
+        totalPaidVolume: transactions.filter(t => isPaidStatus(t.status)).reduce((sum, t) => sum + (t.amount || 0), 0),
         conversionRate: transactions.length > 0 
           ? ((statusDistribution.success.count / transactions.length) * 100).toFixed(1) + '%'
           : '0%'

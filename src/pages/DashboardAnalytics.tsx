@@ -55,6 +55,7 @@ interface AnalyticsData {
   today: any;
   thisWeek: any;
   thisMonth: any;
+  thisYear: any;
   allTime: any;
   revenueOverTime: any[];
   peakHours: any;
@@ -105,7 +106,7 @@ export default function DashboardAnalytics() {
     "Today": "today",
     "Week": "thisWeek", 
     "Month": "thisMonth",
-    "Year": "allTime"
+    "Year": "thisYear"
   };
 
   useEffect(() => {

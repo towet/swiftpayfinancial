@@ -32,10 +32,16 @@ export default function DashboardTransactions() {
   const [activeFilter, setActiveFilter] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  const [, setTimeTick] = useState(0);
   const { toast } = useToast();
 
   useEffect(() => {
     fetchTransactions();
+  }, []);
+
+  useEffect(() => {
+    const id = setInterval(() => setTimeTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
   }, []);
 
   useEffect(() => {
@@ -96,13 +102,38 @@ export default function DashboardTransactions() {
     const date = new Date(timestamp);
     const now = new Date();
     const diff = now.getTime() - date.getTime();
-    const minutes = Math.floor(diff / 60000);
+    const seconds = Math.max(0, Math.floor(diff / 1000));
+    const minutes = Math.floor(seconds / 60);
     const hours = Math.floor(minutes / 60);
     const days = Math.floor(hours / 24);
 
-    if (minutes < 60) return `${minutes}m ago`;
-    if (hours < 24) return `${hours}h ago`;
+    if (seconds < 60) return `${seconds}s ago`;
+    if (minutes < 60) return `${minutes}m ${seconds % 60}s ago`;
+    if (hours < 24) return `${hours}h ${minutes % 60}m ago`;
     return `${days}d ago`;
+  };
+
+  const sumAmount = (txs: Transaction[]) => txs.reduce((sum, tx) => sum + (tx.amount || 0), 0);
+
+  const totalsByStatus = {
+    all: { count: transactions.length, amount: sumAmount(transactions) },
+    success: {
+      count: transactions.filter((t) => t.status === 'success').length,
+      amount: sumAmount(transactions.filter((t) => t.status === 'success')),
+    },
+    pending: {
+      count: transactions.filter((t) => t.status === 'pending').length,
+      amount: sumAmount(transactions.filter((t) => t.status === 'pending')),
+    },
+    failed: {
+      count: transactions.filter((t) => t.status === 'failed').length,
+      amount: sumAmount(transactions.filter((t) => t.status === 'failed')),
+    },
+  };
+
+  const currentTotals = {
+    count: filteredTransactions.length,
+    amount: sumAmount(filteredTransactions),
   };
 
   return (
@@ -135,7 +166,13 @@ export default function DashboardTransactions() {
                         : "bg-secondary text-muted-foreground hover:text-foreground"
                     )}
                   >
-                    {filter}
+                    {filter === 'All'
+                      ? `All (${totalsByStatus.all.count}) • ${formatAmount(totalsByStatus.all.amount)}`
+                      : filter === 'Success'
+                        ? `Success (${totalsByStatus.success.count}) • ${formatAmount(totalsByStatus.success.amount)}`
+                        : filter === 'Pending'
+                          ? `Pending (${totalsByStatus.pending.count}) • ${formatAmount(totalsByStatus.pending.amount)}`
+                          : `Failed (${totalsByStatus.failed.count}) • ${formatAmount(totalsByStatus.failed.amount)}`}
                   </button>
                 ))}
               </div>
@@ -169,7 +206,7 @@ export default function DashboardTransactions() {
           >
             <div className="p-6 border-b border-border">
               <h3 className="text-lg font-semibold text-foreground">
-                All Transactions ({filteredTransactions.length})
+                {activeFilter} Transactions ({currentTotals.count}) — {formatAmount(currentTotals.amount)}
               </h3>
             </div>
 
