@@ -1076,91 +1076,6 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
       const s = String(status || '').toLowerCase();
       return s === 'success' || s === 'paid' || s === 'completed';
     };
-
-    // Helper functions for enhanced analytics
-    const calculateBestPerformingAmount = (transactions) => {
-      const amountPerformance = {};
-      transactions.filter(t => isPaidStatus(t.status)).forEach(tx => {
-        const amount = tx.amount || 0;
-        if (!amountPerformance[amount]) {
-          amountPerformance[amount] = { count: 0, totalValue: 0 };
-        }
-        amountPerformance[amount].count++;
-        amountPerformance[amount].totalValue += amount;
-      });
-      
-      const sorted = Object.entries(amountPerformance)
-        .sort(([,a], [,b]) => b.totalValue - a.totalValue)
-        .slice(0, 3);
-      
-      return sorted.map(([amount, data]) => ({
-        amount: parseFloat(amount),
-        count: data.count,
-        totalValue: data.totalValue
-      }));
-    };
-
-    const calculateDailyTrends = (transactions) => {
-      const dailyData = {};
-      for (let i = 29; i >= 0; i--) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        const dateKey = date.toISOString().split('T')[0];
-        
-        const dayTransactions = transactions.filter(tx => {
-          const txDate = new Date(tx.created_at).toISOString().split('T')[0];
-          return txDate === dateKey;
-        });
-        
-        dailyData[dateKey] = {
-          date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-          volume: dayTransactions.length,
-          value: dayTransactions.filter(t => isPaidStatus(t.status)).reduce((sum, t) => sum + (t.amount || 0), 0),
-          success: dayTransactions.filter(t => isPaidStatus(t.status)).length,
-          failed: dayTransactions.filter(t => String(t.status || '').toLowerCase() === 'failed').length
-        };
-      }
-      return Object.values(dailyData);
-    };
-
-    const calculateWeeklyTrends = (transactions) => {
-      const weeklyData = {};
-      for (let i = 11; i >= 0; i--) {
-        const date = new Date();
-        date.setDate(date.getDate() - (i * 7));
-        const weekStart = new Date(date);
-        weekStart.setDate(date.getDate() - date.getDay());
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekStart.getDate() + 6);
-        
-        const weekKey = `Week ${Math.ceil((date.getDate() + new Date(date.getFullYear(), date.getMonth(), 1).getDay()) / 7)}`;
-        
-        const weekTransactions = transactions.filter(tx => {
-          const txDate = new Date(tx.created_at);
-          return txDate >= weekStart && txDate <= weekEnd;
-        });
-        
-        weeklyData[weekKey] = {
-          week: weekKey,
-          volume: weekTransactions.length,
-          value: weekTransactions.filter(t => isPaidStatus(t.status)).reduce((sum, t) => sum + (t.amount || 0), 0),
-          success: weekTransactions.filter(t => isPaidStatus(t.status)).length,
-          failed: weekTransactions.filter(t => String(t.status || '').toLowerCase() === 'failed').length
-        };
-      }
-      return Object.values(weeklyData).slice(-8);
-    };
-
-    const calculateSuccessRateByHour = (peakHours) => {
-      return Object.entries(peakHours).map(([hour, data]) => ({
-        hour: parseInt(hour),
-        successRate: data.count > 0 ? (data.success / data.count * 100).toFixed(1) : 0,
-        totalTransactions: data.count,
-        success: data.success,
-        failed: data.failed,
-        pending: data.pending
-      })).sort((a, b) => a.hour - b.hour);
-    };
     // First try to get user's tills
     const { data: tills } = await supabase
       .from('tills')
@@ -1361,22 +1276,18 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
       }
     }
 
-    // Calculate peak hours with success/failure breakdown
+    // Calculate peak hours
     const peakHours = {};
     transactions.forEach(tx => {
       const hour = new Date(tx.created_at).getHours();
       if (!peakHours[hour]) {
-        peakHours[hour] = { count: 0, revenue: 0, success: 0, failed: 0, pending: 0 };
+        peakHours[hour] = { count: 0, revenue: 0, success: 0 };
       }
       peakHours[hour].count++;
-      // Count revenue and status
+      // Count revenue from paid transactions only
       if (isPaidStatus(tx.status)) {
         peakHours[hour].revenue += tx.amount || 0;
         peakHours[hour].success++;
-      } else if (String(tx.status || '').toLowerCase() === 'failed') {
-        peakHours[hour].failed++;
-      } else if (String(tx.status || '').toLowerCase() === 'pending') {
-        peakHours[hour].pending++;
       }
     });
 
@@ -1408,21 +1319,21 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
       .sort(([,a], [,b]) => b - a)
       .slice(0, 5)
       .map(([amount, count]) => {
-        // Calculate success/failure rates for each popular amount
-        const amountTransactions = transactions.filter(tx => tx.amount === parseFloat(amount));
-        const successful = amountTransactions.filter(t => isPaidStatus(t.status)).length;
-        const failed = amountTransactions.filter(t => String(t.status || '').toLowerCase() === 'failed').length;
-        const pending = amountTransactions.filter(t => String(t.status || '').toLowerCase() === 'pending').length;
-        const totalValue = amountTransactions.filter(t => isPaidStatus(t.status)).reduce((sum, t) => sum + (t.amount || 0), 0);
-        
-        return { 
-          amount: parseFloat(amount), 
+        const numericAmount = parseFloat(amount);
+        const transactionsForAmount = transactions.filter(t => t.amount === numericAmount);
+        const successfulTx = transactionsForAmount.filter(t => isPaidStatus(t.status));
+        const failedTx = transactionsForAmount.filter(t => String(t.status || '').toLowerCase() === 'failed');
+        const pendingTx = transactionsForAmount.filter(t => String(t.status || '').toLowerCase() === 'pending');
+        const successRate = transactionsForAmount.length > 0 ? (successfulTx.length / transactionsForAmount.length) * 100 : 0;
+
+        return {
+          amount: numericAmount,
           count,
-          successful,
-          failed,
-          pending,
-          totalValue,
-          successRate: count > 0 ? (successful / count * 100).toFixed(1) : 0
+          successCount: successfulTx.length,
+          failedCount: failedTx.length,
+          pendingCount: pendingTx.length,
+          totalRevenue: successfulTx.reduce((sum, t) => sum + (t.amount || 0), 0),
+          successRate: parseFloat(successRate.toFixed(1))
         };
       });
 
@@ -1461,17 +1372,7 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
       .filter(t => isPaidStatus(t.status))
       .reduce((sum, t) => sum + (t.amount || 0), 0) || 1;
 
-    const amountSummary = Object.values(amountSummaryMap)
-      .map(a => ({
-        ...a,
-        shareOfTransactions: a.totalCount / totalRangeTx,
-        shareOfPaidRevenue: a.paidRevenue / totalRangePaidRevenue,
-        failureRate: a.totalCount > 0 ? a.failedCount / a.totalCount : 0
-      }))
-      .sort((a, b) => b.totalCount - a.totalCount)
-      .slice(0, 25);
-
-    const pad2 = (n) => String(n).padStart(2, '0');
+        const pad2 = (n) => String(n).padStart(2, '0');
     const toDateKey = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
     const weekNumber = (d) => {
       const date = new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -1699,19 +1600,7 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
         totalPaidVolume: transactions.filter(t => isPaidStatus(t.status)).reduce((sum, t) => sum + (t.amount || 0), 0),
         conversionRate: transactions.length > 0 
           ? ((statusDistribution.success.count / transactions.length) * 100).toFixed(1) + '%'
-          : '0%',
-        // Best performing amounts by time period
-        bestPerformingAmounts: {
-          today: calculateBestPerformingAmount(todayTransactions),
-          week: calculateBestPerformingAmount(weekTransactions),
-          month: calculateBestPerformingAmount(monthTransactions)
-        },
-        // Transaction trends
-        transactionTrends: {
-          dailyVolume: calculateDailyTrends(transactions),
-          weeklyVolume: calculateWeeklyTrends(transactions),
-          successRateByHour: calculateSuccessRateByHour(peakHours)
-        }
+          : '0%'
       },
       aiInsights: {
         insights,

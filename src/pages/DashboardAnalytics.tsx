@@ -60,9 +60,24 @@ interface AnalyticsData {
   revenueOverTime: any[];
   peakHours: any;
   statusDistribution: any;
+  amountAnalytics: {
+    range: string;
+    amountSummary: any[];
+    amountDailyTotals: any[];
+    amountWeeklyTotals: any[];
+    peakHoursByAmount: any;
+  };
   advancedMetrics: {
     uniqueAmounts: number;
-    topAmounts: { amount: number; count: number }[];
+    topAmounts: { 
+      amount: number; 
+      count: number;
+      successCount: number;
+      failedCount: number;
+      pendingCount: number;
+      totalRevenue: number;
+      successRate: number;
+    }[];
     avgProcessingTime: string;
     totalVolume: number;
     conversionRate: string;
@@ -285,7 +300,7 @@ export default function DashboardAnalytics() {
             </div>
           </motion.div>
 
-          {/* Enhanced Stats Row */}
+          {/* Stats Row */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <StatCard
               title="Total Revenue"
@@ -295,208 +310,27 @@ export default function DashboardAnalytics() {
               color="gradient-primary"
             />
             <StatCard
-              title="Total Transactions"
+              title="Transactions"
               value={currentData.totalTransactions}
-              change={8.3}
-              icon={CreditCard}
-              color="bg-blue-500/20 text-blue-500"
+              change={8.2}
+              icon={Activity}
+              color="gradient-primary"
             />
-            <StatCard
-              title="Successful Transactions"
-              value={analytics.statusDistribution.success.count}
-              change={15.2}
-              icon={CheckCircle}
-              color="bg-green-500/20 text-green-500"
-            />
-            <StatCard
-              title="Failed Transactions"
-              value={analytics.statusDistribution.failed.count}
-              change={-5.1}
-              icon={XCircle}
-              color="bg-red-500/20 text-red-500"
-            />
-          </div>
-
-          {/* Additional Performance Metrics */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <StatCard
               title="Success Rate"
-              value={`${((analytics.statusDistribution.success.count / currentData.totalTransactions) * 100).toFixed(1)}%`}
-              change={2.8}
-              icon={Target}
-              color="bg-purple-500/20 text-purple-500"
+              value={currentData.successRate}
+              change={2.1}
+              icon={CheckCircle}
+              color="gradient-primary"
             />
             <StatCard
-              title="Avg Transaction Value"
-              value={`KES ${Math.round(analytics.advancedMetrics.totalVolume / currentData.totalTransactions).toLocaleString()}`}
-              change={3.7}
-              icon={TrendingUp}
-              color="bg-orange-500/20 text-orange-500"
-            />
-            <StatCard
-              title="Peak Hour"
-              value={Object.entries(analytics.peakHours).sort(([,a], [,b]) => b.count - a.count)[0]?.[0] + ':00' || 'N/A'}
-              change={null}
-              icon={Clock}
-              color="bg-cyan-500/20 text-cyan-500"
-            />
-            <StatCard
-              title="Unique Amounts"
-              value={analytics.advancedMetrics.uniqueAmounts}
-              change={12.1}
-              icon={BarChart3}
-              color="bg-pink-500/20 text-pink-500"
+              title="Avg Transaction"
+              value={`KES ${currentData.averageTransactionValue}`}
+              change={-1.3}
+              icon={CreditCard}
+              color="gradient-primary"
             />
           </div>
-
-          {/* Detailed Amount Analysis Section */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="glass rounded-xl p-6"
-          >
-            <h3 className="text-lg font-semibold text-foreground mb-6">Best Performing Amounts</h3>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Top Performing Amounts */}
-              <div>
-                <h4 className="text-sm font-medium text-muted-foreground mb-4">Top 5 Amounts by Success Rate</h4>
-                <div className="space-y-3">
-                  {analytics.advancedMetrics.topAmounts.slice(0, 5).map((item, index) => {
-                    const successRate = ((item.count / currentData.totalTransactions) * 100).toFixed(1);
-                    return (
-                      <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-secondary/50">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                            <span className="text-xs font-bold text-primary">{index + 1}</span>
-                          </div>
-                          <div>
-                            <p className="font-medium text-foreground">KES {item.amount.toLocaleString()}</p>
-                            <p className="text-xs text-muted-foreground">{item.count} transactions</p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-medium text-success">{successRate}%</p>
-                          <p className="text-xs text-muted-foreground">share</p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Amount Performance Metrics */}
-              <div>
-                <h4 className="text-sm font-medium text-muted-foreground mb-4">Amount Performance Insights</h4>
-                <div className="space-y-3">
-                  <div className="p-3 rounded-lg bg-secondary/50">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">Most Popular Amount</span>
-                      <span className="font-medium text-foreground">
-                        KES {analytics.advancedMetrics.topAmounts[0]?.amount.toLocaleString() || 'N/A'}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="p-3 rounded-lg bg-secondary/50">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">Highest Revenue Amount</span>
-                      <span className="font-medium text-foreground">
-                        KES {Math.max(...analytics.advancedMetrics.topAmounts.map(a => a.amount * a.count)).toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="p-3 rounded-lg bg-secondary/50">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">Avg Amount per Transaction</span>
-                      <span className="font-medium text-foreground">
-                        KES {Math.round(analytics.advancedMetrics.totalVolume / currentData.totalTransactions).toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* Time-Based Analytics Section */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="glass rounded-xl p-6"
-          >
-            <h3 className="text-lg font-semibold text-foreground mb-6">Time-Based Analytics</h3>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Daily Breakdown */}
-              <div>
-                <h4 className="text-sm font-medium text-muted-foreground mb-4">Daily Performance</h4>
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center p-2 rounded-lg bg-secondary/30">
-                    <span className="text-xs text-muted-foreground">Total Transactions</span>
-                    <span className="text-sm font-medium">{analytics.today.totalTransactions || 0}</span>
-                  </div>
-                  <div className="flex justify-between items-center p-2 rounded-lg bg-secondary/30">
-                    <span className="text-xs text-muted-foreground">Successful</span>
-                    <span className="text-sm font-medium text-success">{analytics.today.successfulTransactions || 0}</span>
-                  </div>
-                  <div className="flex justify-between items-center p-2 rounded-lg bg-secondary/30">
-                    <span className="text-xs text-muted-foreground">Failed</span>
-                    <span className="text-sm font-medium text-destructive">{analytics.today.failedTransactions || 0}</span>
-                  </div>
-                  <div className="flex justify-between items-center p-2 rounded-lg bg-secondary/30">
-                    <span className="text-xs text-muted-foreground">Revenue</span>
-                    <span className="text-sm font-medium">KES {(analytics.today.totalRevenue || 0).toLocaleString()}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Weekly Breakdown */}
-              <div>
-                <h4 className="text-sm font-medium text-muted-foreground mb-4">Weekly Performance</h4>
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center p-2 rounded-lg bg-secondary/30">
-                    <span className="text-xs text-muted-foreground">Total Transactions</span>
-                    <span className="text-sm font-medium">{analytics.thisWeek.totalTransactions || 0}</span>
-                  </div>
-                  <div className="flex justify-between items-center p-2 rounded-lg bg-secondary/30">
-                    <span className="text-xs text-muted-foreground">Successful</span>
-                    <span className="text-sm font-medium text-success">{analytics.thisWeek.successfulTransactions || 0}</span>
-                  </div>
-                  <div className="flex justify-between items-center p-2 rounded-lg bg-secondary/30">
-                    <span className="text-xs text-muted-foreground">Failed</span>
-                    <span className="text-sm font-medium text-destructive">{analytics.thisWeek.failedTransactions || 0}</span>
-                  </div>
-                  <div className="flex justify-between items-center p-2 rounded-lg bg-secondary/30">
-                    <span className="text-xs text-muted-foreground">Revenue</span>
-                    <span className="text-sm font-medium">KES {(analytics.thisWeek.totalRevenue || 0).toLocaleString()}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Monthly Breakdown */}
-              <div>
-                <h4 className="text-sm font-medium text-muted-foreground mb-4">Monthly Performance</h4>
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center p-2 rounded-lg bg-secondary/30">
-                    <span className="text-xs text-muted-foreground">Total Transactions</span>
-                    <span className="text-sm font-medium">{analytics.thisMonth.totalTransactions || 0}</span>
-                  </div>
-                  <div className="flex justify-between items-center p-2 rounded-lg bg-secondary/30">
-                    <span className="text-xs text-muted-foreground">Successful</span>
-                    <span className="text-sm font-medium text-success">{analytics.thisMonth.successfulTransactions || 0}</span>
-                  </div>
-                  <div className="flex justify-between items-center p-2 rounded-lg bg-secondary/30">
-                    <span className="text-xs text-muted-foreground">Failed</span>
-                    <span className="text-sm font-medium text-destructive">{analytics.thisMonth.failedTransactions || 0}</span>
-                  </div>
-                  <div className="flex justify-between items-center p-2 rounded-lg bg-secondary/30">
-                    <span className="text-xs text-muted-foreground">Revenue</span>
-                    <span className="text-sm font-medium">KES {(analytics.thisMonth.totalRevenue || 0).toLocaleString()}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
 
           {/* Charts Row 1 */}
           <div className="grid lg:grid-cols-2 gap-6">
@@ -608,17 +442,14 @@ export default function DashboardAnalytics() {
               transition={{ delay: 0.4 }}
               className="glass rounded-xl p-6"
             >
-              <h3 className="text-lg font-semibold text-foreground mb-6">Peak Activity Hours (with Success Rates)</h3>
+              <h3 className="text-lg font-semibold text-foreground mb-6">Peak Activity Hours</h3>
               <div className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={Object.entries(analytics.peakHours)
                     .map(([hour, data]: [string, any]) => ({
                       hour: `${hour}:00`,
                       transactions: data.count,
-                      successful: data.success || 0,
-                      failed: (data.count - (data.success || 0)),
-                      revenue: data.revenue,
-                      successRate: data.count > 0 ? ((data.success || 0) / data.count * 100).toFixed(1) : 0
+                      revenue: data.revenue
                     }))
                     .sort((a, b) => parseInt(a.hour) - parseInt(b.hour))}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -626,23 +457,12 @@ export default function DashboardAnalytics() {
                     <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
                     <Tooltip 
                       contentStyle={{ 
-                        backgroundColor: "#1f2937", 
-                        border: "1px solid #374151",
+                        backgroundColor: "hsl(var(--background))", 
+                        border: "1px solid hsl(var(--border))",
                         borderRadius: "8px"
                       }}
-                      labelStyle={{ color: "#f3f4f6" }}
-                      itemStyle={{ color: "#f3f4f6" }}
-                      formatter={(value: any, name: string) => [
-                        <span style={{ color: "#ffffff" }}>
-                          {name === 'successRate' ? `${value}%` : value}
-                        </span>, 
-                        <span style={{ color: "#ffffff" }}>
-                          {name === 'transactions' ? 'Total' : name === 'successful' ? 'Success' : name === 'failed' ? 'Failed' : name === 'revenue' ? 'Revenue' : 'Success Rate'}
-                        </span>
-                      ]}
                     />
-                    <Bar dataKey="successful" stackId="a" fill="#10b981" radius={[0, 0, 0, 0]} />
-                    <Bar dataKey="failed" stackId="a" fill="#ef4444" radius={[8, 8, 0, 0]} />
+                    <Bar dataKey="transactions" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -669,14 +489,60 @@ export default function DashboardAnalytics() {
                         <div className="text-muted-foreground text-sm">{item.count} transactions</div>
                       </div>
                     </div>
-                    <div className="text-muted-foreground">
-                      {((item.count / (analytics.allTime.totalTransactions || 1)) * 100).toFixed(1)}%
+                    <div className="text-right">
+                      <div className="text-foreground font-semibold">KES {item.totalRevenue.toLocaleString()}</div>
+                      <div className={`text-sm ${item.successRate > 80 ? 'text-success' : item.successRate > 50 ? 'text-yellow-500' : 'text-destructive'}`}>
+                        {item.successRate}% success
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
             </motion.div>
           </div>
+
+          {/* Amount Deep Dive Section */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6 }}
+            className="glass rounded-xl p-6"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <BarChart3 className="w-6 h-6 text-green-400" />
+                <h3 className="text-lg font-semibold text-foreground">Amount Deep Dive</h3>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="text-xs text-muted-foreground uppercase">
+                  <tr>
+                    <th scope="col" className="px-6 py-3">Amount</th>
+                    <th scope="col" className="px-6 py-3">Transactions</th>
+                    <th scope="col" className="px-6 py-3">Success</th>
+                    <th scope="col" className="px-6 py-3">Failed</th>
+                    <th scope="col" className="px-6 py-3">Pending</th>
+                    <th scope="col" className="px-6 py-3">Success Rate</th>
+                    <th scope="col" className="px-6 py-3">Total Revenue</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {analytics.amountAnalytics.amountSummary.map((item, index) => (
+                    <tr key={index} className="border-b border-border">
+                      <td className="px-6 py-4 font-medium text-foreground">KES {item.amount.toLocaleString()}</td>
+                      <td className="px-6 py-4">{item.totalCount}</td>
+                      <td className="px-6 py-4 text-success">{item.paidCount}</td>
+                      <td className="px-6 py-4 text-destructive">{item.failedCount}</td>
+                      <td className="px-6 py-4 text-yellow-500">{item.pendingCount}</td>
+                      <td className="px-6 py-4">{((item.paidCount / item.totalCount) * 100).toFixed(1)}%</td>
+                      <td className="px-6 py-4">KES {item.paidRevenue.toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </motion.div>
 
           {/* AI Insights Section */}
           <motion.div
@@ -718,6 +584,54 @@ export default function DashboardAnalytics() {
                       insight.severity === 'success' ? 'bg-green-500/20' :
                       'bg-blue-500/20'
                     }`}>
+                      {insight.severity === 'error' ? <XCircle className="w-4 h-4 text-red-400" /> :
+                       insight.severity === 'warning' ? <AlertTriangle className="w-4 h-4 text-yellow-400" /> :
+                       insight.severity === 'success' ? <CheckCircle className="w-4 h-4 text-green-400" /> :
+                       <Eye className="w-4 h-4 text-blue-400" />}
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-medium text-foreground mb-1">{insight.title}</h4>
+                      <p className="text-sm text-muted-foreground mb-2">{insight.description}</p>
+                      <p className="text-xs text-primary">{insight.action}</p>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* Performance Insights Section */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.7 }}
+            className="glass rounded-xl p-6"
+          >
+            <div className="flex items-center gap-3 mb-6">
+              <Eye className="w-6 h-6 text-cyan-400" />
+              <h3 className="text-lg font-semibold text-foreground">Performance Insights</h3>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {analytics.aiInsights.insights.map((insight, index) => (
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.8 + index * 0.1 }}
+                  className={`p-4 rounded-xl border ${{
+                    error: 'bg-red-500/10 border-red-500/20',
+                    warning: 'bg-yellow-500/10 border-yellow-500/20',
+                    success: 'bg-green-500/10 border-green-500/20',
+                    info: 'bg-blue-500/10 border-blue-500/20'
+                  }[insight.severity] || 'bg-blue-500/10 border-blue-500/20'}`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`p-2 rounded-lg ${{
+                      error: 'bg-red-500/20',
+                      warning: 'bg-yellow-500/20',
+                      success: 'bg-green-500/20',
+                      info: 'bg-blue-500/20'
+                    }[insight.severity] || 'bg-blue-500/20'}`}>
                       {insight.severity === 'error' ? <XCircle className="w-4 h-4 text-red-400" /> :
                        insight.severity === 'warning' ? <AlertTriangle className="w-4 h-4 text-yellow-400" /> :
                        insight.severity === 'success' ? <CheckCircle className="w-4 h-4 text-green-400" /> :
