@@ -32,16 +32,10 @@ export default function DashboardTransactions() {
   const [activeFilter, setActiveFilter] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
-  const [, setTimeTick] = useState(0);
   const { toast } = useToast();
 
   useEffect(() => {
     fetchTransactions();
-  }, []);
-
-  useEffect(() => {
-    const id = setInterval(() => setTimeTick((t) => t + 1), 1000);
-    return () => clearInterval(id);
   }, []);
 
   useEffect(() => {
@@ -100,17 +94,14 @@ export default function DashboardTransactions() {
 
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const seconds = Math.max(0, Math.floor(diff / 1000));
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
+    if (Number.isNaN(date.getTime())) return "";
 
-    if (seconds < 60) return `${seconds}s ago`;
-    if (minutes < 60) return `${minutes}m ${seconds % 60}s ago`;
-    if (hours < 24) return `${hours}h ${minutes % 60}m ago`;
-    return `${days}d ago`;
+    return date.toLocaleTimeString("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    });
   };
 
   const sumAmount = (txs: Transaction[]) => txs.reduce((sum, tx) => sum + (tx.amount || 0), 0);

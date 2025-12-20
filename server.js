@@ -39,12 +39,12 @@ const MPESA_BUSINESS_SHORT_CODE = '3581047';
 const MPESA_PASSKEY = 'cb9041a559db0ad7cbd8debaa5574661c5bf4e1fb7c7e99a8116c83dcaa8474d';
 const CALLBACK_URL = process.env.RENDER_EXTERNAL_URL || 'http://localhost:5000';
 
-// M-Pesa API Endpoints
-const OAUTH_URL = 'https://api.safaricom.co.ke/oauth/v1/generate';
-const STK_PUSH_URL = 'https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest';
-const ACCOUNT_BALANCE_URL = 'https://api.safaricom.co.ke/mpesa/accountbalance/v1/query';
-const TRANSACTION_STATUS_URL = 'https://api.safaricom.co.ke/mpesa/transactionstatus/v1/query';
-const B2C_URL = 'https://api.safaricom.co.ke/mpesa/b2c/v1/paymentrequest';
+// M-Pesa API Endpoints (Sandbox for testing)
+const OAUTH_URL = 'https://sandbox.safaricom.co.ke/oauth/v1/generate';
+const STK_PUSH_URL = 'https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest';
+const ACCOUNT_BALANCE_URL = 'https://sandbox.safaricom.co.ke/mpesa/accountbalance/v1/query';
+const TRANSACTION_STATUS_URL = 'https://sandbox.safaricom.co.ke/mpesa/transactionstatus/v1/query';
+const B2C_URL = 'https://sandbox.safaricom.co.ke/mpesa/b2c/v1/paymentrequest';
 
 // JWT Secret
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
@@ -932,7 +932,18 @@ app.post('/api/mpesa/status', verifyToken, async (req, res) => {
 // Get Transactions
 app.get('/api/transactions', verifyToken, async (req, res) => {
   try {
-    const { tillId } = req.query;
+    const tillId = typeof req.query.tillId === 'string' ? req.query.tillId : undefined;
+
+    const { data: tills, error: tillsError } = await supabase
+      .from('tills')
+      .select('id')
+      .eq('user_id', req.userId);
+
+    if (tillsError) {
+      return res.status(400).json({ status: 'error', message: tillsError.message });
+    }
+
+    const tillIds = (tills || []).map(t => t.id);
 
     let query = supabase
       .from('transactions')
@@ -940,7 +951,15 @@ app.get('/api/transactions', verifyToken, async (req, res) => {
       .order('created_at', { ascending: false });
 
     if (tillId) {
+      if (tillIds.length > 0 && !tillIds.includes(tillId)) {
+        return res.status(403).json({ status: 'error', message: 'Access denied for this till' });
+      }
       query = query.eq('till_id', tillId);
+    } else if (tillIds.length > 0) {
+      query = query.in('till_id', tillIds);
+    } else {
+      // User has no tills, return all transactions (admin/testing)
+      query = query.limit(1000);
     }
 
     const { data, error } = await query;
@@ -1063,31 +1082,59 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
       .select('id')
       .eq('user_id', req.userId);
 
-    let transactions, error;
+    let allTransactions = [];
+    let hasMore = true;
+    let page = 0;
+    const pageSize = 1000;
     
     if (tills && tills.length > 0) {
-      // User has tills, get transactions for those tills
+      // User has tills, get all transactions for those tills with pagination
       const tillIds = tills.map(t => t.id);
-      const result = await supabase
-        .from('transactions')
-        .select('*')
-        .in('till_id', tillIds);
-      transactions = result.data;
-      error = result.error;
+      
+      while (hasMore) {
+        const result = await supabase
+          .from('transactions')
+          .select('*')
+          .in('till_id', tillIds)
+          .range(page * pageSize, (page + 1) * pageSize - 1)
+          .order('created_at', { ascending: false });
+        
+        if (result.error) {
+          return res.status(400).json({ status: 'error', message: result.error.message });
+        }
+        
+        if (result.data && result.data.length > 0) {
+          allTransactions = allTransactions.concat(result.data);
+          page++;
+          hasMore = result.data.length === pageSize;
+        } else {
+          hasMore = false;
+        }
+      }
     } else {
-      // User has no tills, get all transactions (for admin/testing)
-      const result = await supabase
-        .from('transactions')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(1000);
-      transactions = result.data;
-      error = result.error;
+      // User has no tills, get all transactions (for admin/testing) with pagination
+      while (hasMore) {
+        const result = await supabase
+          .from('transactions')
+          .select('*')
+          .range(page * pageSize, (page + 1) * pageSize - 1)
+          .order('created_at', { ascending: false });
+        
+        if (result.error) {
+          return res.status(400).json({ status: 'error', message: result.error.message });
+        }
+        
+        if (result.data && result.data.length > 0) {
+          allTransactions = allTransactions.concat(result.data);
+          page++;
+          hasMore = result.data.length === pageSize;
+        } else {
+          hasMore = false;
+        }
+      }
     }
-
-    if (error) {
-      return res.status(400).json({ status: 'error', message: error.message });
-    }
+    
+    const transactions = allTransactions;
 
     console.log(`Analytics: Found ${transactions?.length || 0} transactions for user ${req.userId}`);
 
@@ -1393,35 +1440,86 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
   }
 });
 
-// Get Dashboard Stats
 app.get('/api/dashboard/stats', verifyToken, async (req, res) => {
   try {
-    const { data: tills } = await supabase
+    const isPaidStatus = (status) => {
+      const s = String(status || '').toLowerCase();
+      return s === 'success' || s === 'paid' || s === 'completed';
+    };
+
+    const { data: tills, error: tillsError } = await supabase
       .from('tills')
       .select('id')
       .eq('user_id', req.userId);
 
-    const tillIds = tills.map(t => t.id);
+    if (tillsError) {
+      return res.status(400).json({ status: 'error', message: tillsError.message });
+    }
 
-    const { data: transactions } = await supabase
-      .from('transactions')
-      .select('*')
-      .in('till_id', tillIds);
+    const tillIds = (tills || []).map(t => t.id);
 
-    const successfulTransactions = transactions.filter(t => t.status === 'success');
+    let allTransactions = [];
+    let hasMore = true;
+    let page = 0;
+    const pageSize = 1000;
     
+    if (tillIds.length > 0) {
+      // User has tills, get all transactions for those tills with pagination
+      while (hasMore) {
+        const result = await supabase
+          .from('transactions')
+          .select('*')
+          .in('till_id', tillIds)
+          .range(page * pageSize, (page + 1) * pageSize - 1)
+          .order('created_at', { ascending: false });
+        
+        if (result.error) {
+          return res.status(400).json({ status: 'error', message: result.error.message });
+        }
+        
+        if (result.data && result.data.length > 0) {
+          allTransactions = allTransactions.concat(result.data);
+          page++;
+          hasMore = result.data.length === pageSize;
+        } else {
+          hasMore = false;
+        }
+      }
+    } else {
+      // User has no tills, get all transactions (for admin/testing) with pagination
+      while (hasMore) {
+        const result = await supabase
+          .from('transactions')
+          .select('*')
+          .range(page * pageSize, (page + 1) * pageSize - 1)
+          .order('created_at', { ascending: false });
+        
+        if (result.error) {
+          return res.status(400).json({ status: 'error', message: result.error.message });
+        }
+        
+        if (result.data && result.data.length > 0) {
+          allTransactions = allTransactions.concat(result.data);
+          page++;
+          hasMore = result.data.length === pageSize;
+        } else {
+          hasMore = false;
+        }
+      }
+    }
+
+    const txs = allTransactions;
+    const successfulTransactions = txs.filter(t => isPaidStatus(t.status));
+
     const stats = {
-      totalTransactions: transactions.length,
+      totalTransactions: txs.length,
       totalAmount: successfulTransactions.reduce((sum, t) => sum + (t.amount || 0), 0),
       successfulTransactions: successfulTransactions.length,
-      failedTransactions: transactions.filter(t => t.status === 'failed').length,
-      pendingTransactions: transactions.filter(t => t.status === 'pending').length
+      failedTransactions: txs.filter(t => String(t.status || '').toLowerCase() === 'failed').length,
+      pendingTransactions: txs.filter(t => String(t.status || '').toLowerCase() === 'pending').length
     };
 
-    res.json({
-      status: 'success',
-      stats
-    });
+    res.json({ status: 'success', stats });
   } catch (error) {
     res.status(500).json({ status: 'error', message: error.message });
   }
@@ -1761,8 +1859,8 @@ app.get('/api/dashboard/realtime', verifyToken, async (req, res) => {
       revenueLastHour: hourlyTransactions
         .filter(t => t.status === 'success')
         .reduce((sum, t) => sum + (t.amount || 0), 0),
-      recentTransactions: data.slice(0, 10),
-      activeUsers: new Set(data.slice(0, 50).map(tx => tx.phone)).size,
+      recentTransactions: transactions.slice(0, 10),
+      activeUsers: new Set(transactions.slice(0, 50).map(tx => tx.phone_number).filter(Boolean)).size,
       averageTransactionValue: recentTransactions.length > 0
         ? recentTransactions.reduce((sum, t) => sum + (t.amount || 0), 0) / recentTransactions.length
         : 0
