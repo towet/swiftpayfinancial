@@ -40,7 +40,7 @@ const MPESA_PASSKEY = 'cb9041a559db0ad7cbd8debaa5574661c5bf4e1fb7c7e99a8116c83dc
 const CALLBACK_URL = process.env.RENDER_EXTERNAL_URL || 'http://localhost:5000';
 
 // M-Pesa API Endpoints (Sandbox for testing)
-const OAUTH_URL = 'https://sandbox.safaricom.co.ke/oauth/v1/generate';
+const OAUTH_URL = 'https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials';
 const STK_PUSH_URL = 'https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest';
 const ACCOUNT_BALANCE_URL = 'https://sandbox.safaricom.co.ke/mpesa/accountbalance/v1/query';
 const TRANSACTION_STATUS_URL = 'https://sandbox.safaricom.co.ke/mpesa/transactionstatus/v1/query';
@@ -107,18 +107,25 @@ const verifyApiKey = async (req, res, next) => {
 async function getMpesaAccessToken() {
   try {
     const auth = Buffer.from(`${MPESA_CONSUMER_KEY}:${MPESA_CONSUMER_SECRET}`).toString('base64');
+    console.log('Attempting to get M-Pesa token with URL:', OAUTH_URL);
+    console.log('Consumer Key:', MPESA_CONSUMER_KEY);
+    console.log('Consumer Secret:', MPESA_CONSUMER_SECRET ? 'Present' : 'Missing');
+    
     const response = await axios.get(OAUTH_URL, {
       headers: {
         Authorization: `Basic ${auth}`,
         'Content-Type': 'application/json'
-      },
-      params: {
-        grant_type: 'client_credentials'
       }
     });
+    
+    console.log('M-Pesa token response:', response.data);
     return response.data.access_token;
   } catch (error) {
-    console.error('M-Pesa Token Error:', error.response?.data || error.message);
+    console.error('M-Pesa Token Error Details:');
+    console.error('Status:', error.response?.status);
+    console.error('Status Text:', error.response?.statusText);
+    console.error('Response Data:', error.response?.data);
+    console.error('Message:', error.message);
     throw new Error('Failed to get M-Pesa access token');
   }
 }
@@ -1156,6 +1163,20 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
       return txDate >= startDate && txDate < endDate;
     };
 
+    const rangeKey = String(range || 'week').toLowerCase();
+    let selectedStart = weekStart;
+    let selectedEnd = weekEnd;
+    if (rangeKey === 'today') {
+      selectedStart = todayStart;
+      selectedEnd = todayEnd;
+    } else if (rangeKey === 'month') {
+      selectedStart = monthStart;
+      selectedEnd = monthEnd;
+    } else if (rangeKey === 'year') {
+      selectedStart = yearStart;
+      selectedEnd = yearEnd;
+    }
+
     const todayTransactions = transactions.filter(tx => filterByWindow(tx, todayStart, todayEnd));
     const weekTransactions = transactions.filter(tx => filterByWindow(tx, weekStart, weekEnd));
     const monthTransactions = transactions.filter(tx => filterByWindow(tx, monthStart, monthEnd));
@@ -1184,28 +1205,82 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
 
     // Calculate revenue over time (last 7 days)
     const revenueOverTime = [];
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-      const dayEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
-      
-      const dayTransactions = transactions.filter(tx => {
-        const txDate = new Date(tx.created_at);
-        return txDate >= dayStart && txDate < dayEnd;
-      });
-      
-      // Count revenue from paid transactions only
-      const dayRevenue = dayTransactions
-        .filter(t => isPaidStatus(t.status))
-        .reduce((sum, t) => sum + (t.amount || 0), 0);
-      
-      revenueOverTime.push({
-        date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        revenue: dayRevenue,
-        transactions: dayTransactions.length,
-        successful: dayTransactions.filter(t => isPaidStatus(t.status)).length
-      });
+    if (rangeKey === 'today') {
+      for (let h = 0; h < 24; h++) {
+        const bucketStart = new Date(selectedStart);
+        bucketStart.setHours(h, 0, 0, 0);
+        const bucketEnd = new Date(selectedStart);
+        bucketEnd.setHours(h + 1, 0, 0, 0);
+
+        const bucketTx = transactions.filter(tx => filterByWindow(tx, bucketStart, bucketEnd));
+        const bucketRevenue = bucketTx
+          .filter(t => isPaidStatus(t.status))
+          .reduce((sum, t) => sum + (t.amount || 0), 0);
+
+        revenueOverTime.push({
+          date: `${String(h).padStart(2, '0')}:00`,
+          revenue: bucketRevenue,
+          transactions: bucketTx.length,
+          successful: bucketTx.filter(t => isPaidStatus(t.status)).length
+        });
+      }
+    } else if (rangeKey === 'month') {
+      for (let d = new Date(selectedStart); d < selectedEnd; d.setDate(d.getDate() + 1)) {
+        const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        const dayEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+        const dayTransactions = transactions.filter(tx => filterByWindow(tx, dayStart, dayEnd));
+
+        const dayRevenue = dayTransactions
+          .filter(t => isPaidStatus(t.status))
+          .reduce((sum, t) => sum + (t.amount || 0), 0);
+
+        revenueOverTime.push({
+          date: dayStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          revenue: dayRevenue,
+          transactions: dayTransactions.length,
+          successful: dayTransactions.filter(t => isPaidStatus(t.status)).length
+        });
+      }
+    } else if (rangeKey === 'year') {
+      for (let m = 0; m < 12; m++) {
+        const monthBucketStart = new Date(now.getFullYear(), m, 1);
+        const monthBucketEnd = new Date(now.getFullYear(), m + 1, 1);
+        const monthTransactions = transactions.filter(tx => filterByWindow(tx, monthBucketStart, monthBucketEnd));
+
+        const monthRevenue = monthTransactions
+          .filter(t => isPaidStatus(t.status))
+          .reduce((sum, t) => sum + (t.amount || 0), 0);
+
+        revenueOverTime.push({
+          date: monthBucketStart.toLocaleDateString('en-US', { month: 'short' }),
+          revenue: monthRevenue,
+          transactions: monthTransactions.length,
+          successful: monthTransactions.filter(t => isPaidStatus(t.status)).length
+        });
+      }
+    } else {
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+        const dayEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
+
+        const dayTransactions = transactions.filter(tx => {
+          const txDate = new Date(tx.created_at);
+          return txDate >= dayStart && txDate < dayEnd;
+        });
+
+        const dayRevenue = dayTransactions
+          .filter(t => isPaidStatus(t.status))
+          .reduce((sum, t) => sum + (t.amount || 0), 0);
+
+        revenueOverTime.push({
+          date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          revenue: dayRevenue,
+          transactions: dayTransactions.length,
+          successful: dayTransactions.filter(t => isPaidStatus(t.status)).length
+        });
+      }
     }
 
     // Calculate peak hours
@@ -1251,6 +1326,103 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
       .sort(([,a], [,b]) => b - a)
       .slice(0, 5)
       .map(([amount, count]) => ({ amount: parseFloat(amount), count }));
+
+    const rangeTransactions = transactions.filter(tx => filterByWindow(tx, selectedStart, selectedEnd));
+    const amountSummaryMap = {};
+    const normalizeStatus = (s) => String(s || '').toLowerCase();
+
+    rangeTransactions.forEach(tx => {
+      const amount = Number(tx.amount || 0);
+      const key = String(amount);
+      if (!amountSummaryMap[key]) {
+        amountSummaryMap[key] = {
+          amount,
+          totalCount: 0,
+          paidCount: 0,
+          failedCount: 0,
+          pendingCount: 0,
+          paidRevenue: 0
+        };
+      }
+
+      amountSummaryMap[key].totalCount++;
+      const st = normalizeStatus(tx.status);
+      if (isPaidStatus(st)) {
+        amountSummaryMap[key].paidCount++;
+        amountSummaryMap[key].paidRevenue += amount;
+      } else if (st === 'failed') {
+        amountSummaryMap[key].failedCount++;
+      } else if (st === 'pending') {
+        amountSummaryMap[key].pendingCount++;
+      }
+    });
+
+    const totalRangeTx = rangeTransactions.length || 1;
+    const totalRangePaidRevenue = rangeTransactions
+      .filter(t => isPaidStatus(t.status))
+      .reduce((sum, t) => sum + (t.amount || 0), 0) || 1;
+
+    const amountSummary = Object.values(amountSummaryMap)
+      .map(a => ({
+        ...a,
+        shareOfTransactions: a.totalCount / totalRangeTx,
+        shareOfPaidRevenue: a.paidRevenue / totalRangePaidRevenue,
+        failureRate: a.totalCount > 0 ? a.failedCount / a.totalCount : 0
+      }))
+      .sort((a, b) => b.totalCount - a.totalCount)
+      .slice(0, 25);
+
+    const pad2 = (n) => String(n).padStart(2, '0');
+    const toDateKey = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+    const weekNumber = (d) => {
+      const date = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      const yearStartLocal = new Date(date.getFullYear(), 0, 1);
+      const diffDays = Math.floor((date - yearStartLocal) / (24 * 60 * 60 * 1000));
+      return Math.floor((diffDays + yearStartLocal.getDay()) / 7) + 1;
+    };
+
+    const dailyMap = {};
+    const weeklyMap = {};
+
+    rangeTransactions.forEach(tx => {
+      const created = new Date(tx.created_at);
+      const amount = Number(tx.amount || 0);
+      const amountKey = String(amount);
+      const dayKey = toDateKey(created);
+      const weekKey = `${created.getFullYear()}-W${pad2(weekNumber(created))}`;
+
+      const dailyKey = `${dayKey}|${amountKey}`;
+      if (!dailyMap[dailyKey]) {
+        dailyMap[dailyKey] = { date: dayKey, amount, count: 0, paidRevenue: 0 };
+      }
+      dailyMap[dailyKey].count++;
+      if (isPaidStatus(tx.status)) dailyMap[dailyKey].paidRevenue += amount;
+
+      const weeklyKey = `${weekKey}|${amountKey}`;
+      if (!weeklyMap[weeklyKey]) {
+        weeklyMap[weeklyKey] = { week: weekKey, amount, count: 0, paidRevenue: 0 };
+      }
+      weeklyMap[weeklyKey].count++;
+      if (isPaidStatus(tx.status)) weeklyMap[weeklyKey].paidRevenue += amount;
+    });
+
+    const amountDailyTotals = Object.values(dailyMap)
+      .sort((a, b) => (a.date === b.date ? a.amount - b.amount : a.date.localeCompare(b.date)));
+    const amountWeeklyTotals = Object.values(weeklyMap)
+      .sort((a, b) => (a.week === b.week ? a.amount - b.amount : a.week.localeCompare(b.week)));
+
+    const topAmountSet = new Set(amountSummary.slice(0, 10).map(a => String(a.amount)));
+    const peakHoursByAmount = {};
+    rangeTransactions.forEach(tx => {
+      const amount = Number(tx.amount || 0);
+      const amountKey = String(amount);
+      if (!topAmountSet.has(amountKey)) return;
+      const hour = new Date(tx.created_at).getHours();
+      if (!peakHoursByAmount[amountKey]) peakHoursByAmount[amountKey] = {};
+      if (!peakHoursByAmount[amountKey][hour]) peakHoursByAmount[amountKey][hour] = { count: 0, paidRevenue: 0 };
+      peakHoursByAmount[amountKey][hour].count++;
+      if (isPaidStatus(tx.status)) peakHoursByAmount[amountKey][hour].paidRevenue += amount;
+    });
 
     // Calculate average processing time
     const completedTransactions = transactions.filter(t => isPaidStatus(t.status) && t.completed_at);
@@ -1413,6 +1585,13 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
       revenueOverTime,
       peakHours,
       statusDistribution,
+      amountAnalytics: {
+        range: rangeKey,
+        amountSummary,
+        amountDailyTotals,
+        amountWeeklyTotals,
+        peakHoursByAmount
+      },
       advancedMetrics: {
         uniqueAmounts: uniqueAmounts.length,
         topAmounts,
