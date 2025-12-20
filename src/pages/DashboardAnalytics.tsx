@@ -646,9 +646,6 @@ export default function DashboardAnalytics() {
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
             </motion.div>
 
             {/* Top Transaction Amounts */}
