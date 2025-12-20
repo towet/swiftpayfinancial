@@ -211,19 +211,41 @@ export default function DashboardAnalytics() {
       setGeminiInsights(response.data as GeminiInsightsResponse);
     } catch (error: any) {
       const status = error?.response?.status;
+      const backendMessage = error?.response?.data?.message;
+      const fallbackMsg = error?.message || 'Request failed';
+
       if (status === 429) {
         toast({
           title: "Rate limited",
-          description: "Too many AI insight requests. Please try again shortly.",
+          description: backendMessage || "Too many AI insight requests. Please try again shortly.",
           variant: "destructive",
         });
-      } else {
-        toast({
-          title: "AI Insights Error",
-          description: "Failed to load AI insights",
-          variant: "destructive",
-        });
+        return;
       }
+
+      if (status === 401) {
+        toast({
+          title: "Unauthorized",
+          description: backendMessage || "Your session may have expired. Please login again.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (status === 404) {
+        toast({
+          title: "AI Endpoint Not Found",
+          description: "Backend route /api/dashboard/ai-insights not found. Restart the server after pulling latest changes.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "AI Insights Error",
+        description: backendMessage ? `${backendMessage} (HTTP ${status})` : `${fallbackMsg}${status ? ` (HTTP ${status})` : ''}`,
+        variant: "destructive",
+      });
     } finally {
       setGeminiLoading(false);
     }

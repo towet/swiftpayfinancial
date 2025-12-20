@@ -10,7 +10,7 @@ import { mpesaVerificationProxy } from './api/mpesa-verification-proxy.js';
 
 dotenv.config();
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || 'AIzaSyB7VxTESTKEYFORDEVELOPMENTONLY'; // TODO: replace with env var in production
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
 const GEMINI_INSIGHTS_TTL_MS = Number(process.env.GEMINI_INSIGHTS_TTL_MS || 30 * 60 * 1000);
 const GEMINI_RATE_LIMIT_WINDOW_MS = Number(process.env.GEMINI_RATE_LIMIT_WINDOW_MS || 60 * 1000);
@@ -270,20 +270,28 @@ async function generateGeminiInsights({ core, rangeKey, userId, requestedTillId 
   }
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent`;
-  const response = await axios.post(
-    `${url}?key=${encodeURIComponent(GEMINI_API_KEY)}`,
-    {
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.2,
-        maxOutputTokens: 800
+  let response;
+  try {
+    response = await axios.post(
+      `${url}?key=${encodeURIComponent(GEMINI_API_KEY)}`,
+      {
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: 800
+        }
+      },
+      {
+        timeout: 12000,
+        headers: { 'Content-Type': 'application/json' }
       }
-    },
-    {
-      timeout: 12000,
-      headers: { 'Content-Type': 'application/json' }
-    }
-  );
+    );
+  } catch (error) {
+    const details = error?.response?.data || error?.message;
+    console.error('Gemini API error:', details);
+    const fallback = buildRuleBasedInsightsFromCore(core);
+    return { ...fallback, provider: 'gemini_error', model: GEMINI_MODEL };
+  }
 
   const text = response?.data?.candidates?.[0]?.content?.parts?.map(p => p.text).filter(Boolean).join('\n') || '';
   const jsonText = extractJsonFromModelText(text);
