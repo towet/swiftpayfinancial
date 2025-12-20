@@ -263,10 +263,12 @@ function buildRuleBasedInsightsFromCore(core) {
 }
 
 async function generateGeminiInsights({ core, rangeKey, userId, requestedTillId }) {
-  const prompt = `You are an expert fintech analytics assistant. Generate concise, actionable insights for a merchant based on transaction analytics.\n\nReturn STRICT JSON only with this schema:\n{\n  "anomalyScore": "low"|"high",\n  "insights": [\n    {"type":"anomaly"|"positive"|"info","title":string,"description":string,"severity":"error"|"warning"|"success"|"info","action":string}\n  ]\n}\n\nRules:\n- Max 9 insights.\n- Every insight must cite concrete evidence from the provided numbers.\n- Use KES currency formatting in descriptions.\n- Keep descriptions under 160 chars each.\n\nDATA (selected period):\n${JSON.stringify({ rangeKey, requestedTillId, core }, null, 2)}`;
+  const prompt = `You are an expert fintech analytics assistant for a payment platform.\n\nTASK:\nGenerate high-signal, evidence-driven insights and next actions for a merchant. Prioritize issues that impact conversion, revenue, and reliability.\n\nOUTPUT FORMAT:\nReturn STRICT JSON only (no markdown, no extra text) with this schema:\n{\n  "anomalyScore": "low"|"high",\n  "insights": [\n    {\n      "type": "anomaly"|"positive"|"info",\n      "title": string,\n      "description": string,\n      "severity": "error"|"warning"|"success"|"info",\n      "action": string\n    }\n  ]\n}\n\nRULES:\n- Max 9 insights.\n- Every insight MUST cite at least one concrete number from the provided data.\n- Use KES currency formatting in descriptions.\n- Descriptions < 160 chars.\n- Actions must be operational and testable (what to check/change next).\n\nDATA (selected period):\n${JSON.stringify({ rangeKey, requestedTillId, core }, null, 2)}`;
 
   if (!GEMINI_API_KEY) {
-    return buildRuleBasedInsightsFromCore(core);
+    const err = new Error('Gemini is not configured: missing GEMINI_API_KEY');
+    err.statusCode = 503;
+    throw err;
   }
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent`;
@@ -287,10 +289,10 @@ async function generateGeminiInsights({ core, rangeKey, userId, requestedTillId 
       }
     );
   } catch (error) {
-    const details = error?.response?.data || error?.message;
-    console.error('Gemini API error:', details);
-    const fallback = buildRuleBasedInsightsFromCore(core);
-    return { ...fallback, provider: 'gemini_error', model: GEMINI_MODEL };
+    const msg = error?.response?.data?.error?.message || error?.response?.data?.message || error?.message || 'Gemini request failed';
+    const err = new Error(msg);
+    err.statusCode = error?.response?.status || 502;
+    throw err;
   }
 
   const text = response?.data?.candidates?.[0]?.content?.parts?.map(p => p.text).filter(Boolean).join('\n') || '';
@@ -302,11 +304,14 @@ async function generateGeminiInsights({ core, rangeKey, userId, requestedTillId 
       return { ...parsed, provider: 'gemini', model: GEMINI_MODEL };
     }
   } catch (e) {
-    // fall through to rule-based
+    const err = new Error('Gemini response was not valid JSON');
+    err.statusCode = 502;
+    throw err;
   }
 
-  const fallback = buildRuleBasedInsightsFromCore(core);
-  return { ...fallback, provider: GEMINI_API_KEY ? 'gemini_unparsed' : fallback.provider, model: GEMINI_MODEL };
+  const err = new Error('Gemini response did not match expected schema');
+  err.statusCode = 502;
+  throw err;
 }
 
 // Get M-Pesa Access Token
