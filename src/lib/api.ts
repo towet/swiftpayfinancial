@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // Hardcoded Render backend URL (without /api suffix - pages add it)
-const API_BASE_URL = 'https://swiftpay-backend-uvv9.onrender.com';
+const API_BASE_URL = (import.meta as any)?.env?.VITE_API_BASE_URL || 'https://swiftpay-backend-uvv9.onrender.com';
 
 // Set default base URL for all axios requests
 axios.defaults.baseURL = API_BASE_URL;
