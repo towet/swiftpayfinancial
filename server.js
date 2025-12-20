@@ -39,12 +39,12 @@ const MPESA_BUSINESS_SHORT_CODE = '3581047';
 const MPESA_PASSKEY = 'cb9041a559db0ad7cbd8debaa5574661c5bf4e1fb7c7e99a8116c83dcaa8474d';
 const CALLBACK_URL = process.env.RENDER_EXTERNAL_URL || 'http://localhost:5000';
 
-// M-Pesa API Endpoints (Sandbox for testing)
-const OAUTH_URL = 'https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials';
-const STK_PUSH_URL = 'https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest';
-const ACCOUNT_BALANCE_URL = 'https://sandbox.safaricom.co.ke/mpesa/accountbalance/v1/query';
-const TRANSACTION_STATUS_URL = 'https://sandbox.safaricom.co.ke/mpesa/transactionstatus/v1/query';
-const B2C_URL = 'https://sandbox.safaricom.co.ke/mpesa/b2c/v1/paymentrequest';
+// M-Pesa API Endpoints (Production - same as working version)
+const OAUTH_URL = 'https://api.safaricom.co.ke/oauth/v1/generate';
+const STK_PUSH_URL = 'https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest';
+const ACCOUNT_BALANCE_URL = 'https://api.safaricom.co.ke/mpesa/accountbalance/v1/query';
+const TRANSACTION_STATUS_URL = 'https://api.safaricom.co.ke/mpesa/transactionstatus/v1/query';
+const B2C_URL = 'https://api.safaricom.co.ke/mpesa/b2c/v1/paymentrequest';
 
 // JWT Secret
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
@@ -107,25 +107,18 @@ const verifyApiKey = async (req, res, next) => {
 async function getMpesaAccessToken() {
   try {
     const auth = Buffer.from(`${MPESA_CONSUMER_KEY}:${MPESA_CONSUMER_SECRET}`).toString('base64');
-    console.log('Attempting to get M-Pesa token with URL:', OAUTH_URL);
-    console.log('Consumer Key:', MPESA_CONSUMER_KEY);
-    console.log('Consumer Secret:', MPESA_CONSUMER_SECRET ? 'Present' : 'Missing');
-    
     const response = await axios.get(OAUTH_URL, {
       headers: {
         Authorization: `Basic ${auth}`,
         'Content-Type': 'application/json'
+      },
+      params: {
+        grant_type: 'client_credentials'
       }
     });
-    
-    console.log('M-Pesa token response:', response.data);
     return response.data.access_token;
   } catch (error) {
-    console.error('M-Pesa Token Error Details:');
-    console.error('Status:', error.response?.status);
-    console.error('Status Text:', error.response?.statusText);
-    console.error('Response Data:', error.response?.data);
-    console.error('Message:', error.message);
+    console.error('M-Pesa Token Error:', error.response?.data || error.message);
     throw new Error('Failed to get M-Pesa access token');
   }
 }
