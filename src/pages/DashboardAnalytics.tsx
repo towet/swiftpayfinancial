@@ -38,7 +38,8 @@ import {
   Zap,
   Target,
   Eye,
-  BarChart3
+  BarChart3,
+  Trophy
 } from "lucide-react";
 import axios from "axios";
 import { useToast } from "@/hooks/use-toast";
@@ -453,29 +454,62 @@ export default function DashboardAnalytics() {
               </div>
             </motion.div>
 
-            {/* Top Transaction Amounts */}
+            {/* Top Transaction Amounts - Enhanced */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.5 }}
               className="glass rounded-xl p-6"
             >
-              <h3 className="text-lg font-semibold text-foreground mb-6">Popular Amounts</h3>
+              <h3 className="text-lg font-semibold text-foreground mb-6">Popular Amounts Analysis</h3>
               <div className="space-y-3">
                 {analytics.advancedMetrics.topAmounts.map((item, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 bg-secondary/50 rounded-xl">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-primary-foreground font-bold`} 
-                           style={{ backgroundColor: COLORS[index % COLORS.length] }}>
-                        {index + 1}
+                  <div key={index} className="p-4 bg-secondary/50 rounded-xl border border-border/50">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-primary-foreground font-bold`} 
+                             style={{ backgroundColor: COLORS[index % COLORS.length] }}>
+                          {index + 1}
+                        </div>
+                        <div>
+                          <div className="text-foreground font-semibold text-lg">KES {item.amount.toLocaleString()}</div>
+                          <div className="text-muted-foreground text-sm">{item.count} transactions</div>
+                        </div>
                       </div>
-                      <div>
-                        <div className="text-foreground font-semibold">KES {item.amount.toLocaleString()}</div>
-                        <div className="text-muted-foreground text-sm">{item.count} transactions</div>
+                      <div className="text-right">
+                        <div className="text-foreground font-semibold">{((item.count / (analytics.allTime.totalTransactions || 1)) * 100).toFixed(1)}%</div>
+                        <div className="text-muted-foreground text-sm">of total</div>
                       </div>
                     </div>
-                    <div className="text-muted-foreground">
-                      {((item.count / (analytics.allTime.totalTransactions || 1)) * 100).toFixed(1)}%
+                    
+                    {/* Success/Failure Breakdown */}
+                    <div className="grid grid-cols-3 gap-2 mt-3">
+                      <div className="text-center p-2 bg-green-500/10 rounded-lg border border-green-500/20">
+                        <div className="text-green-400 font-semibold">{item.successful}</div>
+                        <div className="text-green-400/70 text-xs">Success</div>
+                      </div>
+                      <div className="text-center p-2 bg-red-500/10 rounded-lg border border-red-500/20">
+                        <div className="text-red-400 font-semibold">{item.failed}</div>
+                        <div className="text-red-400/70 text-xs">Failed</div>
+                      </div>
+                      <div className="text-center p-2 bg-orange-500/10 rounded-lg border border-orange-500/20">
+                        <div className="text-orange-400 font-semibold">{item.pending}</div>
+                        <div className="text-orange-400/70 text-xs">Pending</div>
+                      </div>
+                    </div>
+                    
+                    {/* Total Value and Success Rate */}
+                    <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/50">
+                      <div>
+                        <div className="text-foreground font-semibold">KES {item.totalValue.toLocaleString()}</div>
+                        <div className="text-muted-foreground text-xs">Total Value</div>
+                      </div>
+                      <div className="text-right">
+                        <div className={`font-semibold ${item.successRate >= 70 ? 'text-green-400' : item.successRate >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>
+                          {item.successRate}%
+                        </div>
+                        <div className="text-muted-foreground text-xs">Success Rate</div>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -753,6 +787,175 @@ export default function DashboardAnalytics() {
               <div className="text-foreground text-xl font-bold">{analytics.advancedMetrics.conversionRate}</div>
             </motion.div>
           </div>
+
+          {/* Enhanced Analytics Sections */}
+          <div className="grid lg:grid-cols-2 gap-6">
+            {/* Best Performing Amounts */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.7 }}
+              className="glass rounded-xl p-6"
+            >
+              <h3 className="text-lg font-semibold text-foreground mb-6">Best Performing Amounts</h3>
+              <div className="space-y-4">
+                {['today', 'week', 'month'].map((period) => (
+                  <div key={period} className="p-4 bg-secondary/30 rounded-xl">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-foreground font-medium capitalize">{period}</h4>
+                      <Trophy className="w-4 h-4 text-yellow-400" />
+                    </div>
+                    {analytics.advancedMetrics.bestPerformingAmounts[period]?.length > 0 ? (
+                      <div className="space-y-2">
+                        {analytics.advancedMetrics.bestPerformingAmounts[period].map((item, index) => (
+                          <div key={index} className="flex items-center justify-between p-2 bg-background/50 rounded-lg">
+                            <div className="flex items-center gap-2">
+                              <div className="w-6 h-6 rounded-full bg-gradient-to-r from-yellow-400 to-orange-400 flex items-center justify-center">
+                                <span className="text-xs font-bold text-white">{index + 1}</span>
+                              </div>
+                              <div>
+                                <div className="text-foreground font-medium">KES {item.amount.toLocaleString()}</div>
+                                <div className="text-muted-foreground text-xs">{item.count} transactions</div>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-foreground font-semibold">KES {item.totalValue.toLocaleString()}</div>
+                              <div className="text-muted-foreground text-xs">Total Value</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-muted-foreground text-center py-4">No data available</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+
+            {/* Transaction Trends */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.8 }}
+              className="glass rounded-xl p-6"
+            >
+              <h3 className="text-lg font-semibold text-foreground mb-6">Transaction Trends</h3>
+              <div className="space-y-4">
+                {/* Daily Volume Trend */}
+                <div className="p-4 bg-secondary/30 rounded-xl">
+                  <h4 className="text-foreground font-medium mb-3">Daily Volume (Last 7 Days)</h4>
+                  <ResponsiveContainer width="100%" height={120}>
+                    <LineChart data={analytics.advancedMetrics.transactionTrends.dailyVolume.slice(-7)}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" fontSize={10} />
+                      <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151" }}
+                        labelStyle={{ color: "#f3f4f6" }}
+                        itemStyle={{ color: "#ffffff" }}
+                      />
+                      <Line type="monotone" dataKey="volume" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ fill: "hsl(var(--primary))" }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Success Rate by Hour */}
+                <div className="p-4 bg-secondary/30 rounded-xl">
+                  <h4 className="text-foreground font-medium mb-3">Success Rate by Hour</h4>
+                  <ResponsiveContainer width="100%" height={120}>
+                    <BarChart data={analytics.advancedMetrics.transactionTrends.successRateByHour}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis dataKey="hour" stroke="hsl(var(--muted-foreground))" fontSize={10} />
+                      <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151" }}
+                        labelStyle={{ color: "#f3f4f6" }}
+                        itemStyle={{ color: "#ffffff" }}
+                        formatter={(value: any) => [`${value}%`, 'Success Rate']}
+                      />
+                      <Bar dataKey="successRate" fill="hsl(var(--success))" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+
+          {/* Detailed Peak Hours Analysis */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.9 }}
+            className="glass rounded-xl p-6"
+          >
+            <h3 className="text-lg font-semibold text-foreground mb-6">Peak Hours - Detailed Analysis</h3>
+            <div className="grid lg:grid-cols-2 gap-6">
+              {/* Peak Hours Chart */}
+              <div>
+                <h4 className="text-foreground font-medium mb-4">Transaction Volume by Hour</h4>
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart data={Object.entries(analytics.peakHours).map(([hour, data]) => ({
+                    hour: `${hour}:00`,
+                    total: data.count,
+                    success: data.success,
+                    failed: data.failed,
+                    pending: data.pending
+                  })).sort((a, b) => parseInt(a.hour) - parseInt(b.hour))}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="hour" stroke="hsl(var(--muted-foreground))" fontSize={10} />
+                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151" }}
+                      labelStyle={{ color: "#f3f4f6" }}
+                      itemStyle={{ color: "#ffffff" }}
+                    />
+                    <Bar dataKey="success" stackId="a" fill="hsl(var(--success))" />
+                    <Bar dataKey="failed" stackId="a" fill="hsl(var(--destructive))" />
+                    <Bar dataKey="pending" stackId="a" fill="hsl(var(--warning))" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Peak Hours Stats */}
+              <div>
+                <h4 className="text-foreground font-medium mb-4">Hourly Performance Metrics</h4>
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {Object.entries(analytics.peakHours)
+                    .sort(([,a], [,b]) => b.count - a.count)
+                    .slice(0, 8)
+                    .map(([hour, data]) => (
+                      <div key={hour} className="p-3 bg-secondary/30 rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-foreground font-medium">{hour}:00</span>
+                          <span className="text-muted-foreground text-sm">{data.count} transactions</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-xs">
+                          <div className="text-center p-1 bg-green-500/10 rounded">
+                            <div className="text-green-400 font-semibold">{data.success}</div>
+                            <div className="text-green-400/70">Success</div>
+                          </div>
+                          <div className="text-center p-1 bg-red-500/10 rounded">
+                            <div className="text-red-400 font-semibold">{data.failed}</div>
+                            <div className="text-red-400/70">Failed</div>
+                          </div>
+                          <div className="text-center p-1 bg-orange-500/10 rounded">
+                            <div className="text-orange-400 font-semibold">{data.pending}</div>
+                            <div className="text-orange-400/70">Pending</div>
+                          </div>
+                        </div>
+                        <div className="mt-2 pt-2 border-t border-border/50">
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground text-xs">Revenue</span>
+                            <span className="text-foreground font-medium text-sm">KES {data.revenue.toLocaleString()}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            </div>
+          </motion.div>
         </div>
       </main>
     </div>
