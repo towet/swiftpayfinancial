@@ -1318,24 +1318,7 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
     const topAmounts = Object.entries(mostCommonAmounts)
       .sort(([,a], [,b]) => b - a)
       .slice(0, 5)
-      .map(([amount, count]) => {
-        const numericAmount = parseFloat(amount);
-        const transactionsForAmount = transactions.filter(t => t.amount === numericAmount);
-        const successfulTx = transactionsForAmount.filter(t => isPaidStatus(t.status));
-        const failedTx = transactionsForAmount.filter(t => String(t.status || '').toLowerCase() === 'failed');
-        const pendingTx = transactionsForAmount.filter(t => String(t.status || '').toLowerCase() === 'pending');
-        const successRate = transactionsForAmount.length > 0 ? (successfulTx.length / transactionsForAmount.length) * 100 : 0;
-
-        return {
-          amount: numericAmount,
-          count,
-          successCount: successfulTx.length,
-          failedCount: failedTx.length,
-          pendingCount: pendingTx.length,
-          totalRevenue: successfulTx.reduce((sum, t) => sum + (t.amount || 0), 0),
-          successRate: parseFloat(successRate.toFixed(1))
-        };
-      });
+      .map(([amount, count]) => ({ amount: parseFloat(amount), count }));
 
     const rangeTransactions = transactions.filter(tx => filterByWindow(tx, selectedStart, selectedEnd));
     const amountSummaryMap = {};
@@ -1372,7 +1355,17 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
       .filter(t => isPaidStatus(t.status))
       .reduce((sum, t) => sum + (t.amount || 0), 0) || 1;
 
-        const pad2 = (n) => String(n).padStart(2, '0');
+    const amountSummary = Object.values(amountSummaryMap)
+      .map(a => ({
+        ...a,
+        shareOfTransactions: a.totalCount / totalRangeTx,
+        shareOfPaidRevenue: a.paidRevenue / totalRangePaidRevenue,
+        failureRate: a.totalCount > 0 ? a.failedCount / a.totalCount : 0
+      }))
+      .sort((a, b) => b.totalCount - a.totalCount)
+      .slice(0, 25);
+
+    const pad2 = (n) => String(n).padStart(2, '0');
     const toDateKey = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
     const weekNumber = (d) => {
       const date = new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -1383,33 +1376,84 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
 
     const dailyMap = {};
     const weeklyMap = {};
+    const monthlyMap = {};
 
     rangeTransactions.forEach(tx => {
       const created = new Date(tx.created_at);
       const amount = Number(tx.amount || 0);
       const amountKey = String(amount);
+      const st = normalizeStatus(tx.status);
       const dayKey = toDateKey(created);
       const weekKey = `${created.getFullYear()}-W${pad2(weekNumber(created))}`;
+      const monthKey = `${created.getFullYear()}-${pad2(created.getMonth() + 1)}`;
 
       const dailyKey = `${dayKey}|${amountKey}`;
       if (!dailyMap[dailyKey]) {
-        dailyMap[dailyKey] = { date: dayKey, amount, count: 0, paidRevenue: 0 };
+        dailyMap[dailyKey] = { date: dayKey, amount, count: 0, paidCount: 0, failedCount: 0, pendingCount: 0, paidRevenue: 0 };
       }
       dailyMap[dailyKey].count++;
-      if (isPaidStatus(tx.status)) dailyMap[dailyKey].paidRevenue += amount;
+      if (isPaidStatus(st)) {
+        dailyMap[dailyKey].paidCount++;
+        dailyMap[dailyKey].paidRevenue += amount;
+      } else if (st === 'failed') {
+        dailyMap[dailyKey].failedCount++;
+      } else if (st === 'pending') {
+        dailyMap[dailyKey].pendingCount++;
+      }
 
       const weeklyKey = `${weekKey}|${amountKey}`;
       if (!weeklyMap[weeklyKey]) {
-        weeklyMap[weeklyKey] = { week: weekKey, amount, count: 0, paidRevenue: 0 };
+        weeklyMap[weeklyKey] = { week: weekKey, amount, count: 0, paidCount: 0, failedCount: 0, pendingCount: 0, paidRevenue: 0 };
       }
       weeklyMap[weeklyKey].count++;
-      if (isPaidStatus(tx.status)) weeklyMap[weeklyKey].paidRevenue += amount;
+      if (isPaidStatus(st)) {
+        weeklyMap[weeklyKey].paidCount++;
+        weeklyMap[weeklyKey].paidRevenue += amount;
+      } else if (st === 'failed') {
+        weeklyMap[weeklyKey].failedCount++;
+      } else if (st === 'pending') {
+        weeklyMap[weeklyKey].pendingCount++;
+      }
+
+      const monthlyKey = `${monthKey}|${amountKey}`;
+      if (!monthlyMap[monthlyKey]) {
+        monthlyMap[monthlyKey] = { month: monthKey, amount, count: 0, paidCount: 0, failedCount: 0, pendingCount: 0, paidRevenue: 0 };
+      }
+      monthlyMap[monthlyKey].count++;
+      if (isPaidStatus(st)) {
+        monthlyMap[monthlyKey].paidCount++;
+        monthlyMap[monthlyKey].paidRevenue += amount;
+      } else if (st === 'failed') {
+        monthlyMap[monthlyKey].failedCount++;
+      } else if (st === 'pending') {
+        monthlyMap[monthlyKey].pendingCount++;
+      }
     });
 
     const amountDailyTotals = Object.values(dailyMap)
       .sort((a, b) => (a.date === b.date ? a.amount - b.amount : a.date.localeCompare(b.date)));
     const amountWeeklyTotals = Object.values(weeklyMap)
       .sort((a, b) => (a.week === b.week ? a.amount - b.amount : a.week.localeCompare(b.week)));
+    const amountMonthlyTotals = Object.values(monthlyMap)
+      .sort((a, b) => (a.month === b.month ? a.amount - b.amount : a.month.localeCompare(b.month)));
+
+    const amountPerformance = amountSummary.map(a => ({
+      ...a,
+      successRate: a.totalCount > 0 ? a.paidCount / a.totalCount : 0,
+      avgPaidValue: a.paidCount > 0 ? a.paidRevenue / a.paidCount : 0
+    }));
+
+    const minAmountTxCount = 10;
+    const topAmountsByPaidRevenue = [...amountPerformance]
+      .sort((a, b) => b.paidRevenue - a.paidRevenue)
+      .slice(0, 10);
+    const topAmountsBySuccessRate = [...amountPerformance]
+      .filter(a => a.totalCount >= minAmountTxCount)
+      .sort((a, b) => b.successRate - a.successRate)
+      .slice(0, 10);
+    const topFailedAmounts = [...amountPerformance]
+      .sort((a, b) => b.failedCount - a.failedCount)
+      .slice(0, 10);
 
     const topAmountSet = new Set(amountSummary.slice(0, 10).map(a => String(a.amount)));
     const peakHoursByAmount = {};
@@ -1418,10 +1462,20 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
       const amountKey = String(amount);
       if (!topAmountSet.has(amountKey)) return;
       const hour = new Date(tx.created_at).getHours();
+      const st = normalizeStatus(tx.status);
       if (!peakHoursByAmount[amountKey]) peakHoursByAmount[amountKey] = {};
-      if (!peakHoursByAmount[amountKey][hour]) peakHoursByAmount[amountKey][hour] = { count: 0, paidRevenue: 0 };
+      if (!peakHoursByAmount[amountKey][hour]) {
+        peakHoursByAmount[amountKey][hour] = { count: 0, paidCount: 0, failedCount: 0, pendingCount: 0, paidRevenue: 0 };
+      }
       peakHoursByAmount[amountKey][hour].count++;
-      if (isPaidStatus(tx.status)) peakHoursByAmount[amountKey][hour].paidRevenue += amount;
+      if (isPaidStatus(st)) {
+        peakHoursByAmount[amountKey][hour].paidCount++;
+        peakHoursByAmount[amountKey][hour].paidRevenue += amount;
+      } else if (st === 'failed') {
+        peakHoursByAmount[amountKey][hour].failedCount++;
+      } else if (st === 'pending') {
+        peakHoursByAmount[amountKey][hour].pendingCount++;
+      }
     });
 
     // Calculate average processing time
@@ -1588,8 +1642,12 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
       amountAnalytics: {
         range: rangeKey,
         amountSummary,
+        topAmountsByPaidRevenue,
+        topAmountsBySuccessRate,
+        topFailedAmounts,
         amountDailyTotals,
         amountWeeklyTotals,
+        amountMonthlyTotals,
         peakHoursByAmount
       },
       advancedMetrics: {

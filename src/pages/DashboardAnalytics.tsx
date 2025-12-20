@@ -60,24 +60,32 @@ interface AnalyticsData {
   revenueOverTime: any[];
   peakHours: any;
   statusDistribution: any;
-  amountAnalytics: {
+  amountAnalytics?: {
     range: string;
-    amountSummary: any[];
-    amountDailyTotals: any[];
-    amountWeeklyTotals: any[];
-    peakHoursByAmount: any;
+    amountSummary: Array<{
+      amount: number;
+      totalCount: number;
+      paidCount: number;
+      failedCount: number;
+      pendingCount: number;
+      paidRevenue: number;
+      shareOfTransactions: number;
+      shareOfPaidRevenue: number;
+      failureRate: number;
+      successRate?: number;
+      avgPaidValue?: number;
+    }>;
+    topAmountsByPaidRevenue: Array<any>;
+    topAmountsBySuccessRate: Array<any>;
+    topFailedAmounts: Array<any>;
+    amountDailyTotals: Array<any>;
+    amountWeeklyTotals: Array<any>;
+    amountMonthlyTotals: Array<any>;
+    peakHoursByAmount: Record<string, Record<string, any>>;
   };
   advancedMetrics: {
     uniqueAmounts: number;
-    topAmounts: { 
-      amount: number; 
-      count: number;
-      successCount: number;
-      failedCount: number;
-      pendingCount: number;
-      totalRevenue: number;
-      successRate: number;
-    }[];
+    topAmounts: { amount: number; count: number }[];
     avgProcessingTime: string;
     totalVolume: number;
     conversionRate: string;
@@ -115,7 +123,17 @@ export default function DashboardAnalytics() {
   const [activeRange, setActiveRange] = useState("Week");
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [amountBreakdownRange, setAmountBreakdownRange] = useState<'daily' | 'weekly' | 'monthly'>('daily');
+  const [selectedAmount, setSelectedAmount] = useState<number | null>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (selectedAmount !== null) return;
+    const first = analytics?.amountAnalytics?.amountSummary?.[0];
+    if (first && typeof first.amount === 'number') {
+      setSelectedAmount(first.amount);
+    }
+  }, [analytics, selectedAmount]);
 
   const timeRangeMap: { [key: string]: keyof AnalyticsData } = {
     "Today": "today",
@@ -220,6 +238,62 @@ export default function DashboardAnalytics() {
 
   const currentData = analytics[timeRangeMap[activeRange]];
   const COLORS = ['#10b981', '#ef4444', '#f59e0b', '#3b82f6', '#8b5cf6'];
+
+  const formatKES = (value: number) => `KES ${Number(value || 0).toLocaleString()}`;
+
+  const amountAnalytics = analytics.amountAnalytics;
+  const amountOptions = (amountAnalytics?.amountSummary || []).slice(0, 25);
+
+  const getAmountBreakdownRows = () => {
+    if (!amountAnalytics || selectedAmount === null) return [];
+
+    const amount = selectedAmount;
+    if (amountBreakdownRange === 'daily') {
+      return (amountAnalytics.amountDailyTotals || [])
+        .filter((r: any) => Number(r.amount) === amount)
+        .map((r: any) => ({
+          label: r.date,
+          paid: r.paidCount || 0,
+          failed: r.failedCount || 0,
+          pending: r.pendingCount || 0,
+          paidRevenue: r.paidRevenue || 0,
+        }));
+    }
+
+    if (amountBreakdownRange === 'weekly') {
+      return (amountAnalytics.amountWeeklyTotals || [])
+        .filter((r: any) => Number(r.amount) === amount)
+        .map((r: any) => ({
+          label: r.week,
+          paid: r.paidCount || 0,
+          failed: r.failedCount || 0,
+          pending: r.pendingCount || 0,
+          paidRevenue: r.paidRevenue || 0,
+        }));
+    }
+
+    return (amountAnalytics.amountMonthlyTotals || [])
+      .filter((r: any) => Number(r.amount) === amount)
+      .map((r: any) => ({
+        label: r.month,
+        paid: r.paidCount || 0,
+        failed: r.failedCount || 0,
+        pending: r.pendingCount || 0,
+        paidRevenue: r.paidRevenue || 0,
+      }));
+  };
+
+  const amountBreakdownRows = getAmountBreakdownRows();
+
+  const getBestHourForAmount = (amount: number) => {
+    if (!amountAnalytics?.peakHoursByAmount) return null;
+    const perHour = amountAnalytics.peakHoursByAmount[String(amount)];
+    if (!perHour) return null;
+    const best = Object.entries(perHour)
+      .map(([h, v]: [string, any]) => ({ hour: Number(h), paidRevenue: Number(v.paidRevenue || 0), count: Number(v.count || 0), paidCount: Number(v.paidCount || 0) }))
+      .sort((a, b) => (b.paidRevenue - a.paidRevenue) || (b.paidCount - a.paidCount) || (b.count - a.count))[0];
+    return best ? { ...best, hourLabel: `${String(best.hour).padStart(2, '0')}:00` } : null;
+  };
 
   const StatCard = ({ title, value, change, icon, color }: any) => (
     <motion.div
@@ -329,6 +403,27 @@ export default function DashboardAnalytics() {
               change={-1.3}
               icon={CreditCard}
               color="gradient-primary"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <StatCard
+              title="Successful"
+              value={currentData.successfulTransactions}
+              icon={CheckCircle}
+              color="bg-green-500"
+            />
+            <StatCard
+              title="Failed"
+              value={currentData.failedTransactions}
+              icon={XCircle}
+              color="bg-red-500"
+            />
+            <StatCard
+              title="Pending"
+              value={currentData.pendingTransactions}
+              icon={Clock}
+              color="bg-yellow-500"
             />
           </div>
 
@@ -489,11 +584,8 @@ export default function DashboardAnalytics() {
                         <div className="text-muted-foreground text-sm">{item.count} transactions</div>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-foreground font-semibold">KES {item.totalRevenue.toLocaleString()}</div>
-                      <div className={`text-sm ${item.successRate > 80 ? 'text-success' : item.successRate > 50 ? 'text-yellow-500' : 'text-destructive'}`}>
-                        {item.successRate}% success
-                      </div>
+                    <div className="text-muted-foreground">
+                      {((item.count / (analytics.allTime.totalTransactions || 1)) * 100).toFixed(1)}%
                     </div>
                   </div>
                 ))}
@@ -501,48 +593,221 @@ export default function DashboardAnalytics() {
             </motion.div>
           </div>
 
-          {/* Amount Deep Dive Section */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6 }}
-            className="glass rounded-xl p-6"
-          >
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <BarChart3 className="w-6 h-6 text-green-400" />
-                <h3 className="text-lg font-semibold text-foreground">Amount Deep Dive</h3>
+          {amountAnalytics && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.55 }}
+              className="glass rounded-xl p-6"
+            >
+              <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
+                <div>
+                  <h3 className="text-lg font-semibold text-foreground">Amount Insights</h3>
+                  <p className="text-sm text-muted-foreground">Deep dive into best-performing, most-failed and time-based performance by amount</p>
+                </div>
+
+                <div className="flex gap-2 items-center flex-wrap">
+                  <div className="flex gap-1 p-1 rounded-lg bg-secondary">
+                    {([
+                      { key: 'daily', label: 'Daily' },
+                      { key: 'weekly', label: 'Weekly' },
+                      { key: 'monthly', label: 'Monthly' },
+                    ] as const).map((r) => (
+                      <button
+                        key={r.key}
+                        onClick={() => setAmountBreakdownRange(r.key)}
+                        className={cn(
+                          "px-3 py-1.5 text-sm font-medium rounded-md transition-all",
+                          amountBreakdownRange === r.key
+                            ? "gradient-primary text-primary-foreground"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        {r.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <select
+                    className="px-3 py-2 rounded-lg bg-secondary text-foreground border border-border"
+                    value={selectedAmount ?? ''}
+                    onChange={(e) => setSelectedAmount(Number(e.target.value))}
+                  >
+                    {amountOptions.map((a) => (
+                      <option key={a.amount} value={a.amount}>
+                        {`KES ${a.amount.toLocaleString()} (tx: ${a.totalCount})`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="text-xs text-muted-foreground uppercase">
-                  <tr>
-                    <th scope="col" className="px-6 py-3">Amount</th>
-                    <th scope="col" className="px-6 py-3">Transactions</th>
-                    <th scope="col" className="px-6 py-3">Success</th>
-                    <th scope="col" className="px-6 py-3">Failed</th>
-                    <th scope="col" className="px-6 py-3">Pending</th>
-                    <th scope="col" className="px-6 py-3">Success Rate</th>
-                    <th scope="col" className="px-6 py-3">Total Revenue</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {analytics.amountAnalytics.amountSummary.map((item, index) => (
-                    <tr key={index} className="border-b border-border">
-                      <td className="px-6 py-4 font-medium text-foreground">KES {item.amount.toLocaleString()}</td>
-                      <td className="px-6 py-4">{item.totalCount}</td>
-                      <td className="px-6 py-4 text-success">{item.paidCount}</td>
-                      <td className="px-6 py-4 text-destructive">{item.failedCount}</td>
-                      <td className="px-6 py-4 text-yellow-500">{item.pendingCount}</td>
-                      <td className="px-6 py-4">{((item.paidCount / item.totalCount) * 100).toFixed(1)}%</td>
-                      <td className="px-6 py-4">KES {item.paidRevenue.toLocaleString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </motion.div>
+
+              <div className="grid lg:grid-cols-3 gap-6">
+                <div className="glass rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-semibold text-foreground">Top by Paid Revenue</h4>
+                    <span className="text-xs text-muted-foreground">Range: {amountAnalytics.range}</span>
+                  </div>
+                  <div className="space-y-2">
+                    {amountAnalytics.topAmountsByPaidRevenue.slice(0, 5).map((a: any, idx: number) => {
+                      const best = getBestHourForAmount(a.amount);
+                      return (
+                        <button
+                          key={a.amount}
+                          onClick={() => setSelectedAmount(Number(a.amount))}
+                          className={cn(
+                            "w-full text-left p-3 rounded-xl bg-secondary/50 hover:bg-secondary transition-all",
+                            selectedAmount === a.amount && "ring-1 ring-primary/40"
+                          )}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="text-foreground font-semibold">{idx + 1}. KES {Number(a.amount).toLocaleString()}</div>
+                            <div className="text-foreground text-sm font-medium">{formatKES(a.paidRevenue)}</div>
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {a.paidCount} success | {a.failedCount} failed | {a.pendingCount} pending
+                            {best ? ` | peak: ${best.hourLabel}` : ''}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="glass rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-semibold text-foreground">Best Success Rate</h4>
+                    <span className="text-xs text-muted-foreground">min 10 tx</span>
+                  </div>
+                  <div className="space-y-2">
+                    {amountAnalytics.topAmountsBySuccessRate.slice(0, 5).map((a: any, idx: number) => (
+                      <button
+                        key={a.amount}
+                        onClick={() => setSelectedAmount(Number(a.amount))}
+                        className={cn(
+                          "w-full text-left p-3 rounded-xl bg-secondary/50 hover:bg-secondary transition-all",
+                          selectedAmount === a.amount && "ring-1 ring-primary/40"
+                        )}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="text-foreground font-semibold">{idx + 1}. KES {Number(a.amount).toLocaleString()}</div>
+                          <div className="text-foreground text-sm font-medium">{((Number(a.successRate || 0)) * 100).toFixed(1)}%</div>
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {a.paidCount}/{a.totalCount} success | avg paid: {formatKES(a.avgPaidValue)}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="glass rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-semibold text-foreground">Most Failed</h4>
+                    <span className="text-xs text-muted-foreground">Counts</span>
+                  </div>
+                  <div className="space-y-2">
+                    {amountAnalytics.topFailedAmounts.slice(0, 5).map((a: any, idx: number) => (
+                      <button
+                        key={a.amount}
+                        onClick={() => setSelectedAmount(Number(a.amount))}
+                        className={cn(
+                          "w-full text-left p-3 rounded-xl bg-secondary/50 hover:bg-secondary transition-all",
+                          selectedAmount === a.amount && "ring-1 ring-primary/40"
+                        )}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="text-foreground font-semibold">{idx + 1}. KES {Number(a.amount).toLocaleString()}</div>
+                          <div className="text-foreground text-sm font-medium">{a.failedCount} failed</div>
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          total: {a.totalCount} | failure rate: {((Number(a.failureRate || 0)) * 100).toFixed(1)}%
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid lg:grid-cols-2 gap-6 mt-6">
+                <div className="glass rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-sm font-semibold text-foreground">Selected Amount Breakdown</h4>
+                    <div className="text-xs text-muted-foreground">
+                      {selectedAmount !== null ? `KES ${selectedAmount.toLocaleString()}` : ''}
+                    </div>
+                  </div>
+                  <div className="h-72">
+                    {amountBreakdownRows.length === 0 ? (
+                      <div className="h-full flex items-center justify-center text-muted-foreground">
+                        No breakdown data for this selection
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={amountBreakdownRows}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                          <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" fontSize={11} />
+                          <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} />
+                          <Tooltip
+                            contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151", borderRadius: "8px" }}
+                            labelStyle={{ color: "#f3f4f6" }}
+                            itemStyle={{ color: "#f3f4f6" }}
+                          />
+                          <Legend />
+                          <Bar dataKey="paid" stackId="a" name="Success" fill="#10b981" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="failed" stackId="a" name="Failed" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="pending" stackId="a" name="Pending" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+                </div>
+
+                <div className="glass rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-sm font-semibold text-foreground">Per-Amount Performance (Top 25)</h4>
+                    <div className="text-xs text-muted-foreground">Sorted by popularity</div>
+                  </div>
+
+                  <div className="overflow-auto rounded-xl border border-border">
+                    <table className="w-full text-sm">
+                      <thead className="bg-secondary/50">
+                        <tr className="text-left">
+                          <th className="p-3 text-muted-foreground font-medium">Amount</th>
+                          <th className="p-3 text-muted-foreground font-medium">Total</th>
+                          <th className="p-3 text-muted-foreground font-medium">Success</th>
+                          <th className="p-3 text-muted-foreground font-medium">Failed</th>
+                          <th className="p-3 text-muted-foreground font-medium">Pending</th>
+                          <th className="p-3 text-muted-foreground font-medium">Success %</th>
+                          <th className="p-3 text-muted-foreground font-medium">Paid Revenue</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {amountOptions.map((a) => (
+                          <tr
+                            key={a.amount}
+                            className={cn(
+                              "border-t border-border hover:bg-secondary/30 cursor-pointer",
+                              selectedAmount === a.amount && "bg-secondary/30"
+                            )}
+                            onClick={() => setSelectedAmount(a.amount)}
+                          >
+                            <td className="p-3 font-medium text-foreground">KES {a.amount.toLocaleString()}</td>
+                            <td className="p-3 text-foreground">{a.totalCount}</td>
+                            <td className="p-3 text-green-400">{a.paidCount}</td>
+                            <td className="p-3 text-red-400">{a.failedCount}</td>
+                            <td className="p-3 text-yellow-400">{a.pendingCount}</td>
+                            <td className="p-3 text-foreground">{((a.totalCount > 0 ? (a.paidCount / a.totalCount) : 0) * 100).toFixed(1)}%</td>
+                            <td className="p-3 text-foreground">{formatKES(a.paidRevenue)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
 
           {/* AI Insights Section */}
           <motion.div
@@ -584,54 +849,6 @@ export default function DashboardAnalytics() {
                       insight.severity === 'success' ? 'bg-green-500/20' :
                       'bg-blue-500/20'
                     }`}>
-                      {insight.severity === 'error' ? <XCircle className="w-4 h-4 text-red-400" /> :
-                       insight.severity === 'warning' ? <AlertTriangle className="w-4 h-4 text-yellow-400" /> :
-                       insight.severity === 'success' ? <CheckCircle className="w-4 h-4 text-green-400" /> :
-                       <Eye className="w-4 h-4 text-blue-400" />}
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="font-medium text-foreground mb-1">{insight.title}</h4>
-                      <p className="text-sm text-muted-foreground mb-2">{insight.description}</p>
-                      <p className="text-xs text-primary">{insight.action}</p>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </motion.div>
-
-          {/* Performance Insights Section */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.7 }}
-            className="glass rounded-xl p-6"
-          >
-            <div className="flex items-center gap-3 mb-6">
-              <Eye className="w-6 h-6 text-cyan-400" />
-              <h3 className="text-lg font-semibold text-foreground">Performance Insights</h3>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {analytics.aiInsights.insights.map((insight, index) => (
-                <motion.div
-                  key={index}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.8 + index * 0.1 }}
-                  className={`p-4 rounded-xl border ${{
-                    error: 'bg-red-500/10 border-red-500/20',
-                    warning: 'bg-yellow-500/10 border-yellow-500/20',
-                    success: 'bg-green-500/10 border-green-500/20',
-                    info: 'bg-blue-500/10 border-blue-500/20'
-                  }[insight.severity] || 'bg-blue-500/10 border-blue-500/20'}`}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className={`p-2 rounded-lg ${{
-                      error: 'bg-red-500/20',
-                      warning: 'bg-yellow-500/20',
-                      success: 'bg-green-500/20',
-                      info: 'bg-blue-500/20'
-                    }[insight.severity] || 'bg-blue-500/20'}`}>
                       {insight.severity === 'error' ? <XCircle className="w-4 h-4 text-red-400" /> :
                        insight.severity === 'warning' ? <AlertTriangle className="w-4 h-4 text-yellow-400" /> :
                        insight.severity === 'success' ? <CheckCircle className="w-4 h-4 text-green-400" /> :

@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import axios from "axios";
 import { useToast } from "@/hooks/use-toast";
 
-const timeRanges = ["Today", "Week", "Month"];
+const timeRanges = ["Today", "Week", "Month", "Year"];
 
 interface RevenueData {
   date: string;
