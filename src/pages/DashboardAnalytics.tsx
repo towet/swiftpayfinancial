@@ -16,7 +16,9 @@ import {
   CartesianGrid, 
   Tooltip, 
   ResponsiveContainer,
-  Legend
+  Legend,
+  LineChart,
+  Line
 } from "recharts";
 import { 
   TrendingUp, 
@@ -44,6 +46,71 @@ import {
 import axios from "axios";
 import { useToast } from "@/hooks/use-toast";
 
+// Type definitions for enhanced analytics
+interface TopAmount {
+  amount: number;
+  count: number;
+  successful: number;
+  failed: number;
+  pending: number;
+  totalValue: number;
+  successRate: string;
+}
+
+interface BestPerformingAmount {
+  amount: number;
+  count: number;
+  totalValue: number;
+}
+
+interface TransactionTrends {
+  dailyVolume: Array<{
+    date: string;
+    volume: number;
+    value: number;
+    success: number;
+    failed: number;
+  }>;
+  weeklyVolume: Array<{
+    week: string;
+    volume: number;
+    value: number;
+    success: number;
+    failed: number;
+  }>;
+  successRateByHour: Array<{
+    hour: number;
+    successRate: string;
+    totalTransactions: number;
+    success: number;
+    failed: number;
+    pending: number;
+  }>;
+}
+
+interface PeakHourData {
+  count: number;
+  revenue: number;
+  success: number;
+  failed: number;
+  pending: number;
+}
+
+interface AdvancedMetrics {
+  uniqueAmounts: number;
+  topAmounts: TopAmount[];
+  avgProcessingTime: string;
+  totalVolume: number;
+  totalPaidVolume: number;
+  conversionRate: string;
+  bestPerformingAmounts: {
+    today: BestPerformingAmount[];
+    week: BestPerformingAmount[];
+    month: BestPerformingAmount[];
+  };
+  transactionTrends: TransactionTrends;
+}
+
 const timeRanges = ["Today", "Week", "Month", "Year"];
 
 const paymentMethodsData = [
@@ -59,15 +126,9 @@ interface AnalyticsData {
   thisYear: any;
   allTime: any;
   revenueOverTime: any[];
-  peakHours: any;
+  peakHours: Record<string, PeakHourData>;
   statusDistribution: any;
-  advancedMetrics: {
-    uniqueAmounts: number;
-    topAmounts: { amount: number; count: number }[];
-    avgProcessingTime: string;
-    totalVolume: number;
-    conversionRate: string;
-  };
+  advancedMetrics: AdvancedMetrics;
   aiInsights: {
     insights: Array<{
       type: string;
@@ -81,18 +142,8 @@ interface AnalyticsData {
       forecast: number;
       confidence: number;
     }>;
-    customerSegments: {
-      highValue: { count: number; revenue: number };
-      mediumValue: { count: number; revenue: number };
-      lowValue: { count: number; revenue: number };
-    };
-    fraudAlerts: Array<{
-      type: string;
-      phone: string;
-      count: number;
-      totalAmount: number;
-      severity: string;
-    }>;
+    customerSegments: any;
+    fraudAlerts: any;
     anomalyScore: string;
   };
 }
