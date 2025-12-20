@@ -1071,7 +1071,8 @@ app.post('/api/transactions/test-mark-success', verifyToken, async (req, res) =>
 // Get Advanced Dashboard Analytics
 app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
   try {
-    const { range } = req.query; // Get time range from query params
+    const { range, tillId } = req.query; // Get time range from query params
+    const requestedTillId = tillId ? String(tillId) : null;
     const isPaidStatus = (status) => {
       const s = String(status || '').toLowerCase();
       return s === 'success' || s === 'paid' || s === 'completed';
@@ -1089,7 +1090,12 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
     
     if (tills && tills.length > 0) {
       // User has tills, get all transactions for those tills with pagination
-      const tillIds = tills.map(t => t.id);
+      const userTillIds = tills.map(t => t.id);
+      const tillIds = requestedTillId ? [requestedTillId] : userTillIds;
+
+      if (requestedTillId && !userTillIds.includes(requestedTillId)) {
+        return res.status(403).json({ status: 'error', message: 'Invalid tillId for this user' });
+      }
       
       while (hasMore) {
         const result = await supabase
@@ -1114,9 +1120,15 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
     } else {
       // User has no tills, get all transactions (for admin/testing) with pagination
       while (hasMore) {
-        const result = await supabase
+        let query = supabase
           .from('transactions')
-          .select('*')
+          .select('*');
+
+        if (requestedTillId) {
+          query = query.eq('till_id', requestedTillId);
+        }
+
+        const result = await query
           .range(page * pageSize, (page + 1) * pageSize - 1)
           .order('created_at', { ascending: false });
         
