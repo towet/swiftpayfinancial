@@ -1,13 +1,61 @@
 import { motion } from "framer-motion";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { revenueChartData } from "@/data/mockData";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import axios from "axios";
+import { useToast } from "@/hooks/use-toast";
 
-const timeRanges = ["Today", "Week", "Month", "Year"];
+const timeRanges = ["Today", "Week", "Month"];
+
+interface RevenueData {
+  date: string;
+  revenue: number;
+  transactions: number;
+}
 
 export function RevenueChart() {
   const [activeRange, setActiveRange] = useState("Week");
+  const [data, setData] = useState<RevenueData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    fetchRevenueData();
+  }, [activeRange]);
+
+  const fetchRevenueData = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem("token");
+      const response = await axios.get("/api/dashboard/analytics", {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { range: activeRange.toLowerCase() },
+      });
+      
+      const analytics = response.data.analytics;
+      const revenueOverTime = analytics.revenueOverTime || [];
+      
+      // Transform data for chart
+      const chartData = revenueOverTime.map((item: any) => ({
+        date: item.date,
+        revenue: item.revenue || 0,
+        transactions: item.transactions || 0,
+      }));
+      
+      setData(chartData);
+    } catch (error) {
+      console.error("Error fetching revenue data:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load revenue data",
+        variant: "destructive",
+      });
+      // Set empty data on error
+      setData([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const formatAmount = (value: number) => {
     if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
@@ -18,7 +66,14 @@ export function RevenueChart() {
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
-        <div className="glass-strong rounded-lg p-3 border border-border">
+        <div 
+          className="glass-strong rounded-lg p-3 border border-border"
+          style={{ 
+            backgroundColor: "hsl(var(--background))", 
+            border: "1px solid hsl(var(--border))",
+            color: "hsl(var(--foreground))"
+          }}
+        >
           <p className="text-sm font-medium text-foreground">{label}</p>
           <p className="text-lg font-bold gradient-text">
             KES {payload[0].value.toLocaleString()}
@@ -63,40 +118,50 @@ export function RevenueChart() {
       </div>
 
       <div className="h-72">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={revenueChartData}>
-            <defs>
-              <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="hsl(145, 63%, 42%)" stopOpacity={0.5} />
-                <stop offset="50%" stopColor="hsl(145, 63%, 42%)" stopOpacity={0.2} />
-                <stop offset="95%" stopColor="hsl(145, 63%, 42%)" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(217, 33%, 17%)" />
-            <XAxis
-              dataKey="date"
-              stroke="hsl(215, 20%, 65%)"
-              fontSize={12}
-              tickLine={false}
-              axisLine={false}
-            />
-            <YAxis
-              stroke="hsl(215, 20%, 65%)"
-              fontSize={12}
-              tickLine={false}
-              axisLine={false}
-              tickFormatter={formatAmount}
-            />
-            <Tooltip content={<CustomTooltip />} />
-            <Area
-              type="monotone"
-              dataKey="revenue"
-              stroke="hsl(145, 63%, 42%)"
-              strokeWidth={3}
-              fill="url(#colorRevenue)"
-            />
-          </AreaChart>
-        </ResponsiveContainer>
+        {loading ? (
+          <div className="h-full flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
+        ) : data.length === 0 ? (
+          <div className="h-full flex items-center justify-center text-muted-foreground">
+            <p>No revenue data available</p>
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={data}>
+              <defs>
+                <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="hsl(var(--success))" stopOpacity={0.5} />
+                  <stop offset="50%" stopColor="hsl(var(--success))" stopOpacity={0.2} />
+                  <stop offset="95%" stopColor="hsl(var(--success))" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <XAxis
+                dataKey="date"
+                stroke="hsl(var(--muted-foreground))"
+                fontSize={12}
+                tickLine={false}
+                axisLine={false}
+              />
+              <YAxis
+                stroke="hsl(var(--muted-foreground))"
+                fontSize={12}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={formatAmount}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              <Area
+                type="monotone"
+                dataKey="revenue"
+                stroke="hsl(var(--success))"
+                strokeWidth={3}
+                fill="url(#colorRevenue)"
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
       </div>
     </motion.div>
   );

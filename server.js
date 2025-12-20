@@ -2054,6 +2054,78 @@ process.on('SIGTERM', () => {
   });
 });
 
+// Generate Sample Transaction Data for Testing
+app.post('/api/generate-sample-data', verifyToken, async (req, res) => {
+  try {
+    const { count = 100 } = req.body;
+    
+    // Get user's tills
+    const { data: tills } = await supabase
+      .from('tills')
+      .select('id')
+      .eq('user_id', req.userId);
+    
+    if (!tills || tills.length === 0) {
+      return res.status(400).json({ status: 'error', message: 'No till found' });
+    }
+    
+    const sampleTransactions = [];
+    const statuses = ['success', 'failed', 'pending'];
+    const phoneNumbers = ['254712345678', '254723456789', '254734567890', '254745678901', '254756789012'];
+    
+    for (let i = 0; i < count; i++) {
+      // Generate random date within last 30 days
+      const randomDaysAgo = Math.floor(Math.random() * 30);
+      const randomHoursAgo = Math.floor(Math.random() * 24);
+      const transactionDate = new Date();
+      transactionDate.setDate(transactionDate.getDate() - randomDaysAgo);
+      transactionDate.setHours(transactionDate.getHours() - randomHoursAgo);
+      
+      // Generate realistic amount (KES 100 - 50,000)
+      const amount = Math.floor(Math.random() * 49900) + 100;
+      
+      // Random status with weighted probability (more success than failure)
+      const statusRand = Math.random();
+      let status;
+      if (statusRand < 0.7) status = 'success';
+      else if (statusRand < 0.9) status = 'failed';
+      else status = 'pending';
+      
+      sampleTransactions.push({
+        phone_number: phoneNumbers[Math.floor(Math.random() * phoneNumbers.length)],
+        amount: amount,
+        status: status,
+        till_id: tills[0].id,
+        created_at: transactionDate.toISOString(),
+        updated_at: transactionDate.toISOString(),
+        transaction_id: `SAMPLE_${Date.now()}_${i}`,
+        merchant_request_id: `MERCH_${Date.now()}_${i}`,
+        checkout_request_id: `CHECK_${Date.now()}_${i}`
+      });
+    }
+    
+    // Insert sample transactions
+    const { data, error } = await supabase
+      .from('transactions')
+      .insert(sampleTransactions);
+    
+    if (error) {
+      console.error('Sample data insertion error:', error);
+      return res.status(500).json({ status: 'error', message: error.message });
+    }
+    
+    res.json({ 
+      status: 'success', 
+      message: `Generated ${count} sample transactions`,
+      transactions: sampleTransactions.length
+    });
+    
+  } catch (error) {
+    console.error('Sample data generation error:', error);
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
 // Start Server
 const server = app.listen(PORT, () => {
   console.log(`🚀 SwiftPay API Server running on http://localhost:${PORT}`);
