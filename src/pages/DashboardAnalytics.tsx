@@ -332,24 +332,24 @@ export default function DashboardAnalytics() {
                   <AreaChart data={analytics.revenueOverTime}>
                     <defs>
                       <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0.1}/>
+                        <stop offset="5%" stopColor="hsl(var(--success))" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="hsl(var(--success))" stopOpacity={0.1}/>
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(217, 33%, 17%)" />
-                    <XAxis dataKey="date" stroke="hsl(215, 20%, 65%)" fontSize={12} />
-                    <YAxis stroke="hsl(215, 20%, 65%)" fontSize={12} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
                     <Tooltip 
                       contentStyle={{ 
-                        backgroundColor: "hsl(222, 47%, 8%)", 
-                        border: "1px solid hsl(217, 33%, 17%)",
+                        backgroundColor: "hsl(var(--background))", 
+                        border: "1px solid hsl(var(--border))",
                         borderRadius: "8px"
                       }}
                     />
                     <Area 
                       type="monotone" 
                       dataKey="revenue" 
-                      stroke="#10b981" 
+                      stroke="hsl(var(--success))" 
                       fillOpacity={1} 
                       fill="url(#revenueGradient)" 
                       strokeWidth={2}
@@ -389,13 +389,19 @@ export default function DashboardAnalytics() {
                     </Pie>
                     <Tooltip 
                       contentStyle={{ 
-                        backgroundColor: "hsl(222, 47%, 8%)", 
-                        border: "1px solid hsl(217, 33%, 17%)",
+                        backgroundColor: "#1f2937", 
+                        border: "1px solid #374151",
                         borderRadius: "8px"
                       }}
+                      labelStyle={{ color: "#f3f4f6" }}
+                      itemStyle={{ color: "#f3f4f6" }}
                       formatter={(value: any, name: string) => [
-                        `${value} transactions`, 
-                        name
+                        <span style={{ color: "#ffffff", fontWeight: "bold" }}>
+                          {`${value} transactions`}
+                        </span>, 
+                        <span style={{ color: "#ffffff" }}>
+                          {name}
+                        </span>
                       ]}
                     />
                   </PieChart>
@@ -431,17 +437,17 @@ export default function DashboardAnalytics() {
                       revenue: data.revenue
                     }))
                     .sort((a, b) => parseInt(a.hour) - parseInt(b.hour))}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(217, 33%, 17%)" />
-                    <XAxis dataKey="hour" stroke="hsl(215, 20%, 65%)" fontSize={12} />
-                    <YAxis stroke="hsl(215, 20%, 65%)" fontSize={12} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="hour" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
                     <Tooltip 
                       contentStyle={{ 
-                        backgroundColor: "hsl(222, 47%, 8%)", 
-                        border: "1px solid hsl(217, 33%, 17%)",
+                        backgroundColor: "hsl(var(--background))", 
+                        border: "1px solid hsl(var(--border))",
                         borderRadius: "8px"
                       }}
                     />
-                    <Bar dataKey="transactions" fill="#8b5cf6" radius={[8, 8, 0, 0]} />
+                    <Bar dataKey="transactions" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -550,28 +556,33 @@ export default function DashboardAnalytics() {
                   <AreaChart data={analytics.aiInsights.forecast}>
                     <defs>
                       <linearGradient id="forecastGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1}/>
+                        <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0.1}/>
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(217, 33%, 17%)" />
-                    <XAxis dataKey="date" stroke="hsl(215, 20%, 65%)" fontSize={12} />
-                    <YAxis stroke="hsl(215, 20%, 65%)" fontSize={12} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
                     <Tooltip 
                       contentStyle={{ 
-                        backgroundColor: "hsl(222, 47%, 8%)", 
-                        border: "1px solid hsl(217, 33%, 17%)",
-                        borderRadius: "8px"
+                        backgroundColor: "hsl(var(--background))", 
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: "8px",
+                        color: "hsl(var(--foreground))"
                       }}
                       formatter={(value: any, name: string, props: any) => [
-                        `KES ${value.toLocaleString()}`, 
-                        `Forecast (${props.payload.confidence}% confidence)`
+                        <span style={{ color: "hsl(var(--foreground))" }}>
+                          {`KES ${value.toLocaleString()}`}
+                        </span>, 
+                        <span style={{ color: "hsl(var(--foreground))" }}>
+                          `Forecast (${props.payload.confidence}% confidence)`
+                        </span>
                       ]}
                     />
                     <Area 
                       type="monotone" 
                       dataKey="forecast" 
-                      stroke="#3b82f6" 
+                      stroke="hsl(var(--primary))" 
                       fillOpacity={1} 
                       fill="url(#forecastGradient)" 
                       strokeWidth={2}
