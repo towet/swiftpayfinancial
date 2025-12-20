@@ -10,6 +10,16 @@ import { mpesaVerificationProxy } from './api/mpesa-verification-proxy.js';
 
 dotenv.config();
 
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || 'AIzaSyB7VxTESTKEYFORDEVELOPMENTONLY'; // TODO: replace with env var in production
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+const GEMINI_INSIGHTS_TTL_MS = Number(process.env.GEMINI_INSIGHTS_TTL_MS || 30 * 60 * 1000);
+const GEMINI_RATE_LIMIT_WINDOW_MS = Number(process.env.GEMINI_RATE_LIMIT_WINDOW_MS || 60 * 1000);
+const GEMINI_RATE_LIMIT_MAX = Number(process.env.GEMINI_RATE_LIMIT_MAX || 5);
+
+const geminiInsightsCache = new Map();
+const geminiInFlight = new Map();
+const geminiRateLimit = new Map();
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -103,6 +113,194 @@ const verifyApiKey = async (req, res, next) => {
   }
 };
 
+async function fetchTransactionsForUserAnalytics({ userId, requestedTillId }) {
+  const { data: tills } = await supabase
+    .from('tills')
+    .select('id')
+    .eq('user_id', userId);
+
+  const pageSize = 1000;
+  let page = 0;
+  let hasMore = true;
+  let allTransactions = [];
+
+  if (tills && tills.length > 0) {
+    const userTillIds = tills.map(t => t.id);
+    const tillIds = requestedTillId ? [requestedTillId] : userTillIds;
+    if (requestedTillId && !userTillIds.includes(requestedTillId)) {
+      const err = new Error('Invalid tillId for this user');
+      err.statusCode = 403;
+      throw err;
+    }
+
+    while (hasMore) {
+      const result = await supabase
+        .from('transactions')
+        .select('*')
+        .in('till_id', tillIds)
+        .range(page * pageSize, (page + 1) * pageSize - 1)
+        .order('created_at', { ascending: false });
+
+      if (result.error) {
+        const err = new Error(result.error.message);
+        err.statusCode = 400;
+        throw err;
+      }
+
+      if (result.data && result.data.length > 0) {
+        allTransactions = allTransactions.concat(result.data);
+        page++;
+        hasMore = result.data.length === pageSize;
+      } else {
+        hasMore = false;
+      }
+    }
+  } else {
+    while (hasMore) {
+      let query = supabase
+        .from('transactions')
+        .select('*');
+
+      if (requestedTillId) {
+        query = query.eq('till_id', requestedTillId);
+      }
+
+      const result = await query
+        .range(page * pageSize, (page + 1) * pageSize - 1)
+        .order('created_at', { ascending: false });
+
+      if (result.error) {
+        const err = new Error(result.error.message);
+        err.statusCode = 400;
+        throw err;
+      }
+
+      if (result.data && result.data.length > 0) {
+        allTransactions = allTransactions.concat(result.data);
+        page++;
+        hasMore = result.data.length === pageSize;
+      } else {
+        hasMore = false;
+      }
+    }
+  }
+
+  return allTransactions;
+}
+
+function checkGeminiRateLimit(userId) {
+  const now = Date.now();
+  const current = geminiRateLimit.get(userId) || [];
+  const fresh = current.filter(ts => now - ts < GEMINI_RATE_LIMIT_WINDOW_MS);
+  if (fresh.length >= GEMINI_RATE_LIMIT_MAX) {
+    return { allowed: false, retryAfterMs: GEMINI_RATE_LIMIT_WINDOW_MS - (now - fresh[0]) };
+  }
+  fresh.push(now);
+  geminiRateLimit.set(userId, fresh);
+  return { allowed: true, retryAfterMs: 0 };
+}
+
+function extractJsonFromModelText(text) {
+  const raw = String(text || '').trim();
+  const fenced = raw.match(/```json\s*([\s\S]*?)\s*```/i);
+  if (fenced && fenced[1]) return fenced[1].trim();
+  const first = raw.indexOf('{');
+  const last = raw.lastIndexOf('}');
+  if (first !== -1 && last !== -1 && last > first) return raw.slice(first, last + 1);
+  return raw;
+}
+
+function buildRuleBasedInsightsFromCore(core) {
+  const insights = [];
+  const totalTx = core.totalTransactions || 0;
+  const successRate = totalTx > 0 ? (core.successCount / totalTx) * 100 : 0;
+
+  if (successRate < 70 && totalTx >= 20) {
+    insights.push({
+      type: 'anomaly',
+      title: 'Low Success Rate',
+      description: `Success rate is ${successRate.toFixed(1)}% for the selected period.`,
+      severity: 'warning',
+      action: 'Review M-Pesa gateway health, callback handling, and user input validation.'
+    });
+  }
+
+  if (core.topFailedAmount && core.topFailedAmount.failedCount >= 5) {
+    insights.push({
+      type: 'anomaly',
+      title: 'Amount With Frequent Failures',
+      description: `KES ${Number(core.topFailedAmount.amount).toLocaleString()} has ${core.topFailedAmount.failedCount} failures in the selected period.`,
+      severity: 'warning',
+      action: 'Investigate user flows and STK push outcomes for this amount (timeouts, PIN entry drop-off, balance issues).'
+    });
+  }
+
+  if (core.revenueChangePct !== null && core.revenueChangePct > 20) {
+    insights.push({
+      type: 'positive',
+      title: 'Revenue Surge',
+      description: `Revenue increased by ${core.revenueChangePct.toFixed(1)}% versus the previous comparable window.`,
+      severity: 'success',
+      action: 'Consider increasing float/limits and preparing support for peak volume.'
+    });
+  }
+
+  if (insights.length === 0) {
+    insights.push({
+      type: 'info',
+      title: 'Stable Operations',
+      description: 'No major anomalies detected for the selected period.',
+      severity: 'info',
+      action: 'Use “Generate with Gemini” for deeper insights and next-best actions.'
+    });
+  }
+
+  return {
+    anomalyScore: insights.some(i => i.type === 'anomaly') ? 'high' : 'low',
+    insights,
+    provider: 'rule_based'
+  };
+}
+
+async function generateGeminiInsights({ core, rangeKey, userId, requestedTillId }) {
+  const prompt = `You are an expert fintech analytics assistant. Generate concise, actionable insights for a merchant based on transaction analytics.\n\nReturn STRICT JSON only with this schema:\n{\n  "anomalyScore": "low"|"high",\n  "insights": [\n    {"type":"anomaly"|"positive"|"info","title":string,"description":string,"severity":"error"|"warning"|"success"|"info","action":string}\n  ]\n}\n\nRules:\n- Max 9 insights.\n- Every insight must cite concrete evidence from the provided numbers.\n- Use KES currency formatting in descriptions.\n- Keep descriptions under 160 chars each.\n\nDATA (selected period):\n${JSON.stringify({ rangeKey, requestedTillId, core }, null, 2)}`;
+
+  if (!GEMINI_API_KEY) {
+    return buildRuleBasedInsightsFromCore(core);
+  }
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent`;
+  const response = await axios.post(
+    `${url}?key=${encodeURIComponent(GEMINI_API_KEY)}`,
+    {
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.2,
+        maxOutputTokens: 800
+      }
+    },
+    {
+      timeout: 12000,
+      headers: { 'Content-Type': 'application/json' }
+    }
+  );
+
+  const text = response?.data?.candidates?.[0]?.content?.parts?.map(p => p.text).filter(Boolean).join('\n') || '';
+  const jsonText = extractJsonFromModelText(text);
+
+  try {
+    const parsed = JSON.parse(jsonText);
+    if (parsed && Array.isArray(parsed.insights)) {
+      return { ...parsed, provider: 'gemini', model: GEMINI_MODEL };
+    }
+  } catch (e) {
+    // fall through to rule-based
+  }
+
+  const fallback = buildRuleBasedInsightsFromCore(core);
+  return { ...fallback, provider: GEMINI_API_KEY ? 'gemini_unparsed' : fallback.provider, model: GEMINI_MODEL };
+}
+
 // Get M-Pesa Access Token
 async function getMpesaAccessToken() {
   try {
@@ -171,6 +369,208 @@ app.post('/api/auth/register', async (req, res) => {
   } catch (error) {
     console.error('Register Error:', error);
     res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+app.get('/api/dashboard/ai-insights', verifyToken, async (req, res) => {
+  try {
+    const { range, tillId, force } = req.query;
+    const requestedTillId = tillId ? String(tillId) : null;
+    const rangeKey = String(range || 'week').toLowerCase();
+    const forceRefresh = String(force || '').toLowerCase() === 'true';
+
+    const cacheKey = `${req.userId}|${requestedTillId || 'all'}|${rangeKey}`;
+    const now = Date.now();
+
+    if (!forceRefresh) {
+      const cached = geminiInsightsCache.get(cacheKey);
+      if (cached && cached.expiresAt > now) {
+        return res.json({
+          status: 'success',
+          cached: true,
+          generatedAt: cached.generatedAt,
+          expiresAt: cached.expiresAt,
+          provider: cached.provider,
+          model: cached.model,
+          aiInsights: cached.aiInsights
+        });
+      }
+
+      return res.json({
+        status: 'success',
+        cached: false,
+        available: false
+      });
+    }
+
+    const rl = checkGeminiRateLimit(req.userId);
+    if (!rl.allowed) {
+      return res.status(429).json({
+        status: 'error',
+        message: 'Too many AI insight requests. Please try again shortly.',
+        retryAfterMs: rl.retryAfterMs
+      });
+    }
+
+    const inFlight = geminiInFlight.get(cacheKey);
+    if (inFlight) {
+      const result = await inFlight;
+      return res.json(result);
+    }
+
+    const promise = (async () => {
+      const transactions = await fetchTransactionsForUserAnalytics({
+        userId: req.userId,
+        requestedTillId
+      });
+
+      const isPaidStatus = (status) => {
+        const s = String(status || '').toLowerCase();
+        return s === 'success' || s === 'paid' || s === 'completed';
+      };
+
+      const nowDate = new Date();
+      const todayStart = new Date(nowDate.getFullYear(), nowDate.getMonth(), nowDate.getDate());
+      const weekStart = new Date(todayStart);
+      weekStart.setDate(todayStart.getDate() - todayStart.getDay());
+      const monthStart = new Date(nowDate.getFullYear(), nowDate.getMonth(), 1);
+      const yearStart = new Date(nowDate.getFullYear(), 0, 1);
+
+      let selectedStart = weekStart;
+      let selectedEnd = new Date(weekStart);
+      selectedEnd.setDate(weekStart.getDate() + 7);
+      if (rangeKey === 'today') {
+        selectedStart = todayStart;
+        selectedEnd = new Date(nowDate.getFullYear(), nowDate.getMonth(), nowDate.getDate() + 1);
+      } else if (rangeKey === 'month') {
+        selectedStart = monthStart;
+        selectedEnd = new Date(nowDate.getFullYear(), nowDate.getMonth() + 1, 1);
+      } else if (rangeKey === 'year') {
+        selectedStart = yearStart;
+        selectedEnd = new Date(nowDate.getFullYear() + 1, 0, 1);
+      }
+
+      const filterByWindow = (tx, startDate, endDate) => {
+        const txDate = new Date(tx.created_at);
+        return txDate >= startDate && txDate < endDate;
+      };
+
+      const rangeTransactions = transactions.filter(tx => filterByWindow(tx, selectedStart, selectedEnd));
+      const successCount = rangeTransactions.filter(t => isPaidStatus(t.status)).length;
+      const failedCount = rangeTransactions.filter(t => String(t.status || '').toLowerCase() === 'failed').length;
+      const pendingCount = rangeTransactions.filter(t => String(t.status || '').toLowerCase() === 'pending').length;
+      const paidRevenue = rangeTransactions.filter(t => isPaidStatus(t.status)).reduce((sum, t) => sum + (t.amount || 0), 0);
+
+      const amountMap = {};
+      rangeTransactions.forEach(tx => {
+        const amount = Number(tx.amount || 0);
+        const key = String(amount);
+        if (!amountMap[key]) amountMap[key] = { amount, totalCount: 0, paidCount: 0, failedCount: 0, pendingCount: 0, paidRevenue: 0 };
+        amountMap[key].totalCount++;
+        const st = String(tx.status || '').toLowerCase();
+        if (isPaidStatus(st)) {
+          amountMap[key].paidCount++;
+          amountMap[key].paidRevenue += amount;
+        } else if (st === 'failed') amountMap[key].failedCount++;
+        else if (st === 'pending') amountMap[key].pendingCount++;
+      });
+
+      const topAmountsByCount = Object.values(amountMap).sort((a, b) => b.totalCount - a.totalCount).slice(0, 10);
+      const topAmountsByPaidRevenue = Object.values(amountMap).sort((a, b) => b.paidRevenue - a.paidRevenue).slice(0, 10);
+      const topFailedAmount = Object.values(amountMap).sort((a, b) => b.failedCount - a.failedCount)[0] || null;
+
+      const revenueOverTime = [];
+      if (rangeKey === 'today') {
+        for (let h = 0; h < 24; h++) {
+          const bucketStart = new Date(selectedStart);
+          bucketStart.setHours(h, 0, 0, 0);
+          const bucketEnd = new Date(selectedStart);
+          bucketEnd.setHours(h + 1, 0, 0, 0);
+          const bucketTx = rangeTransactions.filter(tx => filterByWindow(tx, bucketStart, bucketEnd));
+          const bucketRevenue = bucketTx.filter(t => isPaidStatus(t.status)).reduce((sum, t) => sum + (t.amount || 0), 0);
+          revenueOverTime.push({ date: `${String(h).padStart(2, '0')}:00`, revenue: bucketRevenue, transactions: bucketTx.length, successful: bucketTx.filter(t => isPaidStatus(t.status)).length });
+        }
+      } else if (rangeKey === 'month') {
+        for (let d = new Date(selectedStart); d < selectedEnd; d.setDate(d.getDate() + 1)) {
+          const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+          const dayEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+          const dayTx = rangeTransactions.filter(tx => filterByWindow(tx, dayStart, dayEnd));
+          const dayRevenue = dayTx.filter(t => isPaidStatus(t.status)).reduce((sum, t) => sum + (t.amount || 0), 0);
+          revenueOverTime.push({ date: dayStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), revenue: dayRevenue, transactions: dayTx.length, successful: dayTx.filter(t => isPaidStatus(t.status)).length });
+        }
+      } else if (rangeKey === 'year') {
+        for (let m = 0; m < 12; m++) {
+          const mStart = new Date(nowDate.getFullYear(), m, 1);
+          const mEnd = new Date(nowDate.getFullYear(), m + 1, 1);
+          const monthTx = rangeTransactions.filter(tx => filterByWindow(tx, mStart, mEnd));
+          const monthRevenue = monthTx.filter(t => isPaidStatus(t.status)).reduce((sum, t) => sum + (t.amount || 0), 0);
+          revenueOverTime.push({ date: mStart.toLocaleDateString('en-US', { month: 'short' }), revenue: monthRevenue, transactions: monthTx.length, successful: monthTx.filter(t => isPaidStatus(t.status)).length });
+        }
+      } else {
+        for (let i = 6; i >= 0; i--) {
+          const date = new Date();
+          date.setDate(date.getDate() - i);
+          const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+          const dayEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
+          const dayTx = rangeTransactions.filter(tx => filterByWindow(tx, dayStart, dayEnd));
+          const dayRevenue = dayTx.filter(t => isPaidStatus(t.status)).reduce((sum, t) => sum + (t.amount || 0), 0);
+          revenueOverTime.push({ date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), revenue: dayRevenue, transactions: dayTx.length, successful: dayTx.filter(t => isPaidStatus(t.status)).length });
+        }
+      }
+
+      const recentRevenue = revenueOverTime.slice(-3).reduce((sum, d) => sum + (d.revenue || 0), 0);
+      const previousRevenue = revenueOverTime.slice(-6, -3).reduce((sum, d) => sum + (d.revenue || 0), 0);
+      const revenueChangePct = previousRevenue > 0 ? ((recentRevenue - previousRevenue) / previousRevenue) * 100 : null;
+
+      const core = {
+        totalTransactions: rangeTransactions.length,
+        successCount,
+        failedCount,
+        pendingCount,
+        paidRevenue,
+        revenueOverTime,
+        topAmountsByCount,
+        topAmountsByPaidRevenue,
+        topFailedAmount,
+        revenueChangePct
+      };
+
+      const ai = await generateGeminiInsights({ core, rangeKey, userId: req.userId, requestedTillId });
+      const generatedAt = Date.now();
+      const expiresAt = generatedAt + GEMINI_INSIGHTS_TTL_MS;
+
+      const payload = {
+        status: 'success',
+        cached: false,
+        generatedAt,
+        expiresAt,
+        provider: ai.provider,
+        model: ai.model || null,
+        aiInsights: {
+          anomalyScore: ai.anomalyScore,
+          insights: ai.insights
+        }
+      };
+
+      geminiInsightsCache.set(cacheKey, {
+        generatedAt,
+        expiresAt,
+        provider: ai.provider,
+        model: ai.model || null,
+        aiInsights: payload.aiInsights
+      });
+
+      return payload;
+    })();
+
+    geminiInFlight.set(cacheKey, promise);
+    const result = await promise;
+    geminiInFlight.delete(cacheKey);
+    res.json(result);
+  } catch (error) {
+    geminiInFlight.delete(`${req.userId}|${String(req.query.tillId || 'all')}|${String(req.query.range || 'week').toLowerCase()}`);
+    const statusCode = error.statusCode || 500;
+    res.status(statusCode).json({ status: 'error', message: error.message });
   }
 });
 
@@ -1077,76 +1477,10 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
       const s = String(status || '').toLowerCase();
       return s === 'success' || s === 'paid' || s === 'completed';
     };
-    // First try to get user's tills
-    const { data: tills } = await supabase
-      .from('tills')
-      .select('id')
-      .eq('user_id', req.userId);
-
-    let allTransactions = [];
-    let hasMore = true;
-    let page = 0;
-    const pageSize = 1000;
-    
-    if (tills && tills.length > 0) {
-      // User has tills, get all transactions for those tills with pagination
-      const userTillIds = tills.map(t => t.id);
-      const tillIds = requestedTillId ? [requestedTillId] : userTillIds;
-
-      if (requestedTillId && !userTillIds.includes(requestedTillId)) {
-        return res.status(403).json({ status: 'error', message: 'Invalid tillId for this user' });
-      }
-      
-      while (hasMore) {
-        const result = await supabase
-          .from('transactions')
-          .select('*')
-          .in('till_id', tillIds)
-          .range(page * pageSize, (page + 1) * pageSize - 1)
-          .order('created_at', { ascending: false });
-        
-        if (result.error) {
-          return res.status(400).json({ status: 'error', message: result.error.message });
-        }
-        
-        if (result.data && result.data.length > 0) {
-          allTransactions = allTransactions.concat(result.data);
-          page++;
-          hasMore = result.data.length === pageSize;
-        } else {
-          hasMore = false;
-        }
-      }
-    } else {
-      // User has no tills, get all transactions (for admin/testing) with pagination
-      while (hasMore) {
-        let query = supabase
-          .from('transactions')
-          .select('*');
-
-        if (requestedTillId) {
-          query = query.eq('till_id', requestedTillId);
-        }
-
-        const result = await query
-          .range(page * pageSize, (page + 1) * pageSize - 1)
-          .order('created_at', { ascending: false });
-        
-        if (result.error) {
-          return res.status(400).json({ status: 'error', message: result.error.message });
-        }
-        
-        if (result.data && result.data.length > 0) {
-          allTransactions = allTransactions.concat(result.data);
-          page++;
-          hasMore = result.data.length === pageSize;
-        } else {
-          hasMore = false;
-        }
-      }
-    }
-    
-    const transactions = allTransactions;
+    const transactions = await fetchTransactionsForUserAnalytics({
+      userId: req.userId,
+      requestedTillId
+    });
 
     console.log(`Analytics: Found ${transactions?.length || 0} transactions for user ${req.userId}`);
 

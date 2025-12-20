@@ -125,6 +125,26 @@ interface TillOption {
   till_number?: string;
 }
 
+interface GeminiInsightsResponse {
+  status: string;
+  cached?: boolean;
+  available?: boolean;
+  generatedAt?: number;
+  expiresAt?: number;
+  provider?: string;
+  model?: string | null;
+  aiInsights?: {
+    anomalyScore: string;
+    insights: Array<{
+      type: string;
+      title: string;
+      description: string;
+      severity: string;
+      action: string;
+    }>;
+  };
+}
+
 export default function DashboardAnalytics() {
   const [activeRange, setActiveRange] = useState("Week");
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
@@ -133,6 +153,8 @@ export default function DashboardAnalytics() {
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null);
   const [tills, setTills] = useState<TillOption[]>([]);
   const [selectedTillId, setSelectedTillId] = useState<string>('');
+  const [geminiInsights, setGeminiInsights] = useState<GeminiInsightsResponse | null>(null);
+  const [geminiLoading, setGeminiLoading] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -155,6 +177,10 @@ export default function DashboardAnalytics() {
   }, [activeRange, selectedTillId]);
 
   useEffect(() => {
+    fetchGeminiInsights(false);
+  }, [activeRange, selectedTillId]);
+
+  useEffect(() => {
     fetchTills();
   }, []);
 
@@ -167,6 +193,39 @@ export default function DashboardAnalytics() {
       setTills(response.data.tills || []);
     } catch (error) {
       // Non-blocking: analytics still works without the selector
+    }
+  };
+
+  const fetchGeminiInsights = async (force: boolean) => {
+    try {
+      const token = localStorage.getItem("token");
+      setGeminiLoading(true);
+      const response = await axios.get("/api/dashboard/ai-insights", {
+        headers: { Authorization: `Bearer ${token}` },
+        params: {
+          range: activeRange.toLowerCase(),
+          ...(selectedTillId ? { tillId: selectedTillId } : {}),
+          ...(force ? { force: true } : {}),
+        },
+      });
+      setGeminiInsights(response.data as GeminiInsightsResponse);
+    } catch (error: any) {
+      const status = error?.response?.status;
+      if (status === 429) {
+        toast({
+          title: "Rate limited",
+          description: "Too many AI insight requests. Please try again shortly.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "AI Insights Error",
+          description: "Failed to load AI insights",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setGeminiLoading(false);
     }
   };
 
@@ -324,6 +383,27 @@ export default function DashboardAnalytics() {
   const COLORS = ['#10b981', '#ef4444', '#f59e0b', '#3b82f6', '#8b5cf6'];
 
   const formatKES = (value: number) => `KES ${Number(value || 0).toLocaleString()}`;
+
+  const effectiveAiInsights = (geminiInsights?.status === 'success' && geminiInsights.aiInsights)
+    ? geminiInsights.aiInsights
+    : null;
+
+  const effectiveAnomalyScore = (effectiveAiInsights && effectiveAiInsights.anomalyScore)
+    ? effectiveAiInsights.anomalyScore
+    : analytics.aiInsights.anomalyScore;
+
+  const aiProviderLabel = (geminiInsights?.status === 'success' && geminiInsights.aiInsights)
+    ? (geminiInsights.provider || 'gemini')
+    : 'dashboard';
+
+  const aiMeta = (geminiInsights?.status === 'success' && geminiInsights.aiInsights)
+    ? {
+        cached: Boolean(geminiInsights.cached),
+        generatedAt: geminiInsights.generatedAt,
+        expiresAt: geminiInsights.expiresAt,
+        model: geminiInsights.model,
+      }
+    : null;
 
   const amountAnalytics = analytics.amountAnalytics;
   const amountOptions = (amountAnalytics?.amountSummary || []).slice(0, 25);
@@ -983,17 +1063,43 @@ export default function DashboardAnalytics() {
             <div className="flex items-center gap-3 mb-6">
               <Brain className="w-6 h-6 text-purple-400" />
               <h3 className="text-lg font-semibold text-foreground">AI-Powered Insights</h3>
+              <div className="ml-auto flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => fetchGeminiInsights(true)}
+                  disabled={geminiLoading}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-xs font-medium border border-border hover:bg-secondary/30 transition",
+                    geminiLoading && "opacity-60 cursor-not-allowed"
+                  )}
+                >
+                  {geminiLoading ? "Generating…" : "Generate with Gemini"}
+                </button>
+              </div>
               <div className={`px-2 py-1 rounded-full text-xs font-medium ${
-                analytics.aiInsights.anomalyScore === 'high' 
+                effectiveAnomalyScore === 'high' 
                   ? 'bg-red-500/20 text-red-400' 
                   : 'bg-green-500/20 text-green-400'
               }`}>
-                Anomaly Score: {analytics.aiInsights.anomalyScore}
+                Anomaly Score: {effectiveAnomalyScore}
               </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 mb-4 text-xs text-muted-foreground">
+              <div className="px-2 py-1 rounded-md border border-border">Provider: {aiProviderLabel}</div>
+              {aiMeta?.model ? (
+                <div className="px-2 py-1 rounded-md border border-border">Model: {aiMeta.model}</div>
+              ) : null}
+              {aiMeta?.cached ? (
+                <div className="px-2 py-1 rounded-md border border-border">Cached</div>
+              ) : null}
+              {geminiInsights?.status === 'success' && geminiInsights.available === false ? (
+                <div className="px-2 py-1 rounded-md border border-border">Not generated yet</div>
+              ) : null}
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {analytics.aiInsights.insights.map((insight, index) => (
+              {(effectiveAiInsights?.insights || analytics.aiInsights.insights).map((insight, index) => (
                 <motion.div
                   key={index}
                   initial={{ opacity: 0, scale: 0.9 }}
