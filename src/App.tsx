@@ -12,6 +12,7 @@ import DashboardTransactions from "./pages/DashboardTransactions";
 import DashboardApiKeys from "./pages/DashboardApiKeys";
 import DashboardAccounts from "./pages/DashboardAccounts";
 import DashboardAnalytics from "./pages/DashboardAnalytics";
+import DashboardSettings from "./pages/DashboardSettings";
 import DeveloperPortal from "./pages/DeveloperPortal";
 import DeveloperDocs from "./pages/DeveloperDocs";
 import DeveloperGuide from "./pages/DeveloperGuide";
@@ -44,7 +45,7 @@ const AppContent = () => {
         <Route path="/dashboard/analytics" element={<ProtectedRoute element={<DashboardAnalytics />} />} />
         <Route path="/dashboard/integrations" element={<ProtectedRoute element={<Dashboard />} />} />
         <Route path="/dashboard/webhooks" element={<ProtectedRoute element={<DashboardWebhooks />} />} />
-        <Route path="/dashboard/settings" element={<ProtectedRoute element={<Dashboard />} />} />
+        <Route path="/dashboard/settings" element={<ProtectedRoute element={<DashboardSettings />} />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </>
