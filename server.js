@@ -110,6 +110,18 @@ const isValidEmail = (value) => {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 };
 
+const parseSenderFrom = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return { email: '' };
+  const m = raw.match(/^(.*)<\s*([^>]+)\s*>$/);
+  if (m) {
+    const name = String(m[1] || '').trim().replace(/^"|"$/g, '');
+    const email = String(m[2] || '').trim();
+    return { email, name: name || undefined };
+  }
+  return { email: raw };
+};
+
 const getUserNotificationSettings = async (userId) => {
   const { data, error } = await supabase
     .from('user_notification_settings')
@@ -192,10 +204,15 @@ const sendPaymentNotificationEmails = async ({ userId, event, transaction }) => 
     // Try Brevo HTTP API first
     if (BREVO_API_KEY && SMTP_FROM) {
       try {
+        const sender = parseSenderFrom(SMTP_FROM);
+        if (!isValidEmail(sender.email)) {
+          throw new Error('valid sender email required');
+        }
+
         await Promise.all(
           emails.slice(0, 5).map((to) =>
             axios.post('https://api.brevo.com/v3/smtp/email', {
-              sender: { email: SMTP_FROM },
+              sender,
               to: [{ email: to }],
               subject,
               htmlContent: html
