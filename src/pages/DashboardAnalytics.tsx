@@ -794,13 +794,6 @@ export default function DashboardAnalytics() {
                            style={{ backgroundColor: COLORS[index % COLORS.length] }}>
                         {index + 1}
                       </div>
-                      <div>
-                        <div className="text-foreground font-semibold">KES {item.amount.toLocaleString()}</div>
-                        <div className="text-muted-foreground text-sm">{item.count} transactions</div>
-                      </div>
-                    </div>
-                    <div className="text-muted-foreground">
-                      {((item.count / (analytics.allTime.totalTransactions || 1)) * 100).toFixed(1)}%
                     </div>
                   </div>
                 ))}

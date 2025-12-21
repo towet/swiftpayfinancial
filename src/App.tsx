@@ -3,7 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { WhatsAppSupportFab } from "@/components/ui/WhatsAppSupportFab";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
@@ -26,31 +26,42 @@ const ProtectedRoute = ({ element }: { element: React.ReactNode }) => {
   return token ? element : <Navigate to="/login" />;
 };
 
+const AppContent = () => {
+  const location = useLocation();
+  const isDashboard = location.pathname.startsWith('/dashboard');
+
+  return (
+    <>
+      <Routes>
+        <Route path="/" element={<Index />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route path="/developers" element={<DeveloperPortal />} />
+        <Route path="/developers/docs" element={<DeveloperDocs />} />
+        <Route path="/developers/guide" element={<DeveloperGuide />} />
+        <Route path="/dashboard" element={<ProtectedRoute element={<Dashboard />} />} />
+        <Route path="/dashboard/transactions" element={<ProtectedRoute element={<DashboardTransactions />} />} />
+        <Route path="/dashboard/api-keys" element={<ProtectedRoute element={<DashboardApiKeys />} />} />
+        <Route path="/dashboard/accounts" element={<ProtectedRoute element={<DashboardAccounts />} />} />
+        <Route path="/dashboard/analytics" element={<ProtectedRoute element={<DashboardAnalytics />} />} />
+        <Route path="/dashboard/integrations" element={<ProtectedRoute element={<Dashboard />} />} />
+        <Route path="/dashboard/webhooks" element={<ProtectedRoute element={<DashboardWebhooks />} />} />
+        <Route path="/dashboard/settings" element={<ProtectedRoute element={<Dashboard />} />} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+      {/* Show WhatsApp FAB only on authenticated dashboard pages */}
+      {isDashboard && <WhatsAppSupportFab />}
+    </>
+  );
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route path="/developers" element={<DeveloperPortal />} />
-          <Route path="/developers/docs" element={<DeveloperDocs />} />
-          <Route path="/developers/guide" element={<DeveloperGuide />} />
-          <Route path="/dashboard" element={<ProtectedRoute element={<Dashboard />} />} />
-          <Route path="/dashboard/transactions" element={<ProtectedRoute element={<DashboardTransactions />} />} />
-          <Route path="/dashboard/api-keys" element={<ProtectedRoute element={<DashboardApiKeys />} />} />
-          <Route path="/dashboard/accounts" element={<ProtectedRoute element={<DashboardAccounts />} />} />
-          <Route path="/dashboard/analytics" element={<ProtectedRoute element={<DashboardAnalytics />} />} />
-          <Route path="/dashboard/integrations" element={<ProtectedRoute element={<Dashboard />} />} />
-          <Route path="/dashboard/webhooks" element={<ProtectedRoute element={<DashboardWebhooks />} />} />
-          <Route path="/dashboard/settings" element={<ProtectedRoute element={<Dashboard />} />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-        {/* Show WhatsApp FAB only on authenticated dashboard pages */}
-        {window.location.pathname.startsWith('/dashboard') && <WhatsAppSupportFab />}
+        <AppContent />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
