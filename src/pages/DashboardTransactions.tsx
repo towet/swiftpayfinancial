@@ -5,7 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, Download, Filter, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
+<<<<<<< HEAD
 import { cn, formatTimeInAppTz } from "@/lib/utils";
+=======
+import { cn } from "@/lib/utils";
+>>>>>>> 58cf5c813e572ab6be223fac0028abf133058172
 import axios from "axios";
 import { useToast } from "@/hooks/use-toast";
 
@@ -93,7 +97,19 @@ export default function DashboardTransactions() {
   };
 
   const formatTime = (timestamp: string) => {
+<<<<<<< HEAD
     return formatTimeInAppTz(timestamp);
+=======
+    const date = new Date(timestamp);
+    if (Number.isNaN(date.getTime())) return "";
+
+    return date.toLocaleTimeString("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    });
+>>>>>>> 58cf5c813e572ab6be223fac0028abf133058172
   };
 
   const sumAmount = (txs: Transaction[]) => txs.reduce((sum, tx) => sum + (tx.amount || 0), 0);

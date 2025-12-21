@@ -1,9 +1,14 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
+<<<<<<< HEAD
 import { Menu, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import logo from "@/assets/swiftlogosss-Photoroom.png";
+=======
+import { Zap, Menu, X } from "lucide-react";
+import { Link } from "react-router-dom";
+>>>>>>> 58cf5c813e572ab6be223fac0028abf133058172
 
 const navLinks = [
   { label: "Features", href: "#features" },
@@ -37,12 +42,17 @@ export function Navbar() {
         <div className="container px-4 flex items-center justify-between">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 group">
+<<<<<<< HEAD
             <div className="h-10 w-10 overflow-hidden rounded-lg group-hover:glow-sm transition-shadow">
               <img
                 src={logo}
                 alt="SwiftPay"
                 className="h-full w-full object-contain scale-[1.8]"
               />
+=======
+            <div className="p-2 rounded-lg gradient-primary group-hover:glow-sm transition-shadow">
+              <Zap className="h-5 w-5 text-primary-foreground" />
+>>>>>>> 58cf5c813e572ab6be223fac0028abf133058172
             </div>
             <span className="text-xl font-bold gradient-text">SwiftPay</span>
           </Link>

@@ -9,6 +9,10 @@ import {
   BarChart3, 
   Bell, 
   Settings, 
+<<<<<<< HEAD
+=======
+  Zap,
+>>>>>>> 58cf5c813e572ab6be223fac0028abf133058172
   LogOut,
   ChevronLeft,
   ChevronRight,
@@ -18,7 +22,10 @@ import {
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+<<<<<<< HEAD
 import logo from "@/assets/swiftlogosss-Photoroom.png";
+=======
+>>>>>>> 58cf5c813e572ab6be223fac0028abf133058172
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Overview", path: "/dashboard" },
@@ -60,8 +67,13 @@ export function DashboardSidebar() {
       {/* Logo */}
       <div className="p-6 flex items-center justify-between">
         <Link to="/dashboard" className="flex items-center gap-2">
+<<<<<<< HEAD
           <div className="h-10 w-10 overflow-hidden rounded-lg">
             <img src={logo} alt="SwiftPay" className="h-full w-full object-contain scale-[1.8]" />
+=======
+          <div className="p-2 rounded-lg gradient-primary glow-sm">
+            <Zap className="h-5 w-5 text-primary-foreground" />
+>>>>>>> 58cf5c813e572ab6be223fac0028abf133058172
           </div>
           {!collapsed && (
             <motion.span

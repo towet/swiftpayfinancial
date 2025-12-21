@@ -892,6 +892,7 @@ export default function DashboardAnalytics() {
                           )}
                         >
                           <div className="flex items-center justify-between">
+<<<<<<< HEAD
                             <div className="text-foreground font-semibold">
                               <span className="text-muted-foreground">{idx + 1}.</span>{" "}
                               <span className="text-sky-200 font-mono">KES {Number(a.amount).toLocaleString()}</span>
@@ -912,6 +913,14 @@ export default function DashboardAnalytics() {
                             ) : (
                               ""
                             )}
+=======
+                            <div className="text-foreground font-semibold">{idx + 1}. KES {Number(a.amount).toLocaleString()}</div>
+                            <div className="text-foreground text-sm font-medium">{formatKES(a.paidRevenue)}</div>
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {a.paidCount} success | {a.failedCount} failed | {a.pendingCount} pending
+                            {best ? ` | peak: ${best.hourLabel}` : ''}
+>>>>>>> 58cf5c813e572ab6be223fac0028abf133058172
                           </div>
                         </button>
                       );
@@ -935,6 +944,7 @@ export default function DashboardAnalytics() {
                         )}
                       >
                         <div className="flex items-center justify-between">
+<<<<<<< HEAD
                           <div className="text-foreground font-semibold">
                             <span className="text-muted-foreground">{idx + 1}.</span>{" "}
                             <span className="text-sky-200 font-mono">KES {Number(a.amount).toLocaleString()}</span>
@@ -948,6 +958,13 @@ export default function DashboardAnalytics() {
                           <span className="text-muted-foreground">/{a.totalCount} success</span>
                           {" "}|{" "}
                           <span className="text-sky-200">avg paid: {formatKES(a.avgPaidValue)}</span>
+=======
+                          <div className="text-foreground font-semibold">{idx + 1}. KES {Number(a.amount).toLocaleString()}</div>
+                          <div className="text-foreground text-sm font-medium">{((Number(a.successRate || 0)) * 100).toFixed(1)}%</div>
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {a.paidCount}/{a.totalCount} success | avg paid: {formatKES(a.avgPaidValue)}
+>>>>>>> 58cf5c813e572ab6be223fac0028abf133058172
                         </div>
                       </button>
                     ))}
@@ -970,6 +987,7 @@ export default function DashboardAnalytics() {
                         )}
                       >
                         <div className="flex items-center justify-between">
+<<<<<<< HEAD
                           <div className="text-foreground font-semibold">
                             <span className="text-muted-foreground">{idx + 1}.</span>{" "}
                             <span className="text-sky-200 font-mono">KES {Number(a.amount).toLocaleString()}</span>
@@ -980,6 +998,13 @@ export default function DashboardAnalytics() {
                           <span className="text-muted-foreground">total: {a.totalCount}</span>
                           {" "}|{" "}
                           <span className="text-red-300">failure rate: {((Number(a.failureRate || 0)) * 100).toFixed(1)}%</span>
+=======
+                          <div className="text-foreground font-semibold">{idx + 1}. KES {Number(a.amount).toLocaleString()}</div>
+                          <div className="text-foreground text-sm font-medium">{a.failedCount} failed</div>
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          total: {a.totalCount} | failure rate: {((Number(a.failureRate || 0)) * 100).toFixed(1)}%
+>>>>>>> 58cf5c813e572ab6be223fac0028abf133058172
                         </div>
                       </button>
                     ))}

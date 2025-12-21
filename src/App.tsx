@@ -1,6 +1,7 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { WhatsAppSupportFab } from "@/components/ui/WhatsAppSupportFab";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
@@ -48,6 +49,8 @@ const App = () => (
           <Route path="/dashboard/settings" element={<ProtectedRoute element={<Dashboard />} />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
+        {/* Show WhatsApp FAB only on authenticated dashboard pages */}
+        {window.location.pathname.startsWith('/dashboard') && <WhatsAppSupportFab />}
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

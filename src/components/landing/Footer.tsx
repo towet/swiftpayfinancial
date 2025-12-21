@@ -1,9 +1,14 @@
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+<<<<<<< HEAD
 import { Github, Twitter, Linkedin, ArrowUp } from "lucide-react";
 import { Link } from "react-router-dom";
 import logo from "@/assets/swiftlogosss-Photoroom.png";
+=======
+import { Zap, Github, Twitter, Linkedin, ArrowUp } from "lucide-react";
+import { Link } from "react-router-dom";
+>>>>>>> 58cf5c813e572ab6be223fac0028abf133058172
 
 const footerLinks = {
   Product: ["Features", "Pricing", "Integrations", "API"],
@@ -26,8 +31,13 @@ export function Footer() {
           {/* Brand & Newsletter */}
           <div className="lg:col-span-2 space-y-6">
             <Link to="/" className="flex items-center gap-2">
+<<<<<<< HEAD
               <div className="h-12 w-12 overflow-hidden rounded-lg">
                 <img src={logo} alt="SwiftPay" className="h-full w-full object-contain scale-[1.8]" />
+=======
+              <div className="p-2 rounded-lg gradient-primary">
+                <Zap className="h-6 w-6 text-primary-foreground" />
+>>>>>>> 58cf5c813e572ab6be223fac0028abf133058172
               </div>
               <span className="text-2xl font-bold gradient-text">SwiftPay</span>
             </Link>

@@ -4,6 +4,7 @@ import { twMerge } from "tailwind-merge";
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
+<<<<<<< HEAD
 
 export const APP_TIME_ZONE = (import.meta as any)?.env?.VITE_APP_TIME_ZONE || "Africa/Nairobi";
 
@@ -35,3 +36,5 @@ export function formatTimeInAppTz(timestamp: string | null | undefined): string 
     timeZone: APP_TIME_ZONE,
   });
 }
+=======
+>>>>>>> 58cf5c813e572ab6be223fac0028abf133058172
