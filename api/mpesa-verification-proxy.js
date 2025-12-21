@@ -114,6 +114,7 @@ export async function mpesaVerificationProxy(req, res) {
     }
 
     // Return normalized response
+    if (res.headersSent) return;
     return res.status(200).json({
       success: result.success,
       payment: {
@@ -127,6 +128,7 @@ export async function mpesaVerificationProxy(req, res) {
 
   } catch (error) {
     console.error('Proxy verification error:', error);
+    if (res.headersSent) return;
     return res.status(500).json({
       success: false,
       message: 'Internal server error',

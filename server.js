@@ -31,16 +31,30 @@ app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // Request timeout middleware
 app.use((req, res, next) => {
-  res.setTimeout(30000, () => {
+  const path = String(req.path || '');
+  const isMpesaFlow =
+    path.startsWith('/api/mpesa') ||
+    path.startsWith('/api/mpesa-verification-proxy') ||
+    path.startsWith('/api/transactions/update-status');
+  const timeoutMs = isMpesaFlow ? 120000 : 30000;
+
+  res.setTimeout(timeoutMs, () => {
+    if (res.headersSent) return;
     res.status(408).json({ status: 'error', message: 'Request timeout' });
   });
   next();
 });
 
 // Supabase Client
+const SUPABASE_KEY =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.SUPABASE_KEY ||
+  process.env.SUPABASE_ANON_KEY ||
+  '';
+
 const supabase = createClient(
   process.env.SUPABASE_URL || 'https://your-supabase-url.supabase.co',
-  process.env.SUPABASE_KEY || 'your-supabase-key'
+  SUPABASE_KEY || 'your-supabase-key'
 );
 
 // M-Pesa Credentials (Hardcoded for testing)
@@ -128,7 +142,7 @@ const upsertUserNotificationSettings = async (userId, enabled, emails) => {
 const sendPaymentNotificationEmails = async ({ userId, event, transaction }) => {
   try {
     if (!userId) return;
-    if (!event || (event !== 'payment.success' && event !== 'payment.failed')) return;
+    if (!event || event !== 'payment.success') return;
 
     const settings = await getUserNotificationSettings(userId);
     if (!settings.enabled) return;
@@ -145,22 +159,31 @@ const sendPaymentNotificationEmails = async ({ userId, event, transaction }) => 
       return;
     }
 
-    const statusLabel = event === 'payment.success' ? 'SUCCESS' : 'FAILED';
-    const subject = `SwiftPay Payment ${statusLabel}`;
+    const subject = 'SwiftPay Payment Received';
     const amount = transaction?.amount != null ? String(transaction.amount) : '';
     const phone = transaction?.phone || transaction?.phone_number || '';
     const txnId = transaction?.transactionId || transaction?.id || '';
     const receipt = transaction?.mpesaReceiptNumber || transaction?.mpesa_receipt_number || '';
+    const reference = transaction?.reference || '';
+    const description = transaction?.description || '';
+    const tillId = transaction?.till_id || transaction?.tillId || '';
+    const mpesaRequestId = transaction?.mpesa_request_id || transaction?.mpesaRequestId || '';
+    const checkoutRequestId = transaction?.checkout_request_id || transaction?.checkoutRequestId || '';
     const when = transaction?.timestamp || new Date().toISOString();
 
     const html = `
       <div style="font-family:Arial,Helvetica,sans-serif;line-height:1.5">
-        <h2 style="margin:0 0 8px">SwiftPay Payment ${statusLabel}</h2>
+        <h2 style="margin:0 0 8px">SwiftPay Payment SUCCESS</h2>
         <p style="margin:0 0 16px;color:#4b5563">Notification for your SwiftPay account.</p>
         <table style="border-collapse:collapse">
           <tr><td style="padding:6px 10px;color:#6b7280">Transaction ID</td><td style="padding:6px 10px"><b>${txnId}</b></td></tr>
           <tr><td style="padding:6px 10px;color:#6b7280">Amount</td><td style="padding:6px 10px"><b>${amount}</b></td></tr>
           <tr><td style="padding:6px 10px;color:#6b7280">Phone</td><td style="padding:6px 10px"><b>${phone}</b></td></tr>
+          ${reference ? `<tr><td style="padding:6px 10px;color:#6b7280">Reference</td><td style="padding:6px 10px"><b>${reference}</b></td></tr>` : ''}
+          ${description ? `<tr><td style="padding:6px 10px;color:#6b7280">Description</td><td style="padding:6px 10px"><b>${description}</b></td></tr>` : ''}
+          ${tillId ? `<tr><td style="padding:6px 10px;color:#6b7280">Till ID</td><td style="padding:6px 10px"><b>${tillId}</b></td></tr>` : ''}
+          ${checkoutRequestId ? `<tr><td style="padding:6px 10px;color:#6b7280">Checkout Request ID</td><td style="padding:6px 10px"><b>${checkoutRequestId}</b></td></tr>` : ''}
+          ${mpesaRequestId ? `<tr><td style="padding:6px 10px;color:#6b7280">M-Pesa Request ID</td><td style="padding:6px 10px"><b>${mpesaRequestId}</b></td></tr>` : ''}
           ${receipt ? `<tr><td style="padding:6px 10px;color:#6b7280">Receipt</td><td style="padding:6px 10px"><b>${receipt}</b></td></tr>` : ''}
           <tr><td style="padding:6px 10px;color:#6b7280">Time</td><td style="padding:6px 10px"><b>${when}</b></td></tr>
         </table>
@@ -540,6 +563,81 @@ app.put('/api/notifications/email-settings', verifyToken, async (req, res) => {
     const saved = await upsertUserNotificationSettings(req.userId, enabled, unique);
     res.json({ status: 'success', settings: { enabled: saved.enabled !== false, emails: saved.emails || [] } });
   } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+app.post('/api/notifications/test-email', verifyToken, async (req, res) => {
+  try {
+    const force = req.body?.force === true;
+    const toRaw = req.body?.to;
+
+    const transporter = getEmailTransporter();
+    if (!transporter) {
+      return res.status(500).json({
+        status: 'error',
+        message: 'Email transporter not configured. Set SMTP_HOST + SMTP_FROM (and optionally SMTP_USER/SMTP_PASS).'
+      });
+    }
+
+    const settings = await getUserNotificationSettings(req.userId);
+    if (!force && settings.enabled === false) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Email notifications are disabled. Enable them in settings or call with { force: true }.'
+      });
+    }
+
+    let recipients = [];
+    if (toRaw) {
+      const to = normalizeEmail(toRaw);
+      if (!isValidEmail(to)) {
+        return res.status(400).json({ status: 'error', message: 'Invalid "to" email address' });
+      }
+      recipients = [to];
+    } else {
+      recipients = (settings.emails || [])
+        .map(normalizeEmail)
+        .filter((e) => isValidEmail(e));
+    }
+
+    recipients = Array.from(new Set(recipients)).slice(0, 5);
+
+    if (recipients.length === 0) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'No recipient emails found. Add emails in Dashboard Settings or provide { to: "email" }.'
+      });
+    }
+
+    const when = new Date().toISOString();
+    const subject = 'SwiftPay Test Email';
+    const html = `
+      <div style="font-family:Arial,Helvetica,sans-serif;line-height:1.5">
+        <h2 style="margin:0 0 8px">SwiftPay Test Email</h2>
+        <p style="margin:0 0 16px;color:#4b5563">This is a test notification email from your SwiftPay backend.</p>
+        <table style="border-collapse:collapse">
+          <tr><td style="padding:6px 10px;color:#6b7280">User</td><td style="padding:6px 10px"><b>${req.userId}</b></td></tr>
+          <tr><td style="padding:6px 10px;color:#6b7280">Time</td><td style="padding:6px 10px"><b>${when}</b></td></tr>
+          <tr><td style="padding:6px 10px;color:#6b7280">Backend</td><td style="padding:6px 10px"><b>SMTP (Brevo)</b></td></tr>
+        </table>
+      </div>
+    `;
+
+    await Promise.all(
+      recipients.map((to) =>
+        transporter.sendMail({
+          from: SMTP_FROM,
+          to,
+          subject,
+          html
+        })
+      )
+    );
+
+    res.json({ status: 'success', message: 'Test email queued', recipients });
+  } catch (error) {
+    console.error('Test email error:', error);
     res.status(500).json({ status: 'error', message: error.message });
   }
 });
@@ -1278,6 +1376,11 @@ app.post('/api/mpesa/callback', async (req, res) => {
               amount,
               phone,
               mpesaReceiptNumber,
+              reference: txn.reference,
+              description: txn.description,
+              till_id: txn.till_id,
+              mpesa_request_id: txn.mpesa_request_id,
+              checkout_request_id: txn.checkout_request_id,
               status: 'success',
               timestamp: new Date().toISOString()
             }
@@ -1317,19 +1420,6 @@ app.post('/api/mpesa/callback', async (req, res) => {
             status: 'failed',
             resultCode,
             timestamp: new Date().toISOString()
-          });
-
-          await sendPaymentNotificationEmails({
-            userId: till.user_id,
-            event: 'payment.failed',
-            transaction: {
-              transactionId: txn.id,
-              amount,
-              phone,
-              status: 'failed',
-              resultCode,
-              timestamp: new Date().toISOString()
-            }
           });
         }
       }
@@ -1661,7 +1751,7 @@ app.post('/api/transactions/update-status', async (req, res) => {
 
     console.log(`Transaction ${mpesa_request_id || checkout_request_id} updated to status: ${transactionStatus}`, data[0]);
 
-    if (transactionStatus === 'success' || transactionStatus === 'failed') {
+    if (transactionStatus === 'success') {
       const { data: till } = await supabase
         .from('tills')
         .select('user_id')
@@ -1671,12 +1761,18 @@ app.post('/api/transactions/update-status', async (req, res) => {
       if (till?.user_id) {
         await sendPaymentNotificationEmails({
           userId: till.user_id,
-          event: transactionStatus === 'success' ? 'payment.success' : 'payment.failed',
+          event: 'payment.success',
           transaction: {
             transactionId: data[0].id,
             amount: data[0].amount,
             phone: data[0].phone_number,
-            status: transactionStatus,
+            mpesaReceiptNumber: data[0].mpesa_receipt_number,
+            reference: data[0].reference,
+            description: data[0].description,
+            till_id: data[0].till_id,
+            mpesa_request_id: data[0].mpesa_request_id,
+            checkout_request_id: data[0].checkout_request_id,
+            status: 'success',
             timestamp: new Date().toISOString()
           }
         });

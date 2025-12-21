@@ -141,14 +141,14 @@ export default function DashboardSettings() {
                   Email Notifications
                 </CardTitle>
                 <CardDescription>
-                  Add up to 5 emails to receive payment updates (success/failed). You can enable/disable anytime.
+                  Add up to 5 emails to receive successful payment notifications with full payment details.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <p className="text-sm font-medium text-foreground">Enable email notifications</p>
-                    <p className="text-sm text-muted-foreground">Send updates when a payment status changes.</p>
+                    <p className="text-sm text-muted-foreground">Send an email when a payment is successful.</p>
                   </div>
                   <Switch checked={enabled} onCheckedChange={setEnabled} />
                 </div>
