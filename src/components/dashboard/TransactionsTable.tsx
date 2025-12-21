@@ -1,10 +1,6 @@
 import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
-<<<<<<< HEAD
 import { cn, formatTimeInAppTz } from "@/lib/utils";
-=======
-import { cn } from "@/lib/utils";
->>>>>>> 58cf5c813e572ab6be223fac0028abf133058172
 import { ExternalLink, Loader2 } from "lucide-react";
 import axios from "axios";
 
@@ -61,19 +57,7 @@ export function TransactionsTable({ limit, showViewAll = true }: TransactionsTab
   };
 
   const formatTime = (timestamp: string) => {
-<<<<<<< HEAD
     return formatTimeInAppTz(timestamp);
-=======
-    const date = new Date(timestamp);
-    if (Number.isNaN(date.getTime())) return "";
-
-    return date.toLocaleTimeString("en-GB", {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: false,
-    });
->>>>>>> 58cf5c813e572ab6be223fac0028abf133058172
   };
 
   return (
