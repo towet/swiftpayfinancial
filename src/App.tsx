@@ -1,7 +1,6 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { WhatsAppSupportFab } from "@/components/ui/WhatsAppSupportFab";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
@@ -28,7 +27,6 @@ const ProtectedRoute = ({ element }: { element: React.ReactNode }) => {
 
 const AppContent = () => {
   const location = useLocation();
-  const isDashboard = location.pathname.startsWith('/dashboard');
 
   return (
     <>
@@ -49,8 +47,6 @@ const AppContent = () => {
         <Route path="/dashboard/settings" element={<ProtectedRoute element={<Dashboard />} />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
-      {/* Show WhatsApp FAB only on authenticated dashboard pages */}
-      {isDashboard && <WhatsAppSupportFab />}
     </>
   );
 };

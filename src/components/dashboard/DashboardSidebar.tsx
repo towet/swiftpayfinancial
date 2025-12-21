@@ -19,6 +19,7 @@ import {
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import logo from "@/assets/swiftlogosss-Photoroom.png";
+import { SwiftPaySupport } from "@/components/ui/SwiftPaySupport";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Overview", path: "/dashboard" },
@@ -154,6 +155,9 @@ export function DashboardSidebar() {
 
       {/* Bottom section */}
       <div className="p-3 space-y-2">
+        {/* Support */}
+        <SwiftPaySupport collapsed={collapsed} />
+
         {/* Collapse button */}
         <button
           onClick={() => setCollapsed(!collapsed)}
