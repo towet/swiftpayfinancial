@@ -80,6 +80,7 @@ const SMTP_SECURE = String(process.env.SMTP_SECURE || '').toLowerCase() === 'tru
 const SMTP_USER = process.env.SMTP_USER || '';
 const SMTP_PASS = process.env.SMTP_PASS || '';
 const SMTP_FROM = process.env.SMTP_FROM || '';
+const BREVO_API_KEY = process.env.BREVO_API_KEY || '';
 
 let emailTransporter;
 
@@ -157,13 +158,7 @@ const sendPaymentNotificationEmails = async ({ userId, event, transaction }) => 
 
     if (emails.length === 0) return;
 
-    const transporter = getEmailTransporter();
-    if (!transporter) {
-      console.warn('Email transporter not configured. Set SMTP_HOST + SMTP_FROM (and optionally SMTP_USER/SMTP_PASS).');
-      return;
-    }
-
-    const subject = 'SwiftPay Payment Received';
+    const subject = 'SwiftPay Payment SUCCESS';
     const amount = transaction?.amount != null ? String(transaction.amount) : '';
     const phone = transaction?.phone || transaction?.phone_number || '';
     const txnId = transaction?.transactionId || transaction?.id || '';
@@ -194,6 +189,39 @@ const sendPaymentNotificationEmails = async ({ userId, event, transaction }) => 
       </div>
     `;
 
+    // Try Brevo HTTP API first
+    if (BREVO_API_KEY && SMTP_FROM) {
+      try {
+        await Promise.all(
+          emails.slice(0, 5).map((to) =>
+            axios.post('https://api.brevo.com/v3/smtp/email', {
+              sender: { email: SMTP_FROM },
+              to: [{ email: to }],
+              subject,
+              htmlContent: html
+            }, {
+              headers: {
+                'api-key': BREVO_API_KEY,
+                'Content-Type': 'application/json'
+              },
+              timeout: 15000
+            })
+          )
+        );
+        console.log(`Payment notification emails sent via Brevo HTTP API to ${emails.length} recipients`);
+        return;
+      } catch (apiErr) {
+        console.warn('Brevo HTTP API failed, falling back to SMTP:', apiErr?.response?.data || apiErr?.message);
+      }
+    }
+
+    // Fallback to SMTP
+    const transporter = getEmailTransporter();
+    if (!transporter) {
+      console.warn('Email transporter not configured. Set SMTP_HOST + SMTP_FROM (and optionally SMTP_USER/SMTP_PASS).');
+      return;
+    }
+
     await Promise.all(
       emails.slice(0, 5).map((to) =>
         transporter.sendMail({
@@ -204,6 +232,7 @@ const sendPaymentNotificationEmails = async ({ userId, event, transaction }) => 
         })
       )
     );
+    console.log(`Payment notification emails sent via SMTP to ${emails.length} recipients`);
   } catch (err) {
     console.error('Failed to send payment notification emails:', err?.message || err);
   }
