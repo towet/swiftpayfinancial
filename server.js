@@ -91,6 +91,10 @@ const getEmailTransporter = () => {
     host: SMTP_HOST,
     port: SMTP_PORT,
     secure: SMTP_SECURE,
+    requireTLS: !SMTP_SECURE && SMTP_PORT === 587,
+    connectionTimeout: 20000,
+    greetingTimeout: 20000,
+    socketTimeout: 30000,
     auth: SMTP_USER && SMTP_PASS ? { user: SMTP_USER, pass: SMTP_PASS } : undefined
   });
 
@@ -1384,6 +1388,8 @@ app.post('/api/mpesa/callback', async (req, res) => {
               status: 'success',
               timestamp: new Date().toISOString()
             }
+          }).catch((err) => {
+            console.error('Failed to send payment notification emails:', err?.message || err);
           });
         }
       }
@@ -1759,7 +1765,7 @@ app.post('/api/transactions/update-status', async (req, res) => {
         .single();
 
       if (till?.user_id) {
-        await sendPaymentNotificationEmails({
+        sendPaymentNotificationEmails({
           userId: till.user_id,
           event: 'payment.success',
           transaction: {
@@ -1775,10 +1781,13 @@ app.post('/api/transactions/update-status', async (req, res) => {
             status: 'success',
             timestamp: new Date().toISOString()
           }
+        }).catch((err) => {
+          console.error('Failed to send payment notification emails:', err?.message || err);
         });
       }
     }
 
+    if (res.headersSent) return;
     res.json({
       status: 'success',
       message: `Transaction status updated to ${transactionStatus}`,
@@ -1786,6 +1795,7 @@ app.post('/api/transactions/update-status', async (req, res) => {
     });
   } catch (error) {
     console.error('Status update error:', error);
+    if (res.headersSent) return;
     res.status(500).json({ status: 'error', message: error.message });
   }
 });
