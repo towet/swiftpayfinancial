@@ -57,12 +57,12 @@ const supabase = createClient(
   SUPABASE_KEY || 'your-supabase-key'
 );
 
-// M-Pesa Credentials (Hardcoded for testing)
-const MPESA_CONSUMER_KEY = 'QNDgt0ltfcmiiDAEVWfwAwWq2uHq3XeXv7BEXKGJKS7X7wVg';
-const MPESA_CONSUMER_SECRET = 'TD6vam4JJs7ghG5eGutL4zsNFFNLBF9yEBxUNZRopGPVNv77yqQvYo0OhsMy3eSq';
-const MPESA_BUSINESS_SHORT_CODE = '3581047';
-const MPESA_PASSKEY = 'cb9041a559db0ad7cbd8debaa5574661c5bf4e1fb7c7e99a8116c83dcaa8474d';
-const CALLBACK_URL = process.env.RENDER_EXTERNAL_URL || 'http://localhost:5000';
+// M-Pesa Credentials
+const MPESA_CONSUMER_KEY = process.env.MPESA_CONSUMER_KEY || '';
+const MPESA_CONSUMER_SECRET = process.env.MPESA_CONSUMER_SECRET || '';
+const MPESA_BUSINESS_SHORT_CODE = process.env.MPESA_BUSINESS_SHORT_CODE || '';
+const MPESA_PASSKEY = process.env.MPESA_PASSKEY || '';
+const CALLBACK_URL = process.env.CALLBACK_URL || process.env.RENDER_EXTERNAL_URL || 'http://localhost:5000';
 
 // M-Pesa API Endpoints (Production - same as working version)
 const OAUTH_URL = 'https://api.safaricom.co.ke/oauth/v1/generate';
