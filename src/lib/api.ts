@@ -1,8 +1,8 @@
 import axios from 'axios';
 
-// Use local server for development, remote for production
-const API_BASE_URL = (import.meta as any)?.env?.VITE_API_BASE_URL || 
-  (import.meta.env?.MODE === 'development' ? 'http://localhost:5000' : 'https://swiftpay-backend-uvv9.onrender.com');
+// Use VITE_API_BASE_URL environment variable for production, local server for development
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.MODE === 'development' ? 'http://localhost:5000' : 'https://swiftpay-backend-uvv9.onrender.com');
 
 // Set default base URL for all axios requests
 axios.defaults.baseURL = API_BASE_URL;

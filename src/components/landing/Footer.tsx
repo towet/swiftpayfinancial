@@ -5,6 +5,7 @@ import { Github, Twitter, Linkedin, ArrowUp, Lock } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import logo from "@/assets/swiftlogosss-Photoroom.png";
+import apiClient from "@/lib/api";
 
 const footerLinks = {
   Product: ["Features", "Pricing", "Integrations", "API"],
@@ -28,12 +29,11 @@ export function Footer() {
     e.preventDefault();
     setIsLoading(true);
     try {
-      const response = await fetch("http://localhost:5000/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: adminEmail, password: adminPassword }),
+      const response = await apiClient.post('/auth/login', {
+        email: adminEmail,
+        password: adminPassword,
       });
-      const data = await response.json();
+      const data = response.data;
       if (data.status === "success") {
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
