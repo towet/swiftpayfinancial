@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import axios from 'axios';
 import dotenv from 'dotenv';
+import * as crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import nodemailer from 'nodemailer';
@@ -120,6 +121,98 @@ const parseSenderFrom = (value) => {
     return { email, name: name || undefined };
   }
   return { email: raw };
+};
+
+const buildEmailHtml = ({ title, lead, contentHtml, footerHtml }) => {
+  return `
+    <div style="font-family:Arial,Helvetica,sans-serif;line-height:1.5;background:#0b1220;padding:24px">
+      <div style="max-width:560px;margin:0 auto;background:#0f172a;border:1px solid rgba(148,163,184,0.2);border-radius:14px;overflow:hidden">
+        <div style="padding:20px 22px;background:linear-gradient(135deg,#2563eb,#7c3aed)">
+          <div style="font-size:18px;font-weight:700;color:#fff">${title}</div>
+          <div style="color:rgba(255,255,255,0.9);margin-top:6px;font-size:13px">${lead || ''}</div>
+        </div>
+        <div style="padding:22px;color:#e5e7eb">
+          ${contentHtml || ''}
+          <div style="margin-top:18px;color:#94a3b8;font-size:12px">${footerHtml || ''}</div>
+        </div>
+      </div>
+    </div>
+  `;
+};
+
+const sendEmail = async ({ to, subject, html }) => {
+  const recipient = normalizeEmail(to);
+  if (!isValidEmail(recipient)) {
+    throw new Error('Invalid email recipient');
+  }
+
+  if (BREVO_API_KEY && SMTP_FROM) {
+    const sender = parseSenderFrom(SMTP_FROM);
+    if (isValidEmail(sender.email)) {
+      try {
+        await axios.post(
+          'https://api.brevo.com/v3/smtp/email',
+          {
+            sender,
+            to: [{ email: recipient }],
+            subject,
+            htmlContent: html
+          },
+          {
+            headers: {
+              'api-key': BREVO_API_KEY,
+              'Content-Type': 'application/json'
+            },
+            timeout: 20000
+          }
+        );
+        return;
+      } catch (apiErr) {
+        console.warn('Brevo HTTP API failed, falling back to SMTP:', apiErr?.response?.data || apiErr?.message);
+      }
+    }
+  }
+
+  const transporter = getEmailTransporter();
+  if (!transporter) {
+    throw new Error('Email transporter not configured. Set SMTP_HOST + SMTP_FROM (and optionally SMTP_USER/SMTP_PASS).');
+  }
+
+  await transporter.sendMail({
+    from: SMTP_FROM,
+    to: recipient,
+    subject,
+    html
+  });
+};
+
+const generateOtpCode = () => {
+  const code = crypto.randomInt(0, 1000000);
+  return String(code).padStart(6, '0');
+};
+
+const createLoginChallengeToken = ({ userId, email }) => {
+  return jwt.sign(
+    { type: 'login_challenge', userId, email },
+    JWT_SECRET,
+    { expiresIn: '10m' }
+  );
+};
+
+const verifyLoginChallengeToken = (token) => {
+  const decoded = jwt.verify(token, JWT_SECRET);
+  if (!decoded || decoded.type !== 'login_challenge' || !decoded.userId || !decoded.email) {
+    throw new Error('Invalid login challenge');
+  }
+  return decoded;
+};
+
+const issueAccessToken = ({ userId, email, rememberMe }) => {
+  return jwt.sign(
+    { userId, email },
+    JWT_SECRET,
+    { expiresIn: rememberMe ? '7d' : '2h' }
+  );
 };
 
 const getUserNotificationSettings = async (userId) => {
@@ -642,6 +735,10 @@ const verifySuperAdmin = async (req, res, next) => {
 app.get('/api/super-admin/analytics', verifySuperAdmin, async (req, res) => {
   try {
     const { range = '7d' } = req.query;
+    const isPaidStatus = (status) => {
+      const s = String(status || '').toLowerCase();
+      return s === 'success' || s === 'paid' || s === 'completed';
+    };
     
     // Calculate date range
     const now = new Date();
@@ -667,13 +764,13 @@ app.get('/api/super-admin/analytics', verifySuperAdmin, async (req, res) => {
     // Get transactions in range
     const { data: transactions } = await supabase
       .from('transactions')
-      .select('amount, status, created_at')
+      .select('amount, status, created_at, till_id')
       .gte('created_at', startDate.toISOString());
 
     const totalTransactions = transactions?.length || 0;
-    const successfulTransactions = transactions?.filter(t => t.status === 'completed')?.length || 0;
+    const successfulTransactions = transactions?.filter(t => isPaidStatus(t.status))?.length || 0;
     const totalRevenue = transactions
-      ?.filter(t => t.status === 'completed')
+      ?.filter(t => isPaidStatus(t.status))
       ?.reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0) || 0;
 
     // Get daily revenue for chart
@@ -685,7 +782,7 @@ app.get('/api/super-admin/analytics', verifySuperAdmin, async (req, res) => {
     }
 
     transactions?.forEach(t => {
-      if (t.status === 'completed') {
+      if (isPaidStatus(t.status)) {
         const dateStr = t.created_at.split('T')[0];
         if (dailyRevenue.hasOwnProperty(dateStr)) {
           dailyRevenue[dateStr] += parseFloat(t.amount) || 0;
@@ -696,12 +793,12 @@ app.get('/api/super-admin/analytics', verifySuperAdmin, async (req, res) => {
     // Get top tills by revenue
     const { data: topTillsData } = await supabase
       .from('tills')
-      .select('id, name, user_id')
+      .select('id, name, user_id, users:user_id (email, full_name, company_name)')
       .order('created_at', { ascending: false });
 
     const tillRevenue = {};
     transactions?.forEach(t => {
-      if (t.status === 'completed' && t.till_id) {
+      if (isPaidStatus(t.status) && t.till_id) {
         tillRevenue[t.till_id] = (tillRevenue[t.till_id] || 0) + (parseFloat(t.amount) || 0);
       }
     });
@@ -834,6 +931,10 @@ app.get('/api/super-admin/transactions', verifySuperAdmin, async (req, res) => {
 app.get('/api/super-admin/activity', verifySuperAdmin, async (req, res) => {
   try {
     const { limit = 20 } = req.query;
+    const isPaidStatus = (status) => {
+      const s = String(status || '').toLowerCase();
+      return s === 'success' || s === 'paid' || s === 'completed';
+    };
 
     // Get recent transactions
     const { data: transactions } = await supabase
@@ -868,7 +969,7 @@ app.get('/api/super-admin/activity', verifySuperAdmin, async (req, res) => {
       ...(transactions || []).map(t => ({
         type: 'transaction',
         id: t.id,
-        message: `Transaction of KES ${t.amount} ${t.status === 'completed' ? 'completed' : 'failed'}`,
+        message: `Transaction of KES ${t.amount} ${isPaidStatus(t.status) ? 'completed' : String(t.status || '').toLowerCase() === 'pending' ? 'pending' : 'failed'}`,
         user: t.users?.full_name || 'Unknown',
         till: t.tills?.name || 'Unknown',
         amount: t.amount,
@@ -878,15 +979,15 @@ app.get('/api/super-admin/activity', verifySuperAdmin, async (req, res) => {
       ...(newTills || []).map(t => ({
         type: 'till_created',
         id: t.id,
-        message: `New till "${t.name}" created`,
+        message: `New till "${t.name || 'Unnamed'}" created`,
         user: t.users?.full_name || 'Unknown',
-        till: t.name,
+        till: t.name || 'Unnamed',
         timestamp: t.created_at
       })),
       ...(newUsers || []).map(u => ({
         type: 'user_joined',
         id: u.id,
-        message: `New user "${u.full_name}" joined`,
+        message: `New user "${u.full_name || 'Unknown'}" joined`,
         user: u.full_name,
         company: u.company_name,
         timestamp: u.created_at
@@ -2266,9 +2367,11 @@ app.get('/api/dashboard/ai-insights', verifyToken, async (req, res) => {
 // Login
 app.post('/api/auth/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, rememberMe } = req.body;
 
-    if (!email || !password) {
+    const normalizedEmail = normalizeEmail(email);
+
+    if (!normalizedEmail || !password) {
       return res.status(400).json({ status: 'error', message: 'Email and password required' });
     }
 
@@ -2276,7 +2379,7 @@ app.post('/api/auth/login', async (req, res) => {
     const { data, error } = await supabase
       .from('users')
       .select('*')
-      .eq('email', email)
+      .eq('email', normalizedEmail)
       .single();
 
     if (error || !data) {
@@ -2289,27 +2392,283 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(401).json({ status: 'error', message: 'Invalid credentials' });
     }
 
+    const transporterCheck = getEmailTransporter();
+    if (!transporterCheck && !(BREVO_API_KEY && SMTP_FROM)) {
+      return res.status(500).json({
+        status: 'error',
+        message: 'Email transporter not configured. Set SMTP_HOST + SMTP_FROM (and optionally SMTP_USER/SMTP_PASS), or configure BREVO_API_KEY + SMTP_FROM.'
+      });
+    }
+
+    const otpWindowSeconds = 60;
+    const { data: lastOtp } = await supabase
+      .from('auth_email_otps')
+      .select('created_at')
+      .eq('user_id', data.id)
+      .eq('purpose', 'login')
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    const lastCreated = lastOtp?.[0]?.created_at ? new Date(lastOtp[0].created_at).getTime() : 0;
+    if (lastCreated && Date.now() - lastCreated < otpWindowSeconds * 1000) {
+      return res.status(429).json({
+        status: 'error',
+        message: `Please wait ${otpWindowSeconds} seconds before requesting another OTP.`
+      });
+    }
+
+    await supabase
+      .from('auth_email_otps')
+      .update({ consumed_at: new Date().toISOString() })
+      .eq('user_id', data.id)
+      .eq('purpose', 'login')
+      .is('consumed_at', null);
+
+    const otp = generateOtpCode();
+    const otpHash = await bcrypt.hash(otp, 10);
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    const challengeToken = createLoginChallengeToken({ userId: data.id, email: normalizedEmail });
+
+    const otpRow = {
+      id: uuidv4(),
+      user_id: data.id,
+      email: normalizedEmail,
+      otp_hash: otpHash,
+      purpose: 'login',
+      attempts: 0,
+      max_attempts: 5,
+      expires_at: expiresAt.toISOString(),
+      consumed_at: null,
+      ip: req.ip,
+      user_agent: req.headers['user-agent']
+    };
+
+    const { error: otpInsertError } = await supabase
+      .from('auth_email_otps')
+      .insert([otpRow]);
+
+    if (otpInsertError) {
+      return res.status(400).json({ status: 'error', message: otpInsertError.message });
+    }
+
+    const subject = 'SwiftPay Login OTP';
+    const html = buildEmailHtml({
+      title: 'SwiftPay Login Verification',
+      lead: 'Use the OTP below to complete your login.',
+      contentHtml: `
+        <div style="margin:14px 0 6px;color:#e5e7eb">Your One-Time Password (OTP):</div>
+        <div style="font-size:34px;letter-spacing:6px;font-weight:800;color:#fff;margin:10px 0 14px">${otp}</div>
+        <div style="color:#94a3b8;font-size:13px">This code expires in <b>10 minutes</b>.</div>
+      `,
+      footerHtml: 'If you did not attempt to sign in, you can ignore this email.'
+    });
+
+    await sendEmail({ to: normalizedEmail, subject, html });
+
+    return res.json({
+      status: 'otp_required',
+      message: 'OTP sent to your email',
+      challengeToken,
+      expiresAt: expiresAt.toISOString(),
+      rememberMe: rememberMe === true
+    });
+
     // Update last login
     await supabase
       .from('users')
       .update({ last_login: new Date().toISOString() })
       .eq('id', data.id);
+  } catch (error) {
+    console.error('Login Error:', error);
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
 
-    const token = jwt.sign({ userId: data.id, email: data.email }, JWT_SECRET, { expiresIn: '7d' });
+app.post('/api/auth/login/verify-otp', async (req, res) => {
+  try {
+    const { otp, challengeToken, rememberMe } = req.body;
+
+    if (!otp || !challengeToken) {
+      return res.status(400).json({ status: 'error', message: 'OTP and challengeToken required' });
+    }
+
+    let decoded;
+    try {
+      decoded = verifyLoginChallengeToken(challengeToken);
+    } catch (e) {
+      return res.status(401).json({ status: 'error', message: 'Invalid or expired login challenge' });
+    }
+
+    const userId = decoded.userId;
+    const email = normalizeEmail(decoded.email);
+
+    const { data: otpRows, error: otpFetchError } = await supabase
+      .from('auth_email_otps')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('email', email)
+      .eq('purpose', 'login')
+      .is('consumed_at', null)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (otpFetchError) {
+      return res.status(400).json({ status: 'error', message: otpFetchError.message });
+    }
+
+    const otpRow = otpRows?.[0];
+    if (!otpRow) {
+      return res.status(401).json({ status: 'error', message: 'OTP not found or already used' });
+    }
+
+    if (otpRow.expires_at && new Date(otpRow.expires_at).getTime() < Date.now()) {
+      return res.status(401).json({ status: 'error', message: 'OTP expired' });
+    }
+
+    const maxAttempts = Number(otpRow.max_attempts || 5);
+    const attempts = Number(otpRow.attempts || 0);
+    if (attempts >= maxAttempts) {
+      return res.status(429).json({ status: 'error', message: 'Too many attempts. Please request a new OTP.' });
+    }
+
+    const isValidOtp = await bcrypt.compare(String(otp), String(otpRow.otp_hash || ''));
+    if (!isValidOtp) {
+      await supabase
+        .from('auth_email_otps')
+        .update({ attempts: attempts + 1 })
+        .eq('id', otpRow.id);
+      return res.status(401).json({ status: 'error', message: 'Invalid OTP' });
+    }
+
+    await supabase
+      .from('auth_email_otps')
+      .update({ consumed_at: new Date().toISOString() })
+      .eq('id', otpRow.id);
+
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .single();
+
+    if (userError || !user) {
+      return res.status(404).json({ status: 'error', message: 'User not found' });
+    }
+
+    await supabase
+      .from('users')
+      .update({ last_login: new Date().toISOString() })
+      .eq('id', user.id);
+
+    const token = issueAccessToken({ userId: user.id, email: user.email, rememberMe: rememberMe === true });
 
     res.json({
       status: 'success',
       message: 'Login successful',
       token,
       user: {
-        id: data.id,
-        email: data.email,
-        fullName: data.full_name,
-        companyName: data.company_name
+        id: user.id,
+        email: user.email,
+        fullName: user.full_name,
+        companyName: user.company_name,
+        role: user.role
       }
     });
   } catch (error) {
-    console.error('Login Error:', error);
+    console.error('Verify OTP Error:', error);
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+app.post('/api/auth/login/resend-otp', async (req, res) => {
+  try {
+    const { challengeToken } = req.body;
+
+    if (!challengeToken) {
+      return res.status(400).json({ status: 'error', message: 'challengeToken required' });
+    }
+
+    let decoded;
+    try {
+      decoded = verifyLoginChallengeToken(challengeToken);
+    } catch (e) {
+      return res.status(401).json({ status: 'error', message: 'Invalid or expired login challenge' });
+    }
+
+    const userId = decoded.userId;
+    const email = normalizeEmail(decoded.email);
+
+    const otpWindowSeconds = 60;
+    const { data: lastOtp } = await supabase
+      .from('auth_email_otps')
+      .select('created_at')
+      .eq('user_id', userId)
+      .eq('purpose', 'login')
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    const lastCreated = lastOtp?.[0]?.created_at ? new Date(lastOtp[0].created_at).getTime() : 0;
+    if (lastCreated && Date.now() - lastCreated < otpWindowSeconds * 1000) {
+      return res.status(429).json({
+        status: 'error',
+        message: `Please wait ${otpWindowSeconds} seconds before requesting another OTP.`
+      });
+    }
+
+    await supabase
+      .from('auth_email_otps')
+      .update({ consumed_at: new Date().toISOString() })
+      .eq('user_id', userId)
+      .eq('purpose', 'login')
+      .is('consumed_at', null);
+
+    const otp = generateOtpCode();
+    const otpHash = await bcrypt.hash(otp, 10);
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+    const otpRow = {
+      id: uuidv4(),
+      user_id: userId,
+      email,
+      otp_hash: otpHash,
+      purpose: 'login',
+      attempts: 0,
+      max_attempts: 5,
+      expires_at: expiresAt.toISOString(),
+      consumed_at: null,
+      ip: req.ip,
+      user_agent: req.headers['user-agent']
+    };
+
+    const { error: otpInsertError } = await supabase
+      .from('auth_email_otps')
+      .insert([otpRow]);
+
+    if (otpInsertError) {
+      return res.status(400).json({ status: 'error', message: otpInsertError.message });
+    }
+
+    const subject = 'SwiftPay Login OTP';
+    const html = buildEmailHtml({
+      title: 'SwiftPay Login Verification',
+      lead: 'Use the OTP below to complete your login.',
+      contentHtml: `
+        <div style="margin:14px 0 6px;color:#e5e7eb">Your One-Time Password (OTP):</div>
+        <div style="font-size:34px;letter-spacing:6px;font-weight:800;color:#fff;margin:10px 0 14px">${otp}</div>
+        <div style="color:#94a3b8;font-size:13px">This code expires in <b>10 minutes</b>.</div>
+      `,
+      footerHtml: 'If you did not attempt to sign in, you can ignore this email.'
+    });
+
+    await sendEmail({ to: email, subject, html });
+
+    res.json({
+      status: 'success',
+      message: 'OTP resent',
+      expiresAt: expiresAt.toISOString()
+    });
+  } catch (error) {
+    console.error('Resend OTP Error:', error);
     res.status(500).json({ status: 'error', message: error.message });
   }
 });
