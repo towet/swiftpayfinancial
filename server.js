@@ -57,12 +57,12 @@ const supabase = createClient(
   SUPABASE_KEY || 'your-supabase-key'
 );
 
-// M-Pesa Credentials
+// M-Pesa Credentials (from environment variables)
 const MPESA_CONSUMER_KEY = process.env.MPESA_CONSUMER_KEY || '';
 const MPESA_CONSUMER_SECRET = process.env.MPESA_CONSUMER_SECRET || '';
 const MPESA_BUSINESS_SHORT_CODE = process.env.MPESA_BUSINESS_SHORT_CODE || '';
 const MPESA_PASSKEY = process.env.MPESA_PASSKEY || '';
-const CALLBACK_URL = process.env.CALLBACK_URL || process.env.RENDER_EXTERNAL_URL || 'http://localhost:5000';
+const CALLBACK_URL = process.env.RENDER_EXTERNAL_URL || process.env.CALLBACK_URL || 'http://localhost:5000';
 
 // M-Pesa API Endpoints (Production - same as working version)
 const OAUTH_URL = 'https://api.safaricom.co.ke/oauth/v1/generate';
@@ -997,24 +997,43 @@ app.get('/api/super-admin/tills/:id/analytics', verifySuperAdmin, async (req, re
     const { id } = req.params;
     const { period = '30d' } = req.query;
 
-    // Calculate date range
-    const endDate = new Date();
-    const startDate = new Date();
+    // Helper function to check if status is paid/successful
+    const isPaidStatus = (status) => {
+      const s = String(status || '').toLowerCase();
+      return s === 'success' || s === 'paid' || s === 'completed';
+    };
+
+    // Calculate date range using calendar-based logic (same as user dashboard)
+    const now = new Date();
+    let startDate, endDate;
+
     switch (period) {
+      case '1d':
+        // Today: midnight to midnight
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        break;
       case '7d':
-        startDate.setDate(startDate.getDate() - 7);
+        // Week: Sunday to Sunday
+        startDate = new Date(now);
+        startDate.setDate(now.getDate() - now.getDay());
+        startDate.setHours(0, 0, 0, 0);
+        endDate = new Date(startDate);
+        endDate.setDate(startDate.getDate() + 7);
         break;
       case '30d':
-        startDate.setDate(startDate.getDate() - 30);
-        break;
-      case '90d':
-        startDate.setDate(startDate.getDate() - 90);
+        // Month: 1st to last day
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
         break;
       case '1y':
-        startDate.setFullYear(startDate.getFullYear() - 1);
+        // Year: Jan 1 to Dec 31
+        startDate = new Date(now.getFullYear(), 0, 1);
+        endDate = new Date(now.getFullYear() + 1, 0, 1);
         break;
       default:
-        startDate.setDate(startDate.getDate() - 30);
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
     }
 
     // Get till details
@@ -1042,16 +1061,17 @@ app.get('/api/super-admin/tills/:id/analytics', verifySuperAdmin, async (req, re
     }
 
     // Calculate analytics
-    const totalRevenue = transactions.reduce((sum, tx) => sum + (tx.amount || 0), 0);
-    const successfulTransactions = transactions.filter(tx => tx.status === 'success');
-    const failedTransactions = transactions.filter(tx => tx.status === 'failed');
+    const totalRevenue = transactions.reduce((sum, tx) => sum + (isPaidStatus(tx.status) ? (tx.amount || 0) : 0), 0);
+    const successfulTransactions = transactions.filter(tx => isPaidStatus(tx.status));
+    const failedTransactions = transactions.filter(tx => String(tx.status || '').toLowerCase() === 'failed');
+    const pendingTransactions = transactions.filter(tx => String(tx.status || '').toLowerCase() === 'pending');
     const successRate = transactions.length > 0 ? (successfulTransactions.length / transactions.length) * 100 : 0;
 
     // Daily revenue
     const dailyRevenue = {};
     transactions.forEach(tx => {
       const date = new Date(tx.created_at).toISOString().split('T')[0];
-      if (tx.status === 'success') {
+      if (isPaidStatus(tx.status)) {
         dailyRevenue[date] = (dailyRevenue[date] || 0) + (tx.amount || 0);
       }
     });
@@ -1063,7 +1083,7 @@ app.get('/api/super-admin/tills/:id/analytics', verifySuperAdmin, async (req, re
       const weekStart = new Date(date);
       weekStart.setDate(date.getDate() - date.getDay());
       const weekKey = weekStart.toISOString().split('T')[0];
-      if (tx.status === 'success') {
+      if (isPaidStatus(tx.status)) {
         weeklyRevenue[weekKey] = (weeklyRevenue[weekKey] || 0) + (tx.amount || 0);
       }
     });
@@ -1073,7 +1093,7 @@ app.get('/api/super-admin/tills/:id/analytics', verifySuperAdmin, async (req, re
     transactions.forEach(tx => {
       const date = new Date(tx.created_at);
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      if (tx.status === 'success') {
+      if (isPaidStatus(tx.status)) {
         monthlyRevenue[monthKey] = (monthlyRevenue[monthKey] || 0) + (tx.amount || 0);
       }
     });
@@ -1084,7 +1104,7 @@ app.get('/api/super-admin/tills/:id/analytics', verifySuperAdmin, async (req, re
     transactions.forEach(tx => {
       const hour = new Date(tx.created_at).getHours();
       hourlyTransactions[hour]++;
-      if (tx.status === 'success') {
+      if (isPaidStatus(tx.status)) {
         hourlyRevenue[hour] += tx.amount || 0;
       }
     });
