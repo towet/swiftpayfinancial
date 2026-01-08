@@ -13,6 +13,9 @@ export function SuperAdminLoginModal({ open, onOpenChange }: { open: boolean; on
   const { toast } = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [otp, setOtp] = useState("");
+  const [challengeToken, setChallengeToken] = useState<string | null>(null);
+  const [otpExpiresAt, setOtpExpiresAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -20,16 +23,57 @@ export function SuperAdminLoginModal({ open, onOpenChange }: { open: boolean; on
     setLoading(true);
 
     try {
-      const response = await axios.post("/api/login", { email, password });
-      
-      if (response.data.status === "success") {
-        const { token, user } = response.data;
-        
-        // Store token
+      if (!challengeToken) {
+        const response = await axios.post("/api/auth/login", { email, password, rememberMe: true });
+
+        if (response.data.status === "otp_required") {
+          setChallengeToken(response.data.challengeToken);
+          setOtpExpiresAt(response.data.expiresAt || null);
+          setOtp("");
+          toast({
+            title: "OTP sent",
+            description: "Check your email for the 6-digit code.",
+          });
+          return;
+        }
+
+        if (response.data.status === "success") {
+          const { token, user } = response.data;
+          localStorage.setItem("token", token);
+          localStorage.setItem("user", JSON.stringify(user));
+          localStorage.setItem("lastActivityAt", String(Date.now()));
+
+          if (user.role === "super_admin") {
+            toast({
+              title: "Welcome, Super Admin",
+              description: "Access granted to Super Admin Dashboard",
+            });
+            onOpenChange(false);
+            navigate("/dashboard/super-admin");
+          } else {
+            toast({
+              title: "Access Denied",
+              description: "This account does not have super admin privileges",
+              variant: "destructive",
+            });
+          }
+        }
+
+        return;
+      }
+
+      const verifyRes = await axios.post("/api/auth/login/verify-otp", {
+        otp,
+        challengeToken,
+        rememberMe: true
+      });
+
+      if (verifyRes.data.status === "success") {
+        const { token, user } = verifyRes.data;
         localStorage.setItem("token", token);
         localStorage.setItem("user", JSON.stringify(user));
+        localStorage.setItem("lastActivityAt", String(Date.now()));
 
-        // Check if user is super admin
         if (user.role === "super_admin") {
           toast({
             title: "Welcome, Super Admin",
@@ -56,6 +100,32 @@ export function SuperAdminLoginModal({ open, onOpenChange }: { open: boolean; on
     }
   };
 
+  const handleResendOtp = async () => {
+    if (!challengeToken) return;
+    setLoading(true);
+    try {
+      const response = await axios.post("/api/auth/login/resend-otp", { challengeToken });
+      if (response.data.status === "success") {
+        setOtpExpiresAt(response.data.expiresAt || null);
+        toast({ title: "OTP resent", description: "Check your email for the new code." });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Resend Failed",
+        description: error.response?.data?.message || "Could not resend OTP",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBack = () => {
+    setChallengeToken(null);
+    setOtp("");
+    setOtpExpiresAt(null);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md glass border-border/50">
@@ -78,26 +148,56 @@ export function SuperAdminLoginModal({ open, onOpenChange }: { open: boolean; on
                 onChange={(e) => setEmail(e.target.value)}
                 className="pl-10"
                 required
+                disabled={!!challengeToken}
               />
             </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+          {!challengeToken && (
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="pl-10"
+                  required
+                />
+              </div>
+            </div>
+          )}
+
+          {challengeToken && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="otp">Email OTP</Label>
+                <button type="button" onClick={handleBack} className="text-sm text-primary hover:underline">
+                  Back
+                </button>
+              </div>
               <Input
-                id="password"
-                type="password"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="pl-10"
+                id="otp"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                placeholder="Enter 6-digit code"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                className="text-center tracking-[0.35em]"
                 required
               />
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>{otpExpiresAt ? `Expires: ${new Date(otpExpiresAt).toLocaleTimeString()}` : ""}</span>
+                <button type="button" onClick={handleResendOtp} className="text-primary hover:underline">
+                  Resend OTP
+                </button>
+              </div>
             </div>
-          </div>
+          )}
           <Button type="submit" className="w-full gradient-primary" disabled={loading}>
-            {loading ? "Authenticating..." : "Access Dashboard"}
+            {loading ? (challengeToken ? "Verifying..." : "Sending OTP...") : (challengeToken ? "Verify OTP" : "Access Dashboard")}
           </Button>
         </form>
       </DialogContent>

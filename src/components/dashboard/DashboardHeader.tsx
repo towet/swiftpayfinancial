@@ -28,6 +28,55 @@ export function DashboardHeader({ title, breadcrumbs = [] }: DashboardHeaderProp
   const { toast } = useToast();
 
   useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    const bumpActivity = () => {
+      localStorage.setItem("lastActivityAt", String(Date.now()));
+    };
+
+    const events: Array<keyof WindowEventMap> = [
+      "mousemove",
+      "mousedown",
+      "keydown",
+      "scroll",
+      "touchstart"
+    ];
+
+    events.forEach((evt) => window.addEventListener(evt, bumpActivity, { passive: true } as any));
+    bumpActivity();
+
+    const getIdleTimeoutMs = () => {
+      const raw = localStorage.getItem("sessionIdleTimeoutMs");
+      const parsed = Number(raw);
+      if (Number.isFinite(parsed) && parsed > 0) return parsed;
+      return 30 * 60 * 1000;
+    };
+
+    const interval = window.setInterval(() => {
+      const last = Number(localStorage.getItem("lastActivityAt") || 0);
+      const timeoutMs = getIdleTimeoutMs();
+      if (!last) return;
+      if (Date.now() - last > timeoutMs) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        localStorage.removeItem("lastActivityAt");
+        navigate("/login");
+        toast({
+          title: "Session expired",
+          description: "You were logged out due to inactivity. Please sign in again.",
+          variant: "destructive"
+        });
+      }
+    }, 15000);
+
+    return () => {
+      window.clearInterval(interval);
+      events.forEach((evt) => window.removeEventListener(evt, bumpActivity as any));
+    };
+  }, [navigate, toast]);
+
+  useEffect(() => {
     fetchUserProfile();
   }, []);
 
@@ -56,6 +105,7 @@ export function DashboardHeader({ title, breadcrumbs = [] }: DashboardHeaderProp
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+    localStorage.removeItem("lastActivityAt");
     navigate("/login");
     toast({
       title: "Logged out",

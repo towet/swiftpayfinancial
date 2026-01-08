@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Github, Twitter, Linkedin, ArrowUp, Lock } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
+import axios from "axios";
 import logo from "@/assets/swiftlogosss-Photoroom.png";
 
 const footerLinks = {
@@ -18,6 +19,9 @@ export function Footer() {
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [adminEmail, setAdminEmail] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
+  const [adminOtp, setAdminOtp] = useState("");
+  const [adminChallengeToken, setAdminChallengeToken] = useState<string | null>(null);
+  const [adminOtpExpiresAt, setAdminOtpExpiresAt] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const scrollToTop = () => {
@@ -28,25 +32,84 @@ export function Footer() {
     e.preventDefault();
     setIsLoading(true);
     try {
-      const response = await fetch("http://localhost:5000/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: adminEmail, password: adminPassword }),
+      if (!adminChallengeToken) {
+        const response = await axios.post("/api/auth/login", {
+          email: adminEmail,
+          password: adminPassword,
+          rememberMe: true
+        });
+
+        if (response.data.status === "otp_required") {
+          setAdminChallengeToken(response.data.challengeToken);
+          setAdminOtpExpiresAt(response.data.expiresAt || null);
+          setAdminOtp("");
+          alert("OTP sent to your email");
+          return;
+        }
+
+        if (response.data.status === "success") {
+          const { token, user } = response.data;
+          localStorage.setItem("token", token);
+          localStorage.setItem("user", JSON.stringify(user));
+          localStorage.setItem("lastActivityAt", String(Date.now()));
+
+          if (user?.role === "super_admin") {
+            setShowAdminModal(false);
+            navigate("/dashboard/super-admin");
+          } else {
+            alert("Access denied: not a super admin");
+          }
+        }
+
+        return;
+      }
+
+      const verifyRes = await axios.post("/api/auth/login/verify-otp", {
+        otp: adminOtp,
+        challengeToken: adminChallengeToken,
+        rememberMe: true
       });
-      const data = await response.json();
-      if (data.status === "success") {
-        localStorage.setItem("token", data.token);
-        localStorage.setItem("user", JSON.stringify(data.user));
-        setShowAdminModal(false);
-        navigate("/dashboard/super-admin");
-      } else {
-        alert("Invalid credentials");
+
+      if (verifyRes.data.status === "success") {
+        const { token, user } = verifyRes.data;
+        localStorage.setItem("token", token);
+        localStorage.setItem("user", JSON.stringify(user));
+        localStorage.setItem("lastActivityAt", String(Date.now()));
+
+        if (user?.role === "super_admin") {
+          setShowAdminModal(false);
+          navigate("/dashboard/super-admin");
+        } else {
+          alert("Access denied: not a super admin");
+        }
       }
     } catch (error) {
       alert("Login failed");
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleAdminResendOtp = async () => {
+    if (!adminChallengeToken) return;
+    setIsLoading(true);
+    try {
+      const response = await axios.post("/api/auth/login/resend-otp", { challengeToken: adminChallengeToken });
+      if (response.data.status === "success") {
+        setAdminOtpExpiresAt(response.data.expiresAt || null);
+        alert("OTP resent");
+      }
+    } catch (error) {
+      alert("Failed to resend OTP");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAdminBack = () => {
+    setAdminChallengeToken(null);
+    setAdminOtp("");
+    setAdminOtpExpiresAt(null);
   };
 
   return (
@@ -163,21 +226,61 @@ export function Footer() {
                   placeholder="Enter your email"
                   className="bg-secondary border-border"
                   required
+                  disabled={!!adminChallengeToken}
                 />
               </div>
-              <div>
-                <label className="text-sm font-medium text-foreground mb-2 block">Password</label>
-                <Input
-                  type="password"
-                  value={adminPassword}
-                  onChange={(e) => setAdminPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  className="bg-secondary border-border"
-                  required
-                />
-              </div>
+              {!adminChallengeToken && (
+                <div>
+                  <label className="text-sm font-medium text-foreground mb-2 block">Password</label>
+                  <Input
+                    type="password"
+                    value={adminPassword}
+                    onChange={(e) => setAdminPassword(e.target.value)}
+                    placeholder="Enter your password"
+                    className="bg-secondary border-border"
+                    required
+                  />
+                </div>
+              )}
+
+              {adminChallengeToken && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium text-foreground">Email OTP</label>
+                    <button
+                      type="button"
+                      onClick={handleAdminBack}
+                      className="text-sm text-primary hover:underline"
+                    >
+                      Back
+                    </button>
+                  </div>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    value={adminOtp}
+                    onChange={(e) => setAdminOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    placeholder="Enter 6-digit code"
+                    className="bg-secondary border-border text-center tracking-[0.35em]"
+                    required
+                  />
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>
+                      {adminOtpExpiresAt ? `Expires: ${new Date(adminOtpExpiresAt).toLocaleTimeString()}` : ""}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleAdminResendOtp}
+                      className="text-primary hover:underline"
+                    >
+                      Resend OTP
+                    </button>
+                  </div>
+                </div>
+              )}
               <Button type="submit" variant="gradient" className="w-full" disabled={isLoading}>
-                {isLoading ? "Logging in..." : "Access Dashboard"}
+                {isLoading ? (adminChallengeToken ? "Verifying..." : "Sending OTP...") : (adminChallengeToken ? "Verify OTP" : "Access Dashboard")}
               </Button>
             </form>
           </motion.div>

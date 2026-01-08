@@ -44,6 +44,7 @@ export default function Signup() {
       if (response.data.status === "success") {
         localStorage.setItem("token", response.data.token);
         localStorage.setItem("user", JSON.stringify(response.data.user));
+        localStorage.setItem("lastActivityAt", String(Date.now()));
 
         toast({
           title: "Account created!",

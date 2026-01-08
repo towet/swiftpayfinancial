@@ -12,6 +12,9 @@ import logo from "@/assets/swiftlogosss-Photoroom.png";
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [otp, setOtp] = useState("");
+  const [challengeToken, setChallengeToken] = useState<string | null>(null);
+  const [otpExpiresAt, setOtpExpiresAt] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
@@ -25,15 +28,49 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      const response = await axios.post("/api/auth/login", { email, password });
+      if (!challengeToken) {
+        const response = await axios.post("/api/auth/login", { email, password, rememberMe });
 
-      if (response.data.status === "success") {
-        localStorage.setItem("token", response.data.token);
-        localStorage.setItem("user", JSON.stringify(response.data.user));
+        if (response.data.status === "otp_required") {
+          setChallengeToken(response.data.challengeToken);
+          setOtpExpiresAt(response.data.expiresAt || null);
+          setOtp("");
+          toast({
+            title: "OTP sent",
+            description: "Check your email for the 6-digit code.",
+          });
+          return;
+        }
+
+        if (response.data.status === "success") {
+          localStorage.setItem("token", response.data.token);
+          localStorage.setItem("user", JSON.stringify(response.data.user));
+
+          toast({
+            title: "Welcome back!",
+            description: "You've successfully logged in.",
+          });
+
+          navigate("/dashboard");
+        }
+
+        return;
+      }
+
+      const verifyRes = await axios.post("/api/auth/login/verify-otp", {
+        otp,
+        challengeToken,
+        rememberMe,
+      });
+
+      if (verifyRes.data.status === "success") {
+        localStorage.setItem("token", verifyRes.data.token);
+        localStorage.setItem("user", JSON.stringify(verifyRes.data.user));
+        localStorage.setItem("lastActivityAt", String(Date.now()));
 
         toast({
           title: "Welcome back!",
-          description: "You've successfully logged in.",
+          description: "Login verified successfully.",
         });
 
         navigate("/dashboard");
@@ -49,6 +86,31 @@ export default function Login() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleResendOtp = async () => {
+    if (!challengeToken) return;
+    setIsLoading(true);
+    setError("");
+    try {
+      const response = await axios.post("/api/auth/login/resend-otp", { challengeToken });
+      if (response.data.status === "success") {
+        setOtpExpiresAt(response.data.expiresAt || null);
+        toast({ title: "OTP resent", description: "Check your email for the new code." });
+      }
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.message || "Failed to resend OTP.";
+      setError(errorMessage);
+      toast({ title: "Resend failed", description: errorMessage, variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleBackToPassword = () => {
+    setChallengeToken(null);
+    setOtp("");
+    setOtpExpiresAt(null);
   };
 
   return (
@@ -97,11 +159,13 @@ export default function Login() {
                     onChange={(e) => setEmail(e.target.value)}
                     className="pl-10 bg-secondary border-border focus:border-primary/50 h-12"
                     required
+                    disabled={!!challengeToken}
                   />
                 </div>
               </div>
 
               {/* Password */}
+              {!challengeToken && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="password">Password</Label>
@@ -129,6 +193,45 @@ export default function Login() {
                   </button>
                 </div>
               </div>
+              )}
+
+              {/* OTP */}
+              {challengeToken && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="otp">Email OTP</Label>
+                    <button
+                      type="button"
+                      onClick={handleBackToPassword}
+                      className="text-sm text-primary hover:underline"
+                    >
+                      Back
+                    </button>
+                  </div>
+                  <Input
+                    id="otp"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    placeholder="Enter 6-digit code"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    className="bg-secondary border-border focus:border-primary/50 h-12 tracking-[0.35em] text-center text-lg"
+                    required
+                  />
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>
+                      {otpExpiresAt ? `Expires: ${new Date(otpExpiresAt).toLocaleTimeString()}` : ""}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleResendOtp}
+                      className="text-primary hover:underline"
+                    >
+                      Resend OTP
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Remember me */}
               <div className="flex items-center gap-2">
@@ -159,10 +262,10 @@ export default function Login() {
                 {isLoading ? (
                   <>
                     <Loader2 className="h-5 w-5 animate-spin" />
-                    Signing in...
+                    {challengeToken ? "Verifying..." : "Sending OTP..."}
                   </>
                 ) : (
-                  "Sign In"
+                  challengeToken ? "Verify OTP" : "Sign In"
                 )}
               </Button>
             </form>
