@@ -856,7 +856,7 @@ app.get('/api/super-admin/analytics', verifySuperAdmin, async (req, res) => {
     // Get top tills by revenue
     const { data: topTillsData } = await supabase
       .from('tills')
-      .select('id, name, user_id, users:user_id (email, full_name, company_name)')
+      .select('id, till_name, user_id, users:user_id (email, full_name, company_name)')
       .order('created_at', { ascending: false });
 
     const tillRevenue = {};
@@ -911,7 +911,7 @@ app.get('/api/super-admin/tills', verifySuperAdmin, async (req, res) => {
       .range(offset, offset + limit - 1);
 
     if (search) {
-      query = query.or(`name.ilike.%${search}%,users.email.ilike.%${search}%`);
+      query = query.or(`till_name.ilike.%${search}%,users.email.ilike.%${search}%`);
     }
 
     const { data, error, count } = await query;
@@ -946,7 +946,7 @@ app.get('/api/super-admin/transactions', verifySuperAdmin, async (req, res) => {
       .from('transactions')
       .select(`
         *,
-        tills:till_id (name, user_id),
+        tills:till_id (till_name, user_id),
         users:tills.user_id (email, full_name, company_name)
       `, { count: 'exact' })
       .order('created_at', { ascending: false })
