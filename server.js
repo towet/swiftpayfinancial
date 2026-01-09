@@ -795,7 +795,7 @@ app.put('/api/user', verifyToken, async (req, res) => {
 // ==================== SUPER ADMIN ROUTES ====================
 
 // Get Platform Analytics
-app.get('/api/super-admin/analytics', verifySuperAdmin, async (req, res) => {
+app.get('/api/super-admin/analytics', verifyToken, verifySuperAdmin, async (req, res) => {
   try {
     const { range = '7d' } = req.query;
     const isPaidStatus = (status) => {
@@ -896,7 +896,7 @@ app.get('/api/super-admin/analytics', verifySuperAdmin, async (req, res) => {
 });
 
 // Get All Tills
-app.get('/api/super-admin/tills', verifySuperAdmin, async (req, res) => {
+app.get('/api/super-admin/tills', verifyToken, verifySuperAdmin, async (req, res) => {
   try {
     const { page = 1, limit = 20, search = '', status = 'all' } = req.query;
     const offset = (page - 1) * limit;
@@ -937,7 +937,7 @@ app.get('/api/super-admin/tills', verifySuperAdmin, async (req, res) => {
 });
 
 // Get All Transactions
-app.get('/api/super-admin/transactions', verifySuperAdmin, async (req, res) => {
+app.get('/api/super-admin/transactions', verifyToken, verifySuperAdmin, async (req, res) => {
   try {
     const { page = 1, limit = 50, tillId, status, startDate, endDate } = req.query;
     const offset = (page - 1) * limit;
@@ -991,7 +991,7 @@ app.get('/api/super-admin/transactions', verifySuperAdmin, async (req, res) => {
 });
 
 // Get Recent Activity
-app.get('/api/super-admin/activity', verifySuperAdmin, async (req, res) => {
+app.get('/api/super-admin/activity', verifyToken, verifySuperAdmin, async (req, res) => {
   try {
     const { limit = 20 } = req.query;
     const isPaidStatus = (status) => {
@@ -1069,7 +1069,7 @@ app.get('/api/super-admin/activity', verifySuperAdmin, async (req, res) => {
 });
 
 // Suspend Till
-app.post('/api/super-admin/tills/:id/suspend', verifySuperAdmin, async (req, res) => {
+app.post('/api/super-admin/tills/:id/suspend', verifyToken, verifySuperAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { reason } = req.body;
@@ -1101,7 +1101,7 @@ app.post('/api/super-admin/tills/:id/suspend', verifySuperAdmin, async (req, res
 });
 
 // Reactivate Till
-app.post('/api/super-admin/tills/:id/reactivate', verifySuperAdmin, async (req, res) => {
+app.post('/api/super-admin/tills/:id/reactivate', verifyToken, verifySuperAdmin, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -1132,7 +1132,7 @@ app.post('/api/super-admin/tills/:id/reactivate', verifySuperAdmin, async (req, 
 });
 
 // Delete Till
-app.delete('/api/super-admin/tills/:id', verifySuperAdmin, async (req, res) => {
+app.delete('/api/super-admin/tills/:id', verifyToken, verifySuperAdmin, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -1156,7 +1156,7 @@ app.delete('/api/super-admin/tills/:id', verifySuperAdmin, async (req, res) => {
 });
 
 // Get Till Detailed Analytics
-app.get('/api/super-admin/tills/:id/analytics', verifySuperAdmin, async (req, res) => {
+app.get('/api/super-admin/tills/:id/analytics', verifyToken, verifySuperAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { period = '30d' } = req.query;
@@ -1370,7 +1370,7 @@ const logAuditAction = async (adminId, action, entityType, entityId, details, re
 };
 
 // Get Audit Logs
-app.get('/api/super-admin/audit-logs', verifySuperAdmin, async (req, res) => {
+app.get('/api/super-admin/audit-logs', verifyToken, verifySuperAdmin, async (req, res) => {
   try {
     const { page = 1, limit = 50, action, entityType } = req.query;
     const offset = (page - 1) * limit;
@@ -1417,7 +1417,7 @@ app.get('/api/super-admin/audit-logs', verifySuperAdmin, async (req, res) => {
 // ==================== ALERT RULES ====================
 
 // Create Alert Rule
-app.post('/api/super-admin/alert-rules', verifySuperAdmin, async (req, res) => {
+app.post('/api/super-admin/alert-rules', verifyToken, verifySuperAdmin, async (req, res) => {
   try {
     const { name, ruleType, conditions, threshold, comparisonOperator, notificationChannels } = req.body;
 
@@ -1453,7 +1453,7 @@ app.post('/api/super-admin/alert-rules', verifySuperAdmin, async (req, res) => {
 });
 
 // Get Alert Rules
-app.get('/api/super-admin/alert-rules', verifySuperAdmin, async (req, res) => {
+app.get('/api/super-admin/alert-rules', verifyToken, verifySuperAdmin, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('alert_rules')
@@ -1478,7 +1478,7 @@ app.get('/api/super-admin/alert-rules', verifySuperAdmin, async (req, res) => {
 });
 
 // Update Alert Rule
-app.put('/api/super-admin/alert-rules/:id', verifySuperAdmin, async (req, res) => {
+app.put('/api/super-admin/alert-rules/:id', verifyToken, verifySuperAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { name, enabled, notificationChannels } = req.body;
@@ -1513,7 +1513,7 @@ app.put('/api/super-admin/alert-rules/:id', verifySuperAdmin, async (req, res) =
 });
 
 // Delete Alert Rule
-app.delete('/api/super-admin/alert-rules/:id', verifySuperAdmin, async (req, res) => {
+app.delete('/api/super-admin/alert-rules/:id', verifyToken, verifySuperAdmin, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -1539,7 +1539,7 @@ app.delete('/api/super-admin/alert-rules/:id', verifySuperAdmin, async (req, res
 });
 
 // Get Alert History
-app.get('/api/super-admin/alert-history', verifySuperAdmin, async (req, res) => {
+app.get('/api/super-admin/alert-history', verifyToken, verifySuperAdmin, async (req, res) => {
   try {
     const { page = 1, limit = 50, acknowledged } = req.query;
     const offset = (page - 1) * limit;
@@ -1581,7 +1581,7 @@ app.get('/api/super-admin/alert-history', verifySuperAdmin, async (req, res) => 
 });
 
 // Acknowledge Alert
-app.post('/api/super-admin/alerts/:id/acknowledge', verifySuperAdmin, async (req, res) => {
+app.post('/api/super-admin/alerts/:id/acknowledge', verifyToken, verifySuperAdmin, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -1614,7 +1614,7 @@ app.post('/api/super-admin/alerts/:id/acknowledge', verifySuperAdmin, async (req
 // ==================== ANOMALY DETECTION ====================
 
 // Detect Anomalies
-app.post('/api/super-admin/detect-anomalies', verifySuperAdmin, async (req, res) => {
+app.post('/api/super-admin/detect-anomalies', verifyToken, verifySuperAdmin, async (req, res) => {
   try {
     const { entityType, timeRange = '7d' } = req.body;
     
@@ -1713,7 +1713,7 @@ app.post('/api/super-admin/detect-anomalies', verifySuperAdmin, async (req, res)
 });
 
 // Get Anomalies
-app.get('/api/super-admin/anomalies', verifySuperAdmin, async (req, res) => {
+app.get('/api/super-admin/anomalies', verifyToken, verifySuperAdmin, async (req, res) => {
   try {
     const { page = 1, limit = 50, severity, resolved } = req.query;
     const offset = (page - 1) * limit;
@@ -1755,7 +1755,7 @@ app.get('/api/super-admin/anomalies', verifySuperAdmin, async (req, res) => {
 });
 
 // Resolve Anomaly
-app.post('/api/super-admin/anomalies/:id/resolve', verifySuperAdmin, async (req, res) => {
+app.post('/api/super-admin/anomalies/:id/resolve', verifyToken, verifySuperAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { notes } = req.body;
@@ -1809,7 +1809,7 @@ const recordHealthMetric = async (metricType, metricName, value, unit, status, m
 };
 
 // Get System Health
-app.get('/api/super-admin/system-health', verifySuperAdmin, async (req, res) => {
+app.get('/api/super-admin/system-health', verifyToken, verifySuperAdmin, async (req, res) => {
   try {
     const { hours = 24 } = req.query;
     const startDate = new Date(Date.now() - hours * 60 * 60 * 1000);
@@ -1860,7 +1860,7 @@ app.get('/api/super-admin/system-health', verifySuperAdmin, async (req, res) => 
 // ==================== BULK ACTIONS ====================
 
 // Bulk Suspend Tills
-app.post('/api/super-admin/tills/bulk-suspend', verifySuperAdmin, async (req, res) => {
+app.post('/api/super-admin/tills/bulk-suspend', verifyToken, verifySuperAdmin, async (req, res) => {
   try {
     const { tillIds, reason } = req.body;
 
@@ -1892,7 +1892,7 @@ app.post('/api/super-admin/tills/bulk-suspend', verifySuperAdmin, async (req, re
 });
 
 // Bulk Reactivate Tills
-app.post('/api/super-admin/tills/bulk-reactivate', verifySuperAdmin, async (req, res) => {
+app.post('/api/super-admin/tills/bulk-reactivate', verifyToken, verifySuperAdmin, async (req, res) => {
   try {
     const { tillIds } = req.body;
 
@@ -1926,7 +1926,7 @@ app.post('/api/super-admin/tills/bulk-reactivate', verifySuperAdmin, async (req,
 // ==================== ANNOUNCEMENTS ====================
 
 // Create Announcement
-app.post('/api/super-admin/announcements', verifySuperAdmin, async (req, res) => {
+app.post('/api/super-admin/announcements', verifyToken, verifySuperAdmin, async (req, res) => {
   try {
     const { title, message, priority, targetAudience, expiresAt } = req.body;
 
@@ -1963,7 +1963,7 @@ app.post('/api/super-admin/announcements', verifySuperAdmin, async (req, res) =>
 });
 
 // Get Announcements
-app.get('/api/super-admin/announcements', verifySuperAdmin, async (req, res) => {
+app.get('/api/super-admin/announcements', verifyToken, verifySuperAdmin, async (req, res) => {
   try {
     const { page = 1, limit = 20 } = req.query;
     const offset = (page - 1) * limit;
@@ -2000,7 +2000,7 @@ app.get('/api/super-admin/announcements', verifySuperAdmin, async (req, res) => 
 // ==================== ADVANCED REPORTING ====================
 
 // Generate Report
-app.post('/api/super-admin/reports/generate', verifySuperAdmin, async (req, res) => {
+app.post('/api/super-admin/reports/generate', verifyToken, verifySuperAdmin, async (req, res) => {
   try {
     const { reportType, startDate, endDate, format = 'csv', filters = {} } = req.body;
 
