@@ -75,6 +75,14 @@ const B2C_URL = 'https://api.safaricom.co.ke/mpesa/b2c/v1/paymentrequest';
 // JWT Secret
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
+// Role Constants
+const ROLES = {
+  USER: 'user',
+  TILL_OWNER: 'till_owner',
+  SUPPORT: 'support',
+  SUPER_ADMIN: 'super_admin'
+};
+
 const SMTP_HOST = process.env.SMTP_HOST || '';
 const SMTP_PORT = Number(process.env.SMTP_PORT || 587);
 const SMTP_SECURE = String(process.env.SMTP_SECURE || '').toLowerCase() === 'true';
@@ -348,8 +356,8 @@ const sendPaymentNotificationEmails = async ({ userId, event, transaction }) => 
   }
 };
 
-// Middleware: Verify JWT Token
-const verifyToken = (req, res, next) => {
+// Middleware: Verify JWT Token and load user with role
+const verifyToken = async (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) {
     return res.status(401).json({ status: 'error', message: 'No token provided' });
@@ -357,6 +365,19 @@ const verifyToken = (req, res, next) => {
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.userId = decoded.userId;
+
+    const { data: user } = await supabase
+      .from('users')
+      .select('id, email, role, full_name, company_name')
+      .eq('id', decoded.userId)
+      .single();
+
+    if (!user) {
+      return res.status(401).json({ status: 'error', message: 'User not found' });
+    }
+
+    req.user = user;
+    req.userRole = user.role;
     next();
   } catch (error) {
     res.status(401).json({ status: 'error', message: 'Invalid token' });
@@ -369,37 +390,119 @@ const verifyApiKey = async (req, res, next) => {
   if (!apiKey) {
     return res.status(401).json({ status: 'error', message: 'No API key provided' });
   }
-  
+
   // Allow test API keys for development (any key ending with -key)
   if (apiKey.endsWith('-key') || apiKey === 'test-api-key') {
     req.userId = 'test-user';
     req.tillId = process.env.SWIFTPAY_TILL_ID || 'dbdedaea-11d8-4bbe-b94f-84bbe4206d3c';
+    req.userRole = ROLES.USER;
     console.log(`Test API key accepted: ${apiKey}`);
     return next();
   }
-  
+
   try {
     const { data, error } = await supabase
       .from('api_keys')
       .select('user_id, till_id, is_active')
       .eq('api_key', apiKey)
       .single();
-    
+
     if (error || !data) {
       return res.status(401).json({ status: 'error', message: 'Invalid API key' });
     }
-    
+
     if (!data.is_active) {
       return res.status(401).json({ status: 'error', message: 'API key is inactive' });
     }
-    
+
     req.userId = data.user_id;
     req.tillId = data.till_id;
+
+    const { data: user } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', data.user_id)
+      .single();
+
+    req.userRole = user?.role || ROLES.USER;
     next();
   } catch (error) {
     console.error('API Key verification error:', error);
     res.status(401).json({ status: 'error', message: 'API key verification failed' });
   }
+};
+
+// Role-based authorization middleware
+const requireRole = (...allowedRoles) => {
+  return (req, res, next) => {
+    if (!req.userRole) {
+      return res.status(401).json({ status: 'error', message: 'Authentication required' });
+    }
+
+    if (!allowedRoles.includes(req.userRole)) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Access denied. Insufficient permissions.',
+        requiredRoles: allowedRoles,
+        userRole: req.userRole
+      });
+    }
+
+    next();
+  };
+};
+
+// Super Admin middleware (updated to use role constants)
+const verifySuperAdmin = requireRole(ROLES.SUPER_ADMIN);
+
+// Object-level authorization helpers
+const authorizeTillAccess = async (userId, userRole, tillId) => {
+  if (userRole === ROLES.SUPER_ADMIN) {
+    return true;
+  }
+
+  const { data, error } = await supabase
+    .from('tills')
+    .select('id')
+    .eq('id', tillId)
+    .eq('user_id', userId)
+    .single();
+
+  if (error || !data) {
+    return false;
+  }
+
+  return true;
+};
+
+const authorizeTransactionAccess = async (userId, userRole, transactionId) => {
+  if (userRole === ROLES.SUPER_ADMIN) {
+    return true;
+  }
+
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('till_id')
+    .eq('id', transactionId)
+    .single();
+
+  if (error || !data) {
+    return false;
+  }
+
+  return authorizeTillAccess(userId, userRole, data.till_id);
+};
+
+const authorizeUserAccess = (currentUserId, currentUserRole, targetUserId) => {
+  if (currentUserRole === ROLES.SUPER_ADMIN) {
+    return true;
+  }
+
+  if (currentUserRole === ROLES.SUPPORT) {
+    return true;
+  }
+
+  return currentUserId === targetUserId;
 };
 
 async function fetchTransactionsForUserAnalytics({ userId, requestedTillId }) {
@@ -690,46 +793,6 @@ app.put('/api/user', verifyToken, async (req, res) => {
 });
 
 // ==================== SUPER ADMIN ROUTES ====================
-
-// Super Admin Middleware
-const verifySuperAdmin = async (req, res, next) => {
-  try {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) {
-      console.log('Super Admin: No token provided');
-      return res.status(401).json({ status: 'error', message: 'No token provided' });
-    }
-
-    const decoded = jwt.verify(token, JWT_SECRET);
-    console.log('Super Admin: Decoded token userId:', decoded.userId);
-
-    const { data: user } = await supabase
-      .from('users')
-      .select('id, email, role')
-      .eq('id', decoded.userId)
-      .single();
-
-    console.log('Super Admin: User data:', JSON.stringify(user));
-
-    if (!user) {
-      console.log('Super Admin: User not found');
-      return res.status(403).json({ status: 'error', message: 'User not found' });
-    }
-
-    if (user.role !== 'super_admin') {
-      console.log('Super Admin: Access denied. Role:', user.role);
-      return res.status(403).json({ status: 'error', message: 'Access denied. Super admin only.' });
-    }
-
-    console.log('Super Admin: Access granted for user:', user.email);
-    req.userId = decoded.userId;
-    req.user = user;
-    next();
-  } catch (error) {
-    console.log('Super Admin: Error:', error.message);
-    return res.status(401).json({ status: 'error', message: 'Invalid token' });
-  }
-};
 
 // Get Platform Analytics
 app.get('/api/super-admin/analytics', verifySuperAdmin, async (req, res) => {
@@ -2747,32 +2810,69 @@ app.post('/api/tills', verifyToken, async (req, res) => {
   }
 });
 
-// Get User's Tills
+// Get User's Tills (super_admin can see all, users see only their own)
 app.get('/api/tills', verifyToken, async (req, res) => {
   try {
-    const { data, error } = await supabase
-      .from('tills')
-      .select('*')
-      .eq('user_id', req.userId);
+    let query = supabase.from('tills').select('*');
 
-    if (error) {
-      return res.status(400).json({ status: 'error', message: error.message });
+    if (req.userRole === ROLES.SUPER_ADMIN) {
+      const { page = 1, limit = 20, search = '', status = 'all' } = req.query;
+      const offset = (page - 1) * limit;
+
+      if (search) {
+        query = query.ilike('till_name', `%${search}%`);
+      }
+
+      if (status === 'active') {
+        query = query.is('is_suspended', false);
+      } else if (status === 'suspended') {
+        query = query.is('is_suspended', true);
+      }
+
+      const { data, error, count } = await query
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (error) {
+        return res.status(400).json({ status: 'error', message: error.message });
+      }
+
+      res.json({
+        status: 'success',
+        tills: data,
+        pagination: {
+          page: Number(page),
+          limit: Number(limit),
+          total: count || 0
+        }
+      });
+    } else {
+      const { data, error } = await query.eq('user_id', req.userId);
+
+      if (error) {
+        return res.status(400).json({ status: 'error', message: error.message });
+      }
+
+      res.json({
+        status: 'success',
+        tills: data
+      });
     }
-
-    res.json({
-      status: 'success',
-      tills: data
-    });
   } catch (error) {
     res.status(500).json({ status: 'error', message: error.message });
   }
 });
 
-// Update Till
+// Update Till (with object-level authorization)
 app.put('/api/tills/:id', verifyToken, async (req, res) => {
   try {
     const { id } = req.params;
     const { tillName, tillNumber, description } = req.body;
+
+    const hasAccess = await authorizeTillAccess(req.userId, req.userRole, id);
+    if (!hasAccess) {
+      return res.status(403).json({ status: 'error', message: 'Access denied. You do not own this till.' });
+    }
 
     const { data, error } = await supabase
       .from('tills')
@@ -2782,7 +2882,6 @@ app.put('/api/tills/:id', verifyToken, async (req, res) => {
         description: description || ''
       })
       .eq('id', id)
-      .eq('user_id', req.userId)
       .select();
 
     if (error) {
@@ -2803,10 +2902,15 @@ app.put('/api/tills/:id', verifyToken, async (req, res) => {
   }
 });
 
-// Delete Till
+// Delete Till (with object-level authorization)
 app.delete('/api/tills/:id', verifyToken, async (req, res) => {
   try {
     const { id } = req.params;
+
+    const hasAccess = await authorizeTillAccess(req.userId, req.userRole, id);
+    if (!hasAccess) {
+      return res.status(403).json({ status: 'error', message: 'Access denied. You do not own this till.' });
+    }
 
     const { error } = await supabase
       .from('tills')
@@ -2913,6 +3017,11 @@ app.post('/api/keys', verifyToken, async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'Key name and till ID required' });
     }
 
+    const hasAccess = await authorizeTillAccess(req.userId, req.userRole, tillId);
+    if (!hasAccess) {
+      return res.status(403).json({ status: 'error', message: 'Access denied. You do not own this till.' });
+    }
+
     const apiKey = `sp_${uuidv4()}`;
     const apiSecret = `secret_${uuidv4()}`;
 
@@ -2943,37 +3052,53 @@ app.post('/api/keys', verifyToken, async (req, res) => {
   }
 });
 
-// Get API Keys
+// Get API Keys (super_admin can see all, users see only their own)
 app.get('/api/keys', verifyToken, async (req, res) => {
   try {
-    const { data, error } = await supabase
-      .from('api_keys')
-      .select('*')
-      .eq('user_id', req.userId);
+    let query = supabase.from('api_keys').select('*');
 
-    if (error) {
-      return res.status(400).json({ status: 'error', message: error.message });
+    if (req.userRole === ROLES.SUPER_ADMIN) {
+      const { data, error } = await query.order('created_at', { ascending: false });
+
+      if (error) {
+        return res.status(400).json({ status: 'error', message: error.message });
+      }
+
+      res.json({
+        status: 'success',
+        keys: data
+      });
+    } else {
+      const { data, error } = await query.eq('user_id', req.userId);
+
+      if (error) {
+        return res.status(400).json({ status: 'error', message: error.message });
+      }
+
+      res.json({
+        status: 'success',
+        keys: data
+      });
     }
-
-    res.json({
-      status: 'success',
-      keys: data
-    });
   } catch (error) {
     res.status(500).json({ status: 'error', message: error.message });
   }
 });
 
-// Delete API Key
+// Delete API Key (with object-level authorization)
 app.delete('/api/keys/:id', verifyToken, async (req, res) => {
   try {
     const { id } = req.params;
 
-    const { error } = await supabase
-      .from('api_keys')
-      .delete()
-      .eq('id', id)
-      .eq('user_id', req.userId);
+    let query = supabase.from('api_keys').delete();
+
+    if (req.userRole === ROLES.SUPER_ADMIN) {
+      query = query.eq('id', id);
+    } else {
+      query = query.eq('id', id).eq('user_id', req.userId);
+    }
+
+    const { error } = await query;
 
     if (error) {
       return res.status(400).json({ status: 'error', message: error.message });
@@ -3044,49 +3169,64 @@ app.post('/api/payment-links', verifyToken, async (req, res) => {
   }
 });
 
-// Get User's Payment Links
+// Get User's Payment Links (super_admin can see all, users see only their own)
 app.get('/api/payment-links', verifyToken, async (req, res) => {
   try {
-    const { data, error } = await supabase
-      .from('payment_links')
-      .select('*')
-      .eq('user_id', req.userId)
-      .order('created_at', { ascending: false });
+    let query = supabase.from('payment_links').select('*');
 
-    if (error) {
-      return res.status(400).json({ status: 'error', message: error.message });
-    }
+    if (req.userRole === ROLES.SUPER_ADMIN) {
+      const { data, error } = await query.order('created_at', { ascending: false });
 
-    // Update status based on expiry
-    const now = new Date();
-    const updatedLinks = (data || []).map(link => {
-      const expiryDate = new Date(link.expires_at);
-      if (expiryDate < now && link.status === 'active') {
-        return { ...link, status: 'expired' };
+      if (error) {
+        return res.status(400).json({ status: 'error', message: error.message });
       }
-      return link;
-    });
 
-    res.json({
-      status: 'success',
-      links: updatedLinks
-    });
+      res.json({
+        status: 'success',
+        links: data
+      });
+    } else {
+      const { data, error } = await query
+        .eq('user_id', req.userId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        return res.status(400).json({ status: 'error', message: error.message });
+      }
+
+      const now = new Date();
+      const updatedLinks = (data || []).map(link => {
+        const expiryDate = new Date(link.expires_at);
+        if (expiryDate < now && link.status === 'active') {
+          return { ...link, status: 'expired' };
+        }
+        return link;
+      });
+
+      res.json({
+        status: 'success',
+        links: updatedLinks
+      });
+    }
   } catch (error) {
-    console.error('Get payment links error:', error);
     res.status(500).json({ status: 'error', message: error.message });
   }
 });
 
-// Delete Payment Link
+// Delete Payment Link (with object-level authorization)
 app.delete('/api/payment-links/:id', verifyToken, async (req, res) => {
   try {
     const { id } = req.params;
 
-    const { error } = await supabase
-      .from('payment_links')
-      .delete()
-      .eq('id', id)
-      .eq('user_id', req.userId);
+    let query = supabase.from('payment_links').delete();
+
+    if (req.userRole === ROLES.SUPER_ADMIN) {
+      query = query.eq('id', id);
+    } else {
+      query = query.eq('id', id).eq('user_id', req.userId);
+    }
+
+    const { error } = await query;
 
     if (error) {
       return res.status(400).json({ status: 'error', message: error.message });
@@ -3097,7 +3237,6 @@ app.delete('/api/payment-links/:id', verifyToken, async (req, res) => {
       message: 'Payment link deleted successfully'
     });
   } catch (error) {
-    console.error('Delete payment link error:', error);
     res.status(500).json({ status: 'error', message: error.message });
   }
 });
@@ -3591,37 +3730,42 @@ app.post('/api/mpesa/status', verifyToken, async (req, res) => {
 
 // ==================== TRANSACTION ROUTES ====================
 
-// Get Transactions
+// Get Transactions (with object-level authorization)
 app.get('/api/transactions', verifyToken, async (req, res) => {
   try {
     const tillId = typeof req.query.tillId === 'string' ? req.query.tillId : undefined;
-
-    const { data: tills, error: tillsError } = await supabase
-      .from('tills')
-      .select('id')
-      .eq('user_id', req.userId);
-
-    if (tillsError) {
-      return res.status(400).json({ status: 'error', message: tillsError.message });
-    }
-
-    const tillIds = (tills || []).map(t => t.id);
 
     let query = supabase
       .from('transactions')
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (tillId) {
-      if (tillIds.length > 0 && !tillIds.includes(tillId)) {
-        return res.status(403).json({ status: 'error', message: 'Access denied for this till' });
+    if (req.userRole === ROLES.SUPER_ADMIN) {
+      if (tillId) {
+        query = query.eq('till_id', tillId);
       }
-      query = query.eq('till_id', tillId);
-    } else if (tillIds.length > 0) {
-      query = query.in('till_id', tillIds);
     } else {
-      // User has no tills, return all transactions (admin/testing)
-      query = query.limit(1000);
+      const { data: tills, error: tillsError } = await supabase
+        .from('tills')
+        .select('id')
+        .eq('user_id', req.userId);
+
+      if (tillsError) {
+        return res.status(400).json({ status: 'error', message: tillsError.message });
+      }
+
+      const tillIds = (tills || []).map(t => t.id);
+
+      if (tillId) {
+        if (tillIds.length > 0 && !tillIds.includes(tillId)) {
+          return res.status(403).json({ status: 'error', message: 'Access denied for this till' });
+        }
+        query = query.eq('till_id', tillId);
+      } else if (tillIds.length > 0) {
+        query = query.in('till_id', tillIds);
+      } else {
+        query = query.limit(0);
+      }
     }
 
     const { data, error } = await query;
@@ -4534,45 +4678,61 @@ app.post('/api/webhooks', verifyToken, async (req, res) => {
   }
 });
 
-// Get User's Webhooks
+// Get User's Webhooks (super_admin can see all, users see only their own)
 app.get('/api/webhooks', verifyToken, async (req, res) => {
   try {
-    const { data, error } = await supabase
-      .from('webhook_configs')
-      .select('*')
-      .eq('user_id', req.userId)
-      .order('created_at', { ascending: false });
+    let query = supabase.from('webhook_configs').select('*');
 
-    if (error) {
-      return res.status(400).json({ status: 'error', message: error.message });
+    if (req.userRole === ROLES.SUPER_ADMIN) {
+      const { data, error } = await query.order('created_at', { ascending: false });
+
+      if (error) {
+        return res.status(400).json({ status: 'error', message: error.message });
+      }
+
+      res.json({
+        status: 'success',
+        webhooks: data
+      });
+    } else {
+      const { data, error } = await query
+        .eq('user_id', req.userId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        return res.status(400).json({ status: 'error', message: error.message });
+      }
+
+      res.json({
+        status: 'success',
+        webhooks: data
+      });
     }
-
-    res.json({
-      status: 'success',
-      webhooks: data
-    });
   } catch (error) {
     res.status(500).json({ status: 'error', message: error.message });
   }
 });
 
-// Update Webhook
+// Update Webhook (with object-level authorization)
 app.put('/api/webhooks/:id', verifyToken, async (req, res) => {
   try {
     const { id } = req.params;
     const { url, events, description, is_active } = req.body;
 
-    const { data, error } = await supabase
-      .from('webhook_configs')
-      .update({
-        url,
-        events,
-        description: description || '',
-        is_active
-      })
-      .eq('id', id)
-      .eq('user_id', req.userId)
-      .select();
+    let query = supabase.from('webhook_configs').update({
+      url,
+      events,
+      description: description || '',
+      is_active
+    });
+
+    if (req.userRole === ROLES.SUPER_ADMIN) {
+      query = query.eq('id', id);
+    } else {
+      query = query.eq('id', id).eq('user_id', req.userId);
+    }
+
+    const { data, error } = await query.select();
 
     if (error) {
       return res.status(400).json({ status: 'error', message: error.message });
@@ -4592,16 +4752,20 @@ app.put('/api/webhooks/:id', verifyToken, async (req, res) => {
   }
 });
 
-// Delete Webhook
+// Delete Webhook (with object-level authorization)
 app.delete('/api/webhooks/:id', verifyToken, async (req, res) => {
   try {
     const { id } = req.params;
 
-    const { error } = await supabase
-      .from('webhook_configs')
-      .delete()
-      .eq('id', id)
-      .eq('user_id', req.userId);
+    let query = supabase.from('webhook_configs').delete();
+
+    if (req.userRole === ROLES.SUPER_ADMIN) {
+      query = query.eq('id', id);
+    } else {
+      query = query.eq('id', id).eq('user_id', req.userId);
+    }
+
+    const { error } = await query;
 
     if (error) {
       return res.status(400).json({ status: 'error', message: error.message });
