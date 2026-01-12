@@ -7,6 +7,15 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer
+} from "recharts";
+import {
   TrendingUp,
   Users,
   CreditCard,
@@ -69,6 +78,11 @@ interface Analytics {
     name: string;
     user_id: string;
     revenue: number;
+    users?: {
+      email?: string;
+      full_name?: string;
+      company_name?: string;
+    };
   }>;
 }
 
@@ -163,6 +177,15 @@ interface SystemHealth {
   recorded_at: string;
 }
 
+interface SystemHealthSummary {
+  [metricType: string]: {
+    current: number;
+    status: string;
+    unit: string;
+    trend: number;
+  };
+}
+
 export default function SuperAdmin() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<"overview" | "tills" | "transactions" | "activity" | "audit" | "anomalies" | "health">("overview");
@@ -173,7 +196,7 @@ export default function SuperAdmin() {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [alertRules, setAlertRules] = useState<AlertRule[]>([]);
   const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
-  const [systemHealth, setSystemHealth] = useState<SystemHealth[]>([]);
+  const [systemHealth, setSystemHealth] = useState<{ metrics: Record<string, SystemHealth[]>; summary: SystemHealthSummary } | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [dateRange, setDateRange] = useState("7d");
@@ -302,7 +325,10 @@ export default function SuperAdmin() {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.data.status === "success") {
-        setSystemHealth(response.data.metrics || []);
+        setSystemHealth({
+          metrics: response.data.metrics || {},
+          summary: response.data.summary || {}
+        });
       }
     } catch (error) {
       console.error("Error fetching system health:", error);
@@ -423,9 +449,15 @@ export default function SuperAdmin() {
 
   const RevenueChart = () => {
     const data = analytics?.dailyRevenue || {};
-    const labels = Object.keys(data);
-    const values = Object.values(data);
-    const maxValue = Math.max(...values, 1);
+    const chartData = Object.entries(data)
+      .map(([date, revenue]) => ({ date, revenue: Number(revenue || 0) }))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    const formatAmount = (value: number) => {
+      if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
+      if (value >= 1000) return `${(value / 1000).toFixed(0)}K`;
+      return value.toString();
+    };
 
     return (
       <motion.div
@@ -434,7 +466,10 @@ export default function SuperAdmin() {
         className="glass rounded-2xl p-6 border border-border/50"
       >
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-lg font-semibold text-foreground">Revenue Trend</h3>
+          <div>
+            <h3 className="text-lg font-semibold text-foreground">Revenue Trend</h3>
+            <p className="text-sm text-muted-foreground">Paid revenue over time</p>
+          </div>
           <div className="flex gap-2">
             {["1d", "7d", "30d"].map((range) => (
               <Button
@@ -449,32 +484,66 @@ export default function SuperAdmin() {
             ))}
           </div>
         </div>
-        <div className="h-64 flex items-end gap-2">
-          {labels.map((label, i) => (
-            <motion.div
-              key={label}
-              initial={{ height: 0 }}
-              animate={{ height: `${(values[i] / maxValue) * 100}%` }}
-              transition={{ delay: i * 0.05 }}
-              className="flex-1 bg-gradient-to-t from-primary/20 to-primary/80 rounded-t-lg relative group"
-            >
-              <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-background px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 border border-border/50">
-                KES {values[i].toLocaleString()}
-              </div>
-              <div className="absolute bottom-0 left-0 right-0 h-full bg-gradient-to-t from-primary/30 to-transparent rounded-t-lg" />
-            </motion.div>
-          ))}
-        </div>
-        <div className="flex justify-between mt-2 text-xs text-muted-foreground">
-          {labels.map((label) => (
-            <span key={label}>{new Date(label).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
-          ))}
+        <div className="h-72">
+          {chartData.length === 0 ? (
+            <div className="h-full flex items-center justify-center text-muted-foreground">
+              <p>No revenue data available</p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient id="colorRevenueSuper" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(var(--success))" stopOpacity={0.5} />
+                    <stop offset="50%" stopColor="hsl(var(--success))" stopOpacity={0.2} />
+                    <stop offset="95%" stopColor="hsl(var(--success))" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis
+                  dataKey="date"
+                  stroke="hsl(var(--muted-foreground))"
+                  fontSize={12}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(value) => {
+                    const d = new Date(value);
+                    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                  }}
+                />
+                <YAxis
+                  stroke="hsl(var(--muted-foreground))"
+                  fontSize={12}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={formatAmount}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "hsl(var(--background))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: "8px",
+                    padding: "12px"
+                  }}
+                  formatter={(value: number) => [`KES ${Number(value || 0).toLocaleString()}`, 'Revenue']}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="revenue"
+                  stroke="hsl(var(--success))"
+                  strokeWidth={3}
+                  fill="url(#colorRevenueSuper)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </motion.div>
     );
   };
 
   const ActivityFeed = () => (
+    
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
@@ -504,16 +573,23 @@ export default function SuperAdmin() {
             className="flex items-start gap-3 p-3 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors"
           >
             <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-              activity.type === "transaction" && activity.status === "completed"
+              activity.type === "transaction" && (String(activity.status || '').toLowerCase() === 'success' || String(activity.status || '').toLowerCase() === 'paid' || String(activity.status || '').toLowerCase() === 'completed')
                 ? "bg-green-500/20 text-green-500"
-                : activity.type === "transaction"
+              : activity.type === "transaction"
+              && String(activity.status || '').toLowerCase() === 'pending'
+                ? "bg-yellow-500/20 text-yellow-500"
+              : activity.type === "transaction"
                 ? "bg-red-500/20 text-red-500"
-                : activity.type === "till_created"
+              : activity.type === "till_created"
                 ? "bg-blue-500/20 text-blue-500"
-                : "bg-purple-500/20 text-purple-500"
+              : "bg-purple-500/20 text-purple-500"
             }`}>
               {activity.type === "transaction" ? (
-                activity.status === "completed" ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />
+                (String(activity.status || '').toLowerCase() === 'success' || String(activity.status || '').toLowerCase() === 'paid' || String(activity.status || '').toLowerCase() === 'completed')
+                  ? <CheckCircle className="w-4 h-4" />
+                  : String(activity.status || '').toLowerCase() === 'pending'
+                  ? <Clock className="w-4 h-4" />
+                  : <XCircle className="w-4 h-4" />
               ) : activity.type === "till_created" ? (
                 <CreditCard className="w-4 h-4" />
               ) : (
@@ -530,6 +606,13 @@ export default function SuperAdmin() {
           </motion.div>
         ))}
       </div>
+      {activities.length === 0 && (
+        <div className="text-center py-12 text-muted-foreground">
+          <Activity className="w-12 h-12 mx-auto mb-4 opacity-50" />
+          <p>No recent activity</p>
+          <p className="text-sm mt-1">Activity will appear here as transactions, tills, and users are created</p>
+        </div>
+      )}
     </motion.div>
   );
 
@@ -701,13 +784,17 @@ export default function SuperAdmin() {
             {transactions.map((tx) => (
               <tr key={String(tx.id)} className="border-b border-border/30 hover:bg-secondary/30 transition-colors">
                 <td className="py-3 px-4 text-muted-foreground text-sm font-mono">{String(tx.id).slice(0, 8)}...</td>
-                <td className="py-3 px-4 text-foreground font-semibold">KES {parseFloat(tx.amount).toLocaleString()}</td>
+                <td className="py-3 px-4 text-foreground font-semibold">KES {Number(tx.amount || 0).toLocaleString()}</td>
                 <td className="py-3 px-4 text-muted-foreground">{tx.phone_number}</td>
                 <td className="py-3 px-4 text-foreground">{tx.tills?.name || "N/A"}</td>
                 <td className="py-3 px-4 text-muted-foreground">{tx.users?.full_name || "N/A"}</td>
                 <td className="py-3 px-4">
                   <span className={`px-2 py-1 rounded-full text-xs ${
-                    tx.status === "completed" ? "bg-green-500/20 text-green-500" : "bg-red-500/20 text-red-500"
+                    (String(tx.status || '').toLowerCase() === 'success' || String(tx.status || '').toLowerCase() === 'paid' || String(tx.status || '').toLowerCase() === 'completed')
+                      ? "bg-green-500/20 text-green-500"
+                    : String(tx.status || '').toLowerCase() === 'pending'
+                      ? "bg-yellow-500/20 text-yellow-500"
+                      : "bg-red-500/20 text-red-500"
                   }`}>
                     {tx.status}
                   </span>
@@ -720,6 +807,13 @@ export default function SuperAdmin() {
           </tbody>
         </table>
       </div>
+      {transactions.length === 0 && (
+        <div className="text-center py-12 text-muted-foreground">
+          <CreditCard className="w-12 h-12 mx-auto mb-4 opacity-50" />
+          <p>No transactions found</p>
+          <p className="text-sm mt-1">Transactions will appear here once they are processed</p>
+        </div>
+      )}
     </motion.div>
   );
 
@@ -851,7 +945,7 @@ export default function SuperAdmin() {
                       Top Performing Tills
                     </h3>
                     <div className="space-y-3">
-                      {analytics?.topTills?.slice(0, 5).map((till, i) => (
+                      {(analytics?.topTills || []).filter(t => (t.revenue || 0) > 0).slice(0, 5).map((till, i) => (
                         <motion.div
                           key={till.id}
                           initial={{ opacity: 0, x: -20 }}
@@ -867,7 +961,9 @@ export default function SuperAdmin() {
                             </div>
                             <div>
                               <p className="font-medium text-foreground">{till.name}</p>
-                              <p className="text-sm text-muted-foreground">{till.user_id}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {till.users?.company_name || till.users?.full_name || till.users?.email || till.user_id}
+                              </p>
                             </div>
                           </div>
                           <div className="text-right">
@@ -876,6 +972,11 @@ export default function SuperAdmin() {
                           </div>
                         </motion.div>
                       ))}
+                      {(analytics?.topTills || []).filter(t => (t.revenue || 0) > 0).length === 0 && (
+                        <div className="text-center py-8 text-muted-foreground">
+                          No performing tills in this range yet
+                        </div>
+                      )}
                     </div>
                   </motion.div>
                 </motion.div>
@@ -1000,6 +1101,13 @@ export default function SuperAdmin() {
                         </motion.div>
                       ))}
                     </div>
+                    {auditLogs.length === 0 && (
+                      <div className="text-center py-12 text-muted-foreground">
+                        <History className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                        <p>No audit logs found</p>
+                        <p className="text-sm mt-1">Audit logs will appear here as admin actions are performed</p>
+                      </div>
+                    )}
                   </motion.div>
                 </motion.div>
               )}
@@ -1096,6 +1204,13 @@ export default function SuperAdmin() {
                         </motion.div>
                       ))}
                     </div>
+                    {anomalies.length === 0 && (
+                      <div className="text-center py-12 text-muted-foreground">
+                        <Brain className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                        <p>No anomalies detected</p>
+                        <p className="text-sm mt-1">Click "Detect Anomalies" to scan for unusual patterns</p>
+                      </div>
+                    )}
                   </motion.div>
                 </motion.div>
               )}
@@ -1108,66 +1223,58 @@ export default function SuperAdmin() {
                   exit={{ opacity: 0, y: -20 }}
                   className="space-y-6"
                 >
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {(!systemHealth || Object.keys(systemHealth.summary || {}).length === 0) && (
                     <motion.div
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       className="glass rounded-2xl p-6 border border-border/50"
                     >
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="w-10 h-10 rounded-lg bg-green-500/20 text-green-500 flex items-center justify-center">
-                          <Server className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">API Status</p>
-                          <p className="text-lg font-bold text-green-500">Healthy</p>
-                        </div>
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        Response Time: 45ms
+                      <div className="text-center py-8 text-muted-foreground">
+                        No system health metrics available yet
                       </div>
                     </motion.div>
+                  )}
 
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.1 }}
-                      className="glass rounded-2xl p-6 border border-border/50"
-                    >
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="w-10 h-10 rounded-lg bg-blue-500/20 text-blue-500 flex items-center justify-center">
-                          <Database className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">Database</p>
-                          <p className="text-lg font-bold text-blue-500">Healthy</p>
-                        </div>
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        Query Time: 12ms
-                      </div>
-                    </motion.div>
+                  {(() => {
+                    const entries = Object.entries(systemHealth?.summary || {});
+                    const top3 = entries.slice(0, 3);
+                    const icons = [Server, Database, Activity];
+                    const colors = ["bg-green-500/20 text-green-500", "bg-blue-500/20 text-blue-500", "bg-purple-500/20 text-purple-500"];
 
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.2 }}
-                      className="glass rounded-2xl p-6 border border-border/50"
-                    >
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="w-10 h-10 rounded-lg bg-purple-500/20 text-purple-500 flex items-center justify-center">
-                          <Activity className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">M-Pesa Gateway</p>
-                          <p className="text-lg font-bold text-purple-500">Healthy</p>
-                        </div>
+                    return (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {top3.map(([metricType, item], idx) => {
+                          const Icon = icons[idx] || Activity;
+                          const color = colors[idx] || "bg-secondary/30 text-foreground";
+
+                          return (
+                            <motion.div
+                              key={metricType}
+                              initial={{ opacity: 0, y: 20 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: idx * 0.1 }}
+                              className="glass rounded-2xl p-6 border border-border/50"
+                            >
+                              <div className="flex items-center gap-3 mb-4">
+                                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${color}`}>
+                                  <Icon className="w-5 h-5" />
+                                </div>
+                                <div>
+                                  <p className="text-sm text-muted-foreground capitalize">{metricType.replace(/_/g, ' ')}</p>
+                                  <p className="text-lg font-bold text-foreground">{item.status || 'Unknown'}</p>
+                                </div>
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {typeof item.current === 'number'
+                                  ? `Current: ${item.current}${item.unit || ''}`
+                                  : 'No data'}
+                              </div>
+                            </motion.div>
+                          );
+                        })}
                       </div>
-                      <div className="text-xs text-muted-foreground">
-                        Success Rate: 98.5%
-                      </div>
-                    </motion.div>
-                  </div>
+                    );
+                  })()}
 
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
@@ -1179,42 +1286,19 @@ export default function SuperAdmin() {
                       System Metrics (Last 24 Hours)
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="p-4 rounded-lg bg-secondary/30">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm text-muted-foreground">Total Requests</span>
-                          <span className="text-lg font-bold text-foreground">12,458</span>
+                      {Object.entries(systemHealth?.summary || {}).slice(0, 4).map(([metricType, item]) => (
+                        <div key={metricType} className="p-4 rounded-lg bg-secondary/30">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm text-muted-foreground capitalize">{metricType}</span>
+                            <span className="text-lg font-bold text-foreground">
+                              {typeof item.current === 'number' ? `${item.current}${item.unit || ''}` : 'N/A'}
+                            </span>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            Status: {item.status} {typeof item.trend === 'number' ? `• trend: ${item.trend.toFixed(1)}%` : ''}
+                          </div>
                         </div>
-                        <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                          <div className="h-full bg-green-500 w-3/4" />
-                        </div>
-                      </div>
-                      <div className="p-4 rounded-lg bg-secondary/30">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm text-muted-foreground">Error Rate</span>
-                          <span className="text-lg font-bold text-green-500">1.2%</span>
-                        </div>
-                        <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                          <div className="h-full bg-green-500 w-[1.2%]" />
-                        </div>
-                      </div>
-                      <div className="p-4 rounded-lg bg-secondary/30">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm text-muted-foreground">Avg Response Time</span>
-                          <span className="text-lg font-bold text-foreground">45ms</span>
-                        </div>
-                        <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                          <div className="h-full bg-blue-500 w-[45%]" />
-                        </div>
-                      </div>
-                      <div className="p-4 rounded-lg bg-secondary/30">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm text-muted-foreground">Uptime</span>
-                          <span className="text-lg font-bold text-green-500">99.9%</span>
-                        </div>
-                        <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                          <div className="h-full bg-green-500 w-[99.9%]" />
-                        </div>
-                      </div>
+                      ))}
                     </div>
                   </motion.div>
                 </motion.div>

@@ -96,7 +96,18 @@ export async function mpesaVerificationProxy(req, res) {
           callback_data: result.rawResponse
         };
 
-        const updateResponse = await fetch(`${process.env.API_BASE_URL || 'http://localhost:5000'}/api/transactions/update-status`, {
+        const forwardedProto = req.headers['x-forwarded-proto'];
+        const forwardedHost = req.headers['x-forwarded-host'];
+        const host = req.headers.host;
+        const inferredBaseUrl = forwardedProto && forwardedHost
+          ? `${forwardedProto}://${forwardedHost}`
+          : host
+            ? `https://${host}`
+            : null;
+
+        const baseUrl = process.env.API_BASE_URL || inferredBaseUrl || 'http://localhost:5000';
+
+        const updateResponse = await fetch(`${baseUrl}/api/transactions/update-status`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(updatePayload)

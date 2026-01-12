@@ -3442,7 +3442,11 @@ const processMpesaCallback = async (req, res) => {
       return res.json({ status: 'success', message: 'Callback processed' });
     }
 
-    if (resultCode === 0) {
+    const normalizedResultCode = resultCode === null || typeof resultCode === 'undefined'
+      ? null
+      : parseInt(String(resultCode), 10);
+
+    if (normalizedResultCode === 0) {
       if (String(prior.status || '').toLowerCase() === 'success') {
         return res.json({ status: 'success', message: 'Callback processed' });
       }
@@ -3451,7 +3455,6 @@ const processMpesaCallback = async (req, res) => {
         .from('transactions')
         .update({
           status: 'success',
-          mpesa_receipt_number: mpesaReceiptNumber,
           mpesa_request_id: prior.mpesa_request_id || merchantRequestId || null,
           checkout_request_id: prior.checkout_request_id || checkoutRequestId || null,
           callback_data: callbackData,
@@ -3791,36 +3794,67 @@ app.get('/api/transactions', verifyToken, async (req, res) => {
 // Update Transaction Status (Called by M-Pesa callback)
 app.post('/api/transactions/update-status', async (req, res) => {
   try {
-    const { mpesa_request_id, checkout_request_id, status, callback_data, result_code } = req.body;
+    const {
+      mpesa_request_id,
+      checkout_request_id,
+      checkout_id,
+      checkoutId,
+      status,
+      callback_data,
+      result_code
+    } = req.body;
 
-    if (!mpesa_request_id && !checkout_request_id) {
+    const normalizedCheckoutId = checkout_request_id || checkout_id || checkoutId || null;
+
+    if (!mpesa_request_id && !normalizedCheckoutId) {
       return res.status(400).json({ status: 'error', message: 'Request ID or Checkout ID required' });
     }
 
     // Determine transaction status based on result code
     let transactionStatus = 'pending';
-    if (result_code === 0 || status === 'success' || status === 'SUCCESS') {
+    const normalizedStatus = String(status || '').toLowerCase();
+    const normalizedResultCode = result_code === null || typeof result_code === 'undefined' ? null : String(result_code);
+    if (normalizedResultCode === '0' || normalizedStatus === 'success') {
       transactionStatus = 'success';
-    } else if (result_code !== 0 && result_code !== null) {
+    } else if (normalizedResultCode && normalizedResultCode !== '0') {
       transactionStatus = 'failed';
     }
 
-    let lookupQuery = supabase
-      .from('transactions')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(1);
+    const lookupLatestBy = async (column, value) => {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq(column, value)
+        .order('created_at', { ascending: false })
+        .limit(1);
 
-    if (mpesa_request_id) lookupQuery = lookupQuery.eq('mpesa_request_id', mpesa_request_id);
-    if (!mpesa_request_id && checkout_request_id) lookupQuery = lookupQuery.eq('checkout_request_id', checkout_request_id);
+      if (error) {
+        console.warn(`Lookup failed for column ${column}`, error);
+        return null;
+      }
+      return data?.[0] || null;
+    };
 
-    const { data: existing, error: existingErr } = await lookupQuery;
-    if (existingErr || !existing || existing.length === 0) {
-      console.warn(`No transaction found with mpesa_request_id: ${mpesa_request_id}, checkout_request_id: ${checkout_request_id}`);
+    let prior = null;
+
+    if (mpesa_request_id) {
+      prior = await lookupLatestBy('mpesa_request_id', mpesa_request_id);
+    }
+
+    if (!prior && normalizedCheckoutId) {
+      prior = await lookupLatestBy('checkout_request_id', normalizedCheckoutId);
+    }
+
+    // Backwards/legacy support: some clients store/use checkout_id
+    if (!prior && normalizedCheckoutId) {
+      prior = await lookupLatestBy('checkout_id', normalizedCheckoutId);
+    }
+
+    if (!prior?.id) {
+      console.warn(`No transaction found with mpesa_request_id: ${mpesa_request_id}, checkout_request_id: ${normalizedCheckoutId}`);
       return res.status(404).json({ status: 'error', message: 'Transaction not found' });
     }
 
-    const prior = existing[0];
     const priorStatus = String(prior.status || '').toLowerCase();
     const nextStatus = String(transactionStatus || '').toLowerCase();
 
@@ -3837,6 +3871,8 @@ app.post('/api/transactions/update-status', async (req, res) => {
       .from('transactions')
       .update({
         status: transactionStatus,
+        mpesa_request_id: prior.mpesa_request_id || mpesa_request_id || null,
+        checkout_request_id: prior.checkout_request_id || normalizedCheckoutId || null,
         callback_data: callback_data || null,
         completed_at: transactionStatus !== 'pending' ? new Date().toISOString() : null,
         updated_at: new Date().toISOString()
@@ -3865,6 +3901,11 @@ app.post('/api/transactions/update-status', async (req, res) => {
         .single();
 
       if (till?.user_id) {
+        const mpesaReceiptNumber =
+          data?.[0]?.callback_data?.Body?.stkCallback?.CallbackMetadata?.Item?.find?.((i) => i?.Name === 'MpesaReceiptNumber')?.Value ||
+          data?.[0]?.callback_data?.MpesaReceiptNumber ||
+          null;
+
         sendPaymentNotificationEmails({
           userId: till.user_id,
           event: 'payment.success',
@@ -3872,7 +3913,7 @@ app.post('/api/transactions/update-status', async (req, res) => {
             transactionId: data[0].id,
             amount: data[0].amount,
             phone: data[0].phone_number,
-            mpesaReceiptNumber: data[0].mpesa_receipt_number,
+            mpesaReceiptNumber,
             reference: data[0].reference,
             description: data[0].description,
             till_id: data[0].till_id,
