@@ -3366,7 +3366,8 @@ app.post('/api/mpesa/stk-push', verifyToken, async (req, res) => {
           transaction_type: 'stk_push',
           reference,
           description,
-          mpesa_request_id: response.data.RequestId,
+          mpesa_request_id: response.data.MerchantRequestID || response.data.MerchantRequestId || response.data.RequestId || response.data.RequestID,
+          checkout_request_id: response.data.CheckoutRequestID || response.data.CheckoutRequestId,
           mpesa_response: response.data
         }
       ])
@@ -3398,37 +3399,51 @@ app.post('/api/mpesa/stk-push', verifyToken, async (req, res) => {
   }
 });
 
-// Payment Callback Handler (from M-Pesa)
-app.post('/api/mpesa/callback', async (req, res) => {
+const processMpesaCallback = async (req, res) => {
   try {
     const callbackData = req.body;
     console.log('M-Pesa Callback received:', callbackData);
 
-    // Extract relevant data from M-Pesa callback
-    const result = callbackData.Body?.stkCallback?.CallbackMetadata?.Item || [];
+    const stkCallback = callbackData?.Body?.stkCallback;
+    const resultCode = stkCallback?.ResultCode;
+    const merchantRequestId = stkCallback?.MerchantRequestID;
+    const checkoutRequestId = stkCallback?.CheckoutRequestID;
+
+    const result = stkCallback?.CallbackMetadata?.Item || [];
     const amount = result.find(item => item.Name === 'Amount')?.Value;
     const phone = result.find(item => item.Name === 'PhoneNumber')?.Value;
     const mpesaReceiptNumber = result.find(item => item.Name === 'MpesaReceiptNumber')?.Value;
-    const resultCode = callbackData.Body?.stkCallback?.ResultCode;
 
-    const { data: existingTx } = await supabase
+    let lookupQuery = supabase
       .from('transactions')
       .select('*')
-      .eq('phone_number', phone)
-      .eq('amount', amount)
       .order('created_at', { ascending: false })
       .limit(1);
 
+    if (checkoutRequestId) {
+      lookupQuery = lookupQuery.eq('checkout_request_id', checkoutRequestId);
+    } else if (merchantRequestId) {
+      lookupQuery = lookupQuery.eq('mpesa_request_id', merchantRequestId);
+    } else {
+      lookupQuery = lookupQuery.eq('phone_number', phone).eq('amount', amount).eq('status', 'pending');
+    }
+
+    const { data: existingTx } = await lookupQuery;
     const prior = existingTx?.[0];
 
     if (!prior?.id) {
-      console.warn('M-Pesa callback: no matching transaction found', { phone, amount, resultCode });
+      console.warn('M-Pesa callback: no matching transaction found', {
+        phone,
+        amount,
+        resultCode,
+        merchantRequestId,
+        checkoutRequestId
+      });
       return res.json({ status: 'success', message: 'Callback processed' });
     }
 
     if (resultCode === 0) {
-      // Payment successful
-      if (prior && String(prior.status || '').toLowerCase() === 'success') {
+      if (String(prior.status || '').toLowerCase() === 'success') {
         return res.json({ status: 'success', message: 'Callback processed' });
       }
 
@@ -3436,15 +3451,23 @@ app.post('/api/mpesa/callback', async (req, res) => {
         .from('transactions')
         .update({
           status: 'success',
-          mpesa_receipt_number: mpesaReceiptNumber
+          mpesa_receipt_number: mpesaReceiptNumber,
+          mpesa_request_id: prior.mpesa_request_id || merchantRequestId || null,
+          checkout_request_id: prior.checkout_request_id || checkoutRequestId || null,
+          callback_data: callbackData,
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         })
         .eq('id', prior.id)
         .select();
 
+      if (error) {
+        console.error('Callback update error:', error);
+      }
+
       if (transaction && transaction.length > 0) {
         const txn = transaction[0];
-        
-        // Get till details to find user
+
         const { data: till } = await supabase
           .from('tills')
           .select('user_id')
@@ -3452,7 +3475,6 @@ app.post('/api/mpesa/callback', async (req, res) => {
           .single();
 
         if (till) {
-          // Trigger payment.success webhook
           triggerWebhook(till.user_id, 'payment.success', {
             transactionId: txn.id,
             amount,
@@ -3484,41 +3506,21 @@ app.post('/api/mpesa/callback', async (req, res) => {
         }
       }
     } else {
-      // Payment failed
-      if (prior && String(prior.status || '').toLowerCase() === 'failed') {
+      if (String(prior.status || '').toLowerCase() === 'failed') {
         return res.json({ status: 'success', message: 'Callback processed' });
       }
 
-      const { data: transaction } = await supabase
+      await supabase
         .from('transactions')
         .update({
-          status: 'failed'
+          status: 'failed',
+          mpesa_request_id: prior.mpesa_request_id || merchantRequestId || null,
+          checkout_request_id: prior.checkout_request_id || checkoutRequestId || null,
+          callback_data: callbackData,
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         })
-        .eq('id', prior.id)
-        .select();
-
-      if (transaction && transaction.length > 0) {
-        const txn = transaction[0];
-        
-        // Get till details to find user
-        const { data: till } = await supabase
-          .from('tills')
-          .select('user_id')
-          .eq('id', txn.till_id)
-          .single();
-
-        if (till) {
-          // Trigger payment.failed webhook
-          triggerWebhook(till.user_id, 'payment.failed', {
-            transactionId: txn.id,
-            amount,
-            phone,
-            status: 'failed',
-            resultCode,
-            timestamp: new Date().toISOString()
-          });
-        }
-      }
+        .eq('id', prior.id);
     }
 
     res.json({ status: 'success', message: 'Callback processed' });
@@ -3526,7 +3528,10 @@ app.post('/api/mpesa/callback', async (req, res) => {
     console.error('Callback Error:', error);
     res.status(500).json({ status: 'error', message: error.message });
   }
-});
+};
+
+app.post('/api/mpesa/callback', processMpesaCallback);
+app.post('/api/callbacks/stk-push', processMpesaCallback);
 
 // STK Push (API Key Authentication - for third-party integrations)
 app.post('/api/mpesa/stk-push-api', verifyApiKey, async (req, res) => {
@@ -3592,7 +3597,7 @@ app.post('/api/mpesa/stk-push-api', verifyApiKey, async (req, res) => {
       PartyA: phone_number,
       PartyB: till.till_number,
       PhoneNumber: phone_number,
-      CallBackURL: `${CALLBACK_URL}/callback.php`,
+      CallBackURL: `${CALLBACK_URL}/api/callbacks/stk-push`,
       AccountReference: reference || 'SwiftPay',
       TransactionDesc: description || 'Payment via SwiftPay'
     };
