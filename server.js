@@ -4219,7 +4219,7 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
         failureRate: a.totalCount > 0 ? a.failedCount / a.totalCount : 0
       }))
       .sort((a, b) => b.totalCount - a.totalCount)
-      .slice(0, 25);
+      ;
 
     const pad2 = (n) => String(n).padStart(2, '0');
     const toDateKey = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -4302,16 +4302,14 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
     const minAmountTxCount = 10;
     const topAmountsByPaidRevenue = [...amountPerformance]
       .sort((a, b) => b.paidRevenue - a.paidRevenue)
-      .slice(0, 10);
+      ;
     const topAmountsBySuccessRate = [...amountPerformance]
       .filter(a => a.totalCount >= minAmountTxCount)
-      .sort((a, b) => b.successRate - a.successRate)
-      .slice(0, 10);
+      .sort((a, b) => b.successRate - a.successRate);
     const topFailedAmounts = [...amountPerformance]
-      .sort((a, b) => b.failedCount - a.failedCount)
-      .slice(0, 10);
+      .sort((a, b) => b.failedCount - a.failedCount);
 
-    const topAmountSet = new Set(amountSummary.slice(0, 10).map(a => String(a.amount)));
+    const topAmountSet = new Set(amountSummary.slice(0, 25).map(a => String(a.amount)));
     const peakHoursByAmount = {};
     rangeTransactions.forEach(tx => {
       const amount = Number(tx.amount || 0);

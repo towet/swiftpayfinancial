@@ -873,7 +873,7 @@ export default function DashboardAnalytics() {
                     <span className="text-xs text-muted-foreground">Range: {amountAnalytics.range}</span>
                   </div>
                   <div className="space-y-2">
-                    {amountAnalytics.topAmountsByPaidRevenue.slice(0, 5).map((a: any, idx: number) => {
+                    {amountAnalytics.topAmountsByPaidRevenue.map((a: any, idx: number) => {
                       const best = getBestHourForAmount(a.amount);
                       return (
                         <button

@@ -321,9 +321,9 @@ export default function TillAnalytics() {
     });
 
     return {
-      topByRevenue: insights.sort((a, b) => b.revenue - a.revenue).slice(0, 5),
-      bestSuccessRate: insights.filter(i => i.total >= 10).sort((a, b) => b.successRate - a.successRate).slice(0, 5),
-      mostFailed: insights.sort((a, b) => b.failed - a.failed).slice(0, 5)
+      topByRevenue: insights.sort((a, b) => b.revenue - a.revenue),
+      bestSuccessRate: insights.filter(i => i.total >= 10).sort((a, b) => b.successRate - a.successRate),
+      mostFailed: insights.sort((a, b) => b.failed - a.failed)
     };
   };
 
