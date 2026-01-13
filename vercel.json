@@ -9,6 +9,26 @@
       "destination": "https://swiftpay-backend-uvv9.onrender.com/api/$1"
     },
     {
+      "source": "/api-docs",
+      "destination": "/api-docs/index.html"
+    },
+    {
+      "source": "/api-docs/(.*)",
+      "destination": "/api-docs/$1"
+    },
+    {
+      "source": "/openapi.yaml",
+      "destination": "/openapi.yaml"
+    },
+    {
+      "source": "/sitemap.xml",
+      "destination": "/sitemap.xml"
+    },
+    {
+      "source": "/robots.txt",
+      "destination": "/robots.txt"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
