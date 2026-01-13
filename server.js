@@ -3983,6 +3983,10 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
       const s = String(status || '').toLowerCase();
       return s === 'success' || s === 'paid' || s === 'completed';
     };
+    const getEffectiveTxDate = (tx) => {
+      const ts = isPaidStatus(tx?.status) && tx?.completed_at ? tx.completed_at : tx?.created_at;
+      return new Date(ts);
+    };
     const transactions = await fetchTransactionsForUserAnalytics({
       userId: req.userId,
       requestedTillId
@@ -4004,7 +4008,7 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
     const yearEnd = new Date(now.getFullYear() + 1, 0, 1);
 
     const filterByWindow = (tx, startDate, endDate) => {
-      const txDate = new Date(tx.created_at);
+      const txDate = getEffectiveTxDate(tx);
       return txDate >= startDate && txDate < endDate;
     };
 
@@ -4032,7 +4036,7 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
       const pending = txs.filter(t => String(t.status || '').toLowerCase() === 'pending');
       const failed = txs.filter(t => String(t.status || '').toLowerCase() === 'failed');
 
-      const totalRevenue = successful.reduce((sum, t) => sum + (t.amount || 0), 0);
+      const totalRevenue = successful.reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
       const totalTransactions = txs.length;
       const successRate = totalTransactions > 0 ? (successful.length / totalTransactions) * 100 : 0;
@@ -4060,7 +4064,7 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
         const bucketTx = transactions.filter(tx => filterByWindow(tx, bucketStart, bucketEnd));
         const bucketRevenue = bucketTx
           .filter(t => isPaidStatus(t.status))
-          .reduce((sum, t) => sum + (t.amount || 0), 0);
+          .reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
         revenueOverTime.push({
           date: `${String(h).padStart(2, '0')}:00`,
@@ -4077,7 +4081,7 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
 
         const dayRevenue = dayTransactions
           .filter(t => isPaidStatus(t.status))
-          .reduce((sum, t) => sum + (t.amount || 0), 0);
+          .reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
         revenueOverTime.push({
           date: dayStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
@@ -4094,7 +4098,7 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
 
         const monthRevenue = monthTransactions
           .filter(t => isPaidStatus(t.status))
-          .reduce((sum, t) => sum + (t.amount || 0), 0);
+          .reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
         revenueOverTime.push({
           date: monthBucketStart.toLocaleDateString('en-US', { month: 'short' }),
@@ -4111,13 +4115,13 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
         const dayEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
 
         const dayTransactions = transactions.filter(tx => {
-          const txDate = new Date(tx.created_at);
+          const txDate = getEffectiveTxDate(tx);
           return txDate >= dayStart && txDate < dayEnd;
         });
 
         const dayRevenue = dayTransactions
           .filter(t => isPaidStatus(t.status))
-          .reduce((sum, t) => sum + (t.amount || 0), 0);
+          .reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
         revenueOverTime.push({
           date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
@@ -4131,14 +4135,14 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
     // Calculate peak hours
     const peakHours = {};
     transactions.forEach(tx => {
-      const hour = new Date(tx.created_at).getHours();
+      const hour = getEffectiveTxDate(tx).getHours();
       if (!peakHours[hour]) {
         peakHours[hour] = { count: 0, revenue: 0, success: 0 };
       }
       peakHours[hour].count++;
       // Count revenue from paid transactions only
       if (isPaidStatus(tx.status)) {
-        peakHours[hour].revenue += tx.amount || 0;
+        peakHours[hour].revenue += Number(tx.amount || 0);
         peakHours[hour].success++;
       }
     });
@@ -4147,15 +4151,15 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
     const statusDistribution = {
       success: {
         count: transactions.filter(t => isPaidStatus(t.status)).length,
-        amount: transactions.filter(t => isPaidStatus(t.status)).reduce((sum, t) => sum + (t.amount || 0), 0)
+        amount: transactions.filter(t => isPaidStatus(t.status)).reduce((sum, t) => sum + Number(t.amount || 0), 0)
       },
       failed: {
         count: transactions.filter(t => String(t.status || '').toLowerCase() === 'failed').length,
-        amount: transactions.filter(t => String(t.status || '').toLowerCase() === 'failed').reduce((sum, t) => sum + (t.amount || 0), 0)
+        amount: transactions.filter(t => String(t.status || '').toLowerCase() === 'failed').reduce((sum, t) => sum + Number(t.amount || 0), 0)
       },
       pending: {
         count: transactions.filter(t => String(t.status || '').toLowerCase() === 'pending').length,
-        amount: transactions.filter(t => String(t.status || '').toLowerCase() === 'pending').reduce((sum, t) => sum + (t.amount || 0), 0)
+        amount: transactions.filter(t => String(t.status || '').toLowerCase() === 'pending').reduce((sum, t) => sum + Number(t.amount || 0), 0)
       }
     };
 
@@ -4205,7 +4209,7 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
     const totalRangeTx = rangeTransactions.length || 1;
     const totalRangePaidRevenue = rangeTransactions
       .filter(t => isPaidStatus(t.status))
-      .reduce((sum, t) => sum + (t.amount || 0), 0) || 1;
+      .reduce((sum, t) => sum + Number(t.amount || 0), 0) || 1;
 
     const amountSummary = Object.values(amountSummaryMap)
       .map(a => ({
@@ -4437,7 +4441,7 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
         customerData[tx.phone_number] = { count: 0, totalAmount: 0 };
       }
       customerData[tx.phone_number].count++;
-      customerData[tx.phone_number].totalAmount += tx.amount || 0;
+      customerData[tx.phone_number].totalAmount += Number(tx.amount || 0);
     });
     
     Object.values(customerData).forEach(customer => {
