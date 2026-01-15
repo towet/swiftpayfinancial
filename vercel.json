@@ -29,6 +29,10 @@
       "destination": "/robots.txt"
     },
     {
+      "source": "/llms.txt",
+      "destination": "/llms.txt"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
