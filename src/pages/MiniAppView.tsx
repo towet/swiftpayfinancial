@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ShoppingCart, ShieldCheck, Package } from 'lucide-react';
+import { ShoppingCart, ShieldCheck, Package, Store } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import axios from 'axios';
 
