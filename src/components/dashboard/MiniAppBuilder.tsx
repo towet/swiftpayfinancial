@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Plus, Save, Smartphone, Layout, Palette, Package, 
   Sparkles, Trash2, Image as ImageIcon, ExternalLink, 
-  CheckCircle2, MousePointer2, Zap, Globe, Share2, ShieldCheck
+  CheckCircle2, MousePointer2, Zap, Globe, Share2,
+  Copy, Instagram, Twitter, MessageCircle, Send
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -186,8 +187,34 @@ export function MiniAppBuilder() {
                       key={p.id}
                       className="flex gap-3 items-start group"
                     >
-                      <div className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0 group-hover:border-indigo-500/30 transition-colors">
-                        <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                      <div 
+                        className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0 group-hover:border-indigo-500/30 transition-colors cursor-pointer overflow-hidden"
+                        onClick={() => {
+                          const input = document.createElement('input');
+                          input.type = 'file';
+                          input.accept = 'image/*';
+                          input.onchange = async (e: any) => {
+                            const file = e.target.files[0];
+                            if (file) {
+                              toast({ title: "Uploading...", description: "Your product image is being uploaded." });
+                              // In a real app, upload to S3/Supabase here
+                              // For now, we'll use a placeholder to show it works
+                              const reader = new FileReader();
+                              reader.onloadend = () => {
+                                updateProduct(p.id, 'image_url', reader.result as string);
+                                toast({ title: "Success", description: "Image uploaded!" });
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          };
+                          input.click();
+                        }}
+                      >
+                        {p.image_url ? (
+                          <img src={p.image_url} className="w-full h-full object-cover" />
+                        ) : (
+                          <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                        )}
                       </div>
                       <div className="flex-1 grid grid-cols-12 gap-2">
                         <div className="col-span-6">
@@ -336,8 +363,30 @@ export function MiniAppBuilder() {
                     <Zap className="h-5 w-5 text-indigo-500 shrink-0" />
                     <p className="text-xs text-indigo-300 leading-relaxed">
                       Your shop will be instantly indexed and optimized for WhatsApp and Instagram sharing. 
-                      SEO meta tags will be automatically generated from your store title.
                     </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Share Store</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button 
+                        variant="outline" 
+                        className="rounded-xl border-white/10 bg-white/5"
+                        onClick={() => {
+                          navigator.clipboard.writeText(`https://www.swiftpayfinancial.com/shop/${slug}`);
+                          toast({ title: "Copied!", description: "Link copied to clipboard." });
+                        }}
+                      >
+                        <Copy className="h-4 w-4 mr-2" /> Copy Link
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        className="rounded-xl border-white/10 bg-white/5"
+                        onClick={() => window.open(`https://wa.me/?text=Check out my shop: https://www.swiftpayfinancial.com/shop/${slug}`)}
+                      >
+                        <MessageCircle className="h-4 w-4 mr-2 text-green-500" /> WhatsApp
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
