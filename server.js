@@ -5097,6 +5097,23 @@ app.post('/api/mini-apps/:id/products', verifyToken, async (req, res) => {
   }
 });
 
+// Get Public Mini-App by Slug
+app.get('/api/public/mini-apps/:slug', async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const { data: miniApp, error: appError } = await supabase
+      .from('mini_apps')
+      .select('*, products:mini_app_products(*)')
+      .eq('slug', slug)
+      .single();
+
+    if (appError || !miniApp) return res.status(404).json({ status: 'error', message: 'Shop not found' });
+    res.json({ status: 'success', mini_app: miniApp });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
 // ==================== ESCROW ROUTES ====================
 
 // Initiate Escrow Payment

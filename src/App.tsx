@@ -17,6 +17,7 @@ import PaymentLinks from "./pages/PaymentLinks";
 import DashboardMiniApps from "./pages/DashboardMiniApps";
 import DashboardEscrow from "./pages/DashboardEscrow";
 import DashboardCapital from "./pages/DashboardCapital";
+import MiniAppView from "./pages/MiniAppView";
 import Profile from "./pages/Profile";
 import SuperAdmin from "./pages/SuperAdmin";
 import TillAnalytics from "./pages/TillAnalytics";
@@ -60,6 +61,7 @@ const AppContent = () => {
         <Route path="/dashboard/integrations" element={<ProtectedRoute element={<Dashboard />} />} />
         <Route path="/dashboard/webhooks" element={<ProtectedRoute element={<DashboardWebhooks />} />} />
         <Route path="/dashboard/settings" element={<ProtectedRoute element={<DashboardSettings />} />} />
+        <Route path="/shop/:slug" element={<MiniAppView />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </>

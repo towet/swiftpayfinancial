@@ -56,7 +56,7 @@ export function MiniAppBuilder() {
           <div>
             <label className="text-sm font-medium">Custom URL Slug</label>
             <div className="flex items-center gap-2">
-              <span className="text-muted-foreground text-sm">swiftpay.link/</span>
+              <span className="text-muted-foreground text-sm">swiftpayfinancial.com/shop/</span>
               <Input value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="my-shop" />
             </div>
           </div>
