@@ -5067,16 +5067,52 @@ app.post('/api/generate-sample-data', verifyToken, async (req, res) => {
 
 // ==================== MINI-APP ROUTES ====================
 
-// Create Mini-App
+// Create or Update Mini-App with Products
 app.post('/api/mini-apps', verifyToken, async (req, res) => {
   try {
-    const { title, slug, description, theme_config } = req.body;
-    const { data, error } = await supabase
+    const { title, slug, description, theme_config, products } = req.body;
+    
+    // 1. Upsert the Mini-App
+    const { data: miniAppData, error: miniAppError } = await supabase
       .from('mini_apps')
-      .insert([{ user_id: req.userId, title, slug, description, theme_config }])
+      .upsert([
+        { 
+          user_id: req.userId, 
+          title, 
+          slug, 
+          description, 
+          theme_config,
+          updated_at: new Date().toISOString()
+        }
+      ], { onConflict: 'slug' })
       .select();
-    if (error) return res.status(400).json({ status: 'error', message: error.message });
-    res.json({ status: 'success', mini_app: data[0] });
+
+    if (miniAppError) return res.status(400).json({ status: 'error', message: miniAppError.message });
+    const miniApp = miniAppData[0];
+
+    // 2. Handle Products
+    if (products && products.length > 0) {
+      // Delete existing products for this mini-app to refresh the list
+      await supabase.from('mini_app_products').delete().eq('mini_app_id', miniApp.id);
+
+      // Insert new products
+      const productsToInsert = products.map((p: any) => ({
+        mini_app_id: miniApp.id,
+        name: p.name,
+        price: parseFloat(p.price) || 0,
+        stock: parseInt(p.stock) || 0,
+        image_url: p.image_url || null,
+        description: p.description || ''
+      }));
+
+      const { error: productsError } = await supabase
+        .from('mini_app_products')
+        .insert(productsToInsert);
+
+      if (productsError) return res.status(400).json({ status: 'error', message: productsError.message });
+    }
+
+    res.json({ status: 'success', mini_app: miniApp });
   } catch (error) {
     res.status(500).json({ status: 'error', message: error.message });
   }
