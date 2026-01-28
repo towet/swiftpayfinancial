@@ -3,10 +3,18 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Plus, Save, Smartphone, Layout, Palette, Package, 
   Sparkles, Trash2, Image as ImageIcon, ExternalLink, 
-  CheckCircle2, MousePointer2, Zap, Globe, Share2,
-  Copy, Instagram, Twitter, MessageCircle, Send
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
+  CheckCircle2, 
+  MousePointer2, 
+  Zap, 
+  Globe, 
+  Share2, 
+  ShieldCheck,
+  Copy, 
+  Instagram, 
+  Twitter, 
+  MessageCircle, 
+  Send
+} from 'lucide-react';ton } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';

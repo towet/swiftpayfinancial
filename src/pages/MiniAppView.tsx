@@ -2,8 +2,15 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
-  ShoppingCart, ShieldCheck, Package, Store, 
-  MessageCircle, Share2, Copy, Instagram, ArrowLeft
+  ShoppingCart, 
+  ShieldCheck, 
+  Package, 
+  Store, 
+  MessageCircle, 
+  Share2, 
+  Copy, 
+  Instagram, 
+  ArrowLeft 
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
