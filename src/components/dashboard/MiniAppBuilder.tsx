@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Plus, Save, Smartphone, Layout, Palette, Package, 
   Sparkles, Trash2, Image as ImageIcon, ExternalLink, 
-  CheckCircle2, MousePointer2, Zap, Globe, Share2
+  CheckCircle2, MousePointer2, Zap, Globe, Share2, ShieldCheck
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
