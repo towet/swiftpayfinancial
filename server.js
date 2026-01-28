@@ -5072,31 +5072,60 @@ app.post('/api/mini-apps', verifyToken, async (req, res) => {
   try {
     const { title, slug, description, theme_config, products } = req.body;
     
-    // 1. Upsert the Mini-App
-    const { data: miniAppData, error: miniAppError } = await supabase
+    console.log('Mini-App Save Request:', { title, slug, productsCount: products?.length });
+    
+    // 1. Check if mini-app already exists
+    const { data: existingApp } = await supabase
       .from('mini_apps')
-      .upsert([
-        { 
-          user_id: req.userId, 
-          title, 
-          slug, 
-          description, 
-          theme_config,
-          updated_at: new Date().toISOString()
-        }
-      ], { onConflict: 'slug' })
-      .select();
+      .select('id')
+      .eq('slug', slug)
+      .single();
 
-    if (miniAppError) return res.status(400).json({ status: 'error', message: miniAppError.message });
-    const miniApp = miniAppData[0];
+    let miniApp;
+    
+    if (existingApp) {
+      // Update existing mini-app
+      const { data: updatedApp, error: updateError } = await supabase
+        .from('mini_apps')
+        .update({ title, description, theme_config, updated_at: new Date().toISOString() })
+        .eq('id', existingApp.id)
+        .select()
+        .single();
+      
+      if (updateError) {
+        console.error('Mini-App Update Error:', updateError);
+        return res.status(400).json({ status: 'error', message: updateError.message });
+      }
+      miniApp = updatedApp;
+    } else {
+      // Create new mini-app
+      const { data: newApp, error: createError } = await supabase
+        .from('mini_apps')
+        .insert([{ user_id: req.userId, title, slug, description, theme_config }])
+        .select()
+        .single();
+      
+      if (createError) {
+        console.error('Mini-App Create Error:', createError);
+        return res.status(400).json({ status: 'error', message: createError.message });
+      }
+      miniApp = newApp;
+    }
+
+    console.log('Mini-App Saved:', miniApp.id);
 
     // 2. Handle Products
     if (products && products.length > 0) {
       // Delete existing products for this mini-app to refresh the list
-      await supabase.from('mini_app_products').delete().eq('mini_app_id', miniApp.id);
+      const { error: deleteError } = await supabase
+        .from('mini_app_products')
+        .delete()
+        .eq('mini_app_id', miniApp.id);
+      
+      if (deleteError) console.error('Product Delete Error:', deleteError);
 
       // Insert new products
-      const productsToInsert = products.map((p: any) => ({
+      const productsToInsert = products.map((p) => ({
         mini_app_id: miniApp.id,
         name: p.name,
         price: parseFloat(p.price) || 0,
@@ -5105,15 +5134,35 @@ app.post('/api/mini-apps', verifyToken, async (req, res) => {
         description: p.description || ''
       }));
 
-      const { error: productsError } = await supabase
-        .from('mini_app_products')
-        .insert(productsToInsert);
+      console.log('Inserting Products:', productsToInsert);
 
-      if (productsError) return res.status(400).json({ status: 'error', message: productsError.message });
+      const { data: insertedProducts, error: productsError } = await supabase
+        .from('mini_app_products')
+        .insert(productsToInsert)
+        .select();
+
+      if (productsError) {
+        console.error('Product Insert Error:', productsError);
+        return res.status(400).json({ status: 'error', message: productsError.message });
+      }
+      
+      console.log('Products Inserted:', insertedProducts?.length);
     }
 
-    res.json({ status: 'success', mini_app: miniApp });
+    // 3. Fetch the complete mini-app with products
+    const { data: completeApp, error: fetchError } = await supabase
+      .from('mini_apps')
+      .select('*, products:mini_app_products(*)')
+      .eq('id', miniApp.id)
+      .single();
+
+    if (fetchError) {
+      console.error('Fetch Complete App Error:', fetchError);
+    }
+
+    res.json({ status: 'success', mini_app: completeApp || miniApp });
   } catch (error) {
+    console.error('Mini-App Save Error:', error);
     res.status(500).json({ status: 'error', message: error.message });
   }
 });
