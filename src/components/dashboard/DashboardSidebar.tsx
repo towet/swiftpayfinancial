@@ -15,7 +15,10 @@ import {
   BookOpen,
   FileText,
   Lightbulb,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Store,
+  Coins,
+  ShieldCheck
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -25,6 +28,9 @@ import { SwiftPaySupport } from "@/components/ui/SwiftPaySupport";
 const menuItems = [
   { icon: LayoutDashboard, label: "Overview", path: "/dashboard" },
   { icon: Receipt, label: "Transactions", path: "/dashboard/transactions" },
+  { icon: Store, label: "Mini-Apps", path: "/dashboard/mini-apps" },
+  { icon: ShieldCheck, label: "Trust-Shield", path: "/dashboard/escrow" },
+  { icon: Coins, label: "Capital", path: "/dashboard/capital" },
   { icon: LinkIcon, label: "Payment Links", path: "/dashboard/payment-links" },
   { icon: Key, label: "API Keys", path: "/dashboard/api-keys" },
   { icon: Wallet, label: "Accounts", path: "/dashboard/accounts" },

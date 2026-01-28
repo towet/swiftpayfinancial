@@ -14,6 +14,9 @@ import DashboardAccounts from "./pages/DashboardAccounts";
 import DashboardAnalytics from "./pages/DashboardAnalytics";
 import DashboardSettings from "./pages/DashboardSettings";
 import PaymentLinks from "./pages/PaymentLinks";
+import DashboardMiniApps from "./pages/DashboardMiniApps";
+import DashboardEscrow from "./pages/DashboardEscrow";
+import DashboardCapital from "./pages/DashboardCapital";
 import Profile from "./pages/Profile";
 import SuperAdmin from "./pages/SuperAdmin";
 import TillAnalytics from "./pages/TillAnalytics";
@@ -44,6 +47,9 @@ const AppContent = () => {
         <Route path="/developers/guide" element={<DeveloperGuide />} />
         <Route path="/dashboard" element={<ProtectedRoute element={<Dashboard />} />} />
         <Route path="/dashboard/transactions" element={<ProtectedRoute element={<DashboardTransactions />} />} />
+        <Route path="/dashboard/mini-apps" element={<ProtectedRoute element={<DashboardMiniApps />} />} />
+        <Route path="/dashboard/escrow" element={<ProtectedRoute element={<DashboardEscrow />} />} />
+        <Route path="/dashboard/capital" element={<ProtectedRoute element={<DashboardCapital />} />} />
         <Route path="/dashboard/payment-links" element={<ProtectedRoute element={<PaymentLinks />} />} />
         <Route path="/dashboard/profile" element={<ProtectedRoute element={<Profile />} />} />
         <Route path="/dashboard/super-admin" element={<ProtectedRoute element={<SuperAdmin />} />} />
