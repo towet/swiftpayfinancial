@@ -8,13 +8,13 @@ import {
   Zap, 
   Globe, 
   Share2, 
-  ShieldCheck,
   Copy, 
   Instagram, 
   Twitter, 
   MessageCircle, 
   Send
-} from 'lucide-react';ton } from '@/components/ui/button';
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -466,7 +466,7 @@ export function MiniAppBuilder() {
               {/* Trust Badge */}
               <div className="mt-12 px-6 text-center space-y-2">
                 <div className="flex items-center justify-center gap-1 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                  <ShieldCheck className="h-3 w-3" />
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/></svg>
                   Verified by SwiftPay
                 </div>
               </div>

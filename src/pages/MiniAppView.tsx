@@ -3,7 +3,6 @@ import { useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   ShoppingCart, 
-  ShieldCheck, 
   Package, 
   Store, 
   MessageCircle, 
@@ -164,7 +163,7 @@ const MiniAppView = () => {
         <div className="max-w-md mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-              <ShieldCheck className="h-4 w-4 text-primary" />
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-primary"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/></svg>
             </div>
             <div>
               <p className="text-[10px] font-black text-gray-900 uppercase tracking-tighter">SwiftPay Protected</p>
