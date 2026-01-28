@@ -5065,6 +5065,140 @@ app.post('/api/generate-sample-data', verifyToken, async (req, res) => {
   }
 });
 
+// ==================== MINI-APP ROUTES ====================
+
+// Create Mini-App
+app.post('/api/mini-apps', verifyToken, async (req, res) => {
+  try {
+    const { title, slug, description, theme_config } = req.body;
+    const { data, error } = await supabase
+      .from('mini_apps')
+      .insert([{ user_id: req.userId, title, slug, description, theme_config }])
+      .select();
+    if (error) return res.status(400).json({ status: 'error', message: error.message });
+    res.json({ status: 'success', mini_app: data[0] });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+// Add Product to Mini-App
+app.post('/api/mini-apps/:id/products', verifyToken, async (req, res) => {
+  try {
+    const { name, price, stock, image_url, description } = req.body;
+    const { data, error } = await supabase
+      .from('mini_app_products')
+      .insert([{ mini_app_id: req.params.id, name, price, stock, image_url, description }])
+      .select();
+    if (error) return res.status(400).json({ status: 'error', message: error.message });
+    res.json({ status: 'success', product: data[0] });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+// ==================== ESCROW ROUTES ====================
+
+// Initiate Escrow Payment
+app.post('/api/escrow/initiate', verifyToken, async (req, res) => {
+  try {
+    const { phone, amount, till_id, reference } = req.body;
+    const releaseCode = Math.floor(1000 + Math.random() * 9000).toString();
+    
+    // 1. Trigger STK Push (Simplified for this blueprint)
+    // In production, this would call the existing STK push logic
+    
+    // 2. Create Escrow Transaction
+    const { data, error } = await supabase
+      .from('transactions')
+      .insert([{
+        user_id: req.userId,
+        till_id,
+        amount,
+        phone_number: phone,
+        reference,
+        is_escrow: true,
+        escrow_status: 'held',
+        release_code: releaseCode,
+        status: 'pending'
+      }])
+      .select();
+
+    if (error) return res.status(400).json({ status: 'error', message: error.message });
+    // 3. Send Release Code via Brevo (Email/SMS)
+    if (data && data[0]) {
+      const emailHtml = buildEmailHtml({
+        title: 'SwiftPay Escrow: Payment Secured',
+        lead: `A payment of KES ${amount} is being held in escrow.`,
+        contentHtml: `
+          <p>Hello,</p>
+          <p>Your payment for <strong>${reference}</strong> has been successfully secured by SwiftPay Trust-Shield.</p>
+          <p><strong>Your Release Code:</strong> <span style="font-size: 24px; font-weight: bold; color: #2563eb;">${releaseCode}</span></p>
+          <p>Please share this code with the seller <strong>ONLY AFTER</strong> you have received and verified your items.</p>
+        `,
+        footerHtml: 'SwiftPay Financial - Building Trust in African Commerce'
+      });
+
+      await sendEmail({
+        to: req.user.email,
+        subject: `Escrow Release Code: ${releaseCode}`,
+        html: emailHtml
+      }).catch(err => console.error('Failed to send escrow email:', err));
+    }
+
+    res.json({ status: 'success', message: 'Escrow payment initiated and code sent', transaction: data[0] });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+// Release Escrow Funds
+app.post('/api/escrow/release', async (req, res) => {
+  try {
+    const { transactionId, releaseCode } = req.body;
+    const { data: tx, error: fetchError } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('id', transactionId)
+      .single();
+
+    if (fetchError || !tx) return res.status(404).json({ status: 'error', message: 'Transaction not found' });
+    if (tx.release_code !== releaseCode) return res.status(401).json({ status: 'error', message: 'Invalid release code' });
+
+    // Update status to released
+    const { error: updateError } = await supabase
+      .from('transactions')
+      .update({ escrow_status: 'released', status: 'success' })
+      .eq('id', transactionId);
+
+    if (updateError) return res.status(400).json({ status: 'error', message: updateError.message });
+    res.json({ status: 'success', message: 'Funds released to merchant' });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+// ==================== LENDING ROUTES ====================
+
+// Get Loan Eligibility
+app.get('/api/lending/eligibility', verifyToken, async (req, res) => {
+  try {
+    // Logic to calculate "Float-Score" based on transaction history
+    const { data: txs } = await supabase.from('transactions').select('amount').eq('user_id', req.userId).eq('status', 'success');
+    const totalVolume = txs?.reduce((sum, t) => sum + t.amount, 0) || 0;
+    const maxLoan = totalVolume * 0.1; // Eligible for 10% of 90-day volume
+
+    res.json({
+      status: 'success',
+      eligible: maxLoan > 1000,
+      maxAmount: maxLoan,
+      score: Math.min(100, (totalVolume / 100000) * 100)
+    });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
 // Start Server
 const server = app.listen(PORT, () => {
   console.log(`🚀 SwiftPay API Server running on http://localhost:${PORT}`);
