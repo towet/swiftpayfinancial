@@ -353,6 +353,58 @@ const ensureWalletForUser = async (userId) => {
   return created;
 };
 
+const WALLET_STK_PENDING_TTL_SECONDS = Number(process.env.WALLET_STK_PENDING_TTL_SECONDS || 900);
+
+const reconcileWalletPendingDeposits = async ({ walletId }) => {
+  const ttlSeconds = Number.isFinite(WALLET_STK_PENDING_TTL_SECONDS) ? WALLET_STK_PENDING_TTL_SECONDS : 900;
+  if (ttlSeconds <= 0) return { updated: 0 };
+
+  const cutoff = new Date(Date.now() - ttlSeconds * 1000).toISOString();
+
+  const { data: pending, error } = await supabase
+    .from('wallet_stk_deposits')
+    .select('id, callback_data')
+    .eq('wallet_id', walletId)
+    .eq('status', 'pending')
+    .lt('created_at', cutoff)
+    .order('created_at', { ascending: true })
+    .limit(200);
+
+  if (error || !Array.isArray(pending) || pending.length === 0) {
+    return { updated: 0 };
+  }
+
+  let updated = 0;
+  for (const row of pending) {
+    const id = row?.id;
+    if (!id) continue;
+    const callback_data = row?.callback_data || {
+      Body: {
+        stkCallback: {
+          ResultCode: 1037,
+          ResultDesc: 'No response from user.'
+        }
+      }
+    };
+
+    const { error: updateError } = await supabase
+      .from('wallet_stk_deposits')
+      .update({
+        status: 'failed',
+        callback_data,
+        completed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .eq('wallet_id', walletId)
+      .eq('status', 'pending');
+
+    if (!updateError) updated += 1;
+  }
+
+  return { updated };
+};
+
 const computeWalletBalance = async (walletId) => {
   const { data, error } = await supabase
     .from('wallet_ledger')
@@ -583,6 +635,16 @@ app.get('/api/wallet', verifyToken, async (req, res) => {
   }
 });
 
+app.post('/api/wallet/deposits/reconcile', verifyToken, async (req, res) => {
+  try {
+    const wallet = await ensureWalletForUser(req.userId);
+    const result = await reconcileWalletPendingDeposits({ walletId: wallet.id });
+    res.json({ status: 'success', wallet_id: wallet.id, ...result });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
 app.get('/api/wallet/ledger', verifyToken, async (req, res) => {
   try {
     const wallet = await ensureWalletForUser(req.userId);
@@ -607,6 +669,13 @@ app.get('/api/wallet/ledger', verifyToken, async (req, res) => {
 app.get('/api/wallet/deposits', verifyToken, async (req, res) => {
   try {
     const wallet = await ensureWalletForUser(req.userId);
+
+    try {
+      await reconcileWalletPendingDeposits({ walletId: wallet.id });
+    } catch (e) {
+      console.warn('Wallet deposit reconcile failed:', e?.message || e);
+    }
+
     const { data, error } = await supabase
       .from('wallet_stk_deposits')
       .select('*')
