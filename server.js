@@ -81,7 +81,15 @@ const TRANSACTION_STATUS_URL = 'https://api.safaricom.co.ke/mpesa/transactionsta
 const B2C_URL = 'https://api.safaricom.co.ke/mpesa/b2c/v1/paymentrequest';
 
 // JWT Secret
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET is required in production');
+  }
+  console.warn('JWT_SECRET is not set. Using an insecure development secret. Do not use this in production.');
+}
+
+const JWT_SECRET_EFFECTIVE = JWT_SECRET || 'dev-insecure-jwt-secret';
 
 // Role Constants
 const ROLES = {
@@ -210,13 +218,13 @@ const generateOtpCode = () => {
 const createLoginChallengeToken = ({ userId, email }) => {
   return jwt.sign(
     { type: 'login_challenge', userId, email },
-    JWT_SECRET,
+    JWT_SECRET_EFFECTIVE,
     { expiresIn: '10m' }
   );
 };
 
 const verifyLoginChallengeToken = (token) => {
-  const decoded = jwt.verify(token, JWT_SECRET);
+  const decoded = jwt.verify(token, JWT_SECRET_EFFECTIVE);
   if (!decoded || decoded.type !== 'login_challenge' || !decoded.userId || !decoded.email) {
     throw new Error('Invalid login challenge');
   }
@@ -226,7 +234,7 @@ const verifyLoginChallengeToken = (token) => {
 const issueAccessToken = ({ userId, email, rememberMe }) => {
   return jwt.sign(
     { userId, email },
-    JWT_SECRET,
+    JWT_SECRET_EFFECTIVE,
     { expiresIn: rememberMe ? '7d' : '2h' }
   );
 };
@@ -533,7 +541,7 @@ const verifyToken = async (req, res, next) => {
     return res.status(401).json({ status: 'error', message: 'No token provided' });
   }
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET_EFFECTIVE);
     req.userId = decoded.userId;
 
     const { data: user } = await supabase
@@ -2898,7 +2906,7 @@ app.post('/api/auth/register', async (req, res) => {
     }
 
     const user = data[0];
-    const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET_EFFECTIVE, { expiresIn: '7d' });
 
     res.json({
       status: 'success',
