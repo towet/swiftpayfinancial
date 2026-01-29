@@ -643,6 +643,123 @@ app.get('/api/wallet', verifyToken, async (req, res) => {
   }
 });
 
+app.get('/api/super-admin/wallets', verifyToken, verifySuperAdmin, async (req, res) => {
+  try {
+    const { page = 1, limit = 20, search = '' } = req.query;
+    const pageNum = Number(page) || 1;
+    const limitNum = Math.min(Math.max(Number(limit) || 20, 1), 100);
+    const offset = (pageNum - 1) * limitNum;
+
+    let query = supabase
+      .from('wallets')
+      .select(`
+        *,
+        users:user_id (email, full_name, company_name, role)
+      `, { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limitNum - 1);
+
+    const s = String(search || '').trim();
+    if (s) {
+      query = query.or(`users.email.ilike.%${s}%,users.full_name.ilike.%${s}%,users.company_name.ilike.%${s}%`);
+    }
+
+    const { data, error, count } = await query;
+    if (error) {
+      return res.status(400).json({ status: 'error', message: error.message });
+    }
+
+    const wallets = await Promise.all(
+      (data || []).map(async (w) => {
+        try {
+          const balance = await computeWalletBalance(w.id);
+          return { ...w, balance };
+        } catch (e) {
+          return { ...w, balance: 0 };
+        }
+      })
+    );
+
+    res.json({
+      status: 'success',
+      wallets,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total: count || 0,
+        pages: Math.ceil((count || 0) / limitNum)
+      }
+    });
+  } catch (error) {
+    console.error('Get super-admin wallets error:', error);
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+app.get('/api/super-admin/wallets/:id', verifyToken, verifySuperAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const { data: wallet, error: walletError } = await supabase
+      .from('wallets')
+      .select(`
+        *,
+        users:user_id (email, full_name, company_name, role)
+      `)
+      .eq('id', id)
+      .single();
+
+    if (walletError || !wallet) {
+      return res.status(404).json({ status: 'error', message: walletError?.message || 'Wallet not found' });
+    }
+
+    const balance = await computeWalletBalance(wallet.id);
+
+    const [{ data: ledger, error: ledgerError }, { data: deposits, error: depositsError }, { data: withdrawals, error: withdrawalsError }] = await Promise.all([
+      supabase
+        .from('wallet_ledger')
+        .select('*')
+        .eq('wallet_id', wallet.id)
+        .order('created_at', { ascending: false })
+        .limit(100),
+      supabase
+        .from('wallet_stk_deposits')
+        .select('*')
+        .eq('wallet_id', wallet.id)
+        .order('created_at', { ascending: false })
+        .limit(50),
+      supabase
+        .from('wallet_withdrawal_requests')
+        .select('*')
+        .eq('wallet_id', wallet.id)
+        .order('created_at', { ascending: false })
+        .limit(50)
+    ]);
+
+    if (ledgerError) {
+      return res.status(400).json({ status: 'error', message: ledgerError.message });
+    }
+    if (depositsError) {
+      return res.status(400).json({ status: 'error', message: depositsError.message });
+    }
+    if (withdrawalsError) {
+      return res.status(400).json({ status: 'error', message: withdrawalsError.message });
+    }
+
+    res.json({
+      status: 'success',
+      wallet,
+      balance,
+      ledger: ledger || [],
+      deposits: deposits || [],
+      withdrawals: withdrawals || []
+    });
+  } catch (error) {
+    console.error('Get super-admin wallet detail error:', error);
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
 app.post('/api/wallet/deposits/reconcile', verifyToken, async (req, res) => {
   try {
     const wallet = await ensureWalletForUser(req.userId);

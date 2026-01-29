@@ -60,7 +60,8 @@ import {
   Unlock,
   History,
   AlertOctagon,
-  Mail
+  Mail,
+  Loader2
 } from "lucide-react";
 import axios from "axios";
 
@@ -98,6 +99,29 @@ interface Till {
     full_name: string;
     company_name: string;
   };
+}
+
+interface SuperAdminWallet {
+  id: string;
+  user_id: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  balance?: number;
+  users?: {
+    email?: string;
+    full_name?: string;
+    company_name?: string;
+    role?: string;
+  };
+}
+
+interface SuperAdminWalletDetail {
+  wallet: SuperAdminWallet;
+  balance: number;
+  ledger: Array<any>;
+  deposits: Array<any>;
+  withdrawals: Array<any>;
 }
 
 interface Transaction {
@@ -207,10 +231,15 @@ interface WithdrawalRequest {
 
 export default function SuperAdmin() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<"overview" | "tills" | "transactions" | "withdrawals" | "activity" | "audit" | "anomalies" | "health">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "tills" | "transactions" | "wallets" | "withdrawals" | "activity" | "audit" | "anomalies" | "health">("overview");
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [tills, setTills] = useState<Till[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [wallets, setWallets] = useState<SuperAdminWallet[]>([]);
+  const [walletSearch, setWalletSearch] = useState("");
+  const [loadingWallets, setLoadingWallets] = useState(false);
+  const [selectedWallet, setSelectedWallet] = useState<SuperAdminWalletDetail | null>(null);
+  const [loadingWalletDetail, setLoadingWalletDetail] = useState(false);
   const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>([]);
   const [withdrawalsStatus, setWithdrawalsStatus] = useState<"all" | "pending" | "approved" | "rejected" | "paid">("pending");
   const [loadingWithdrawals, setLoadingWithdrawals] = useState(false);
@@ -252,8 +281,54 @@ export default function SuperAdmin() {
   useEffect(() => {
     if (activeTab === "tills") fetchTills();
     if (activeTab === "transactions") fetchTransactions();
+    if (activeTab === "wallets") fetchWallets();
     if (activeTab === "withdrawals") fetchWithdrawalRequests();
-  }, [activeTab, page, withdrawalsStatus]);
+  }, [activeTab, page, withdrawalsStatus, walletSearch]);
+
+  const fetchWallets = async () => {
+    setLoadingWallets(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.get(
+        `/api/super-admin/wallets?page=${page}&limit=20&search=${encodeURIComponent(walletSearch)}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (res.data?.status === "success") {
+        setWallets(res.data.wallets || []);
+      }
+    } catch (error) {
+      console.error("Error fetching wallets:", error);
+      toast({ title: "Error", description: "Failed to load wallets", variant: "destructive" });
+    } finally {
+      setLoadingWallets(false);
+    }
+  };
+
+  const fetchWalletDetail = async (walletId: string) => {
+    setLoadingWalletDetail(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.get(`/api/super-admin/wallets/${walletId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.data?.status === "success") {
+        setSelectedWallet({
+          wallet: res.data.wallet,
+          balance: Number(res.data.balance || 0),
+          ledger: Array.isArray(res.data.ledger) ? res.data.ledger : [],
+          deposits: Array.isArray(res.data.deposits) ? res.data.deposits : [],
+          withdrawals: Array.isArray(res.data.withdrawals) ? res.data.withdrawals : [],
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching wallet detail:", error);
+      toast({ title: "Error", description: "Failed to load wallet details", variant: "destructive" });
+    } finally {
+      setLoadingWalletDetail(false);
+    }
+  };
 
   const fetchAnalytics = async () => {
     try {
@@ -845,6 +920,190 @@ export default function SuperAdmin() {
     </motion.div>
   );
 
+  const WalletsTable = () => (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="glass rounded-2xl p-6 border border-border/50"
+    >
+      <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
+        <h3 className="text-lg font-semibold text-foreground">All Wallets</h3>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Search wallets..."
+              value={walletSearch}
+              onChange={(e) => {
+                setPage(1);
+                setWalletSearch(e.target.value);
+              }}
+              className="pl-9 w-64 bg-secondary/50 border-border text-foreground"
+            />
+          </div>
+          <Button variant="outline" size="sm" onClick={() => fetchWallets()} disabled={loadingWallets}>
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
+      </div>
+
+      {selectedWallet ? (
+        <div className="space-y-4">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <div className="text-sm text-muted-foreground">Selected wallet</div>
+              <div className="text-lg font-semibold text-foreground">
+                {selectedWallet.wallet?.users?.company_name || selectedWallet.wallet?.users?.full_name || selectedWallet.wallet?.users?.email || selectedWallet.wallet.user_id}
+              </div>
+              <div className="text-xs text-muted-foreground font-mono">{selectedWallet.wallet.id}</div>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="text-right">
+                <div className="text-sm text-muted-foreground">Balance</div>
+                <div className="text-xl font-bold text-foreground">KES {Number(selectedWallet.balance || 0).toLocaleString()}</div>
+              </div>
+              <Button variant="outline" onClick={() => setSelectedWallet(null)}>
+                Back to list
+              </Button>
+            </div>
+          </div>
+
+          {loadingWalletDetail ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="lg:col-span-1 glass rounded-xl p-4 border border-border/50">
+                <div className="text-sm font-semibold text-foreground mb-3">Recent Deposits</div>
+                <div className="space-y-2 max-h-72 overflow-y-auto">
+                  {(selectedWallet.deposits || []).slice(0, 10).map((d: any) => (
+                    <div key={d.id} className="p-3 rounded-lg bg-secondary/30">
+                      <div className="flex items-center justify-between">
+                        <div className="font-semibold text-foreground">KES {Number(d.amount || 0).toLocaleString()}</div>
+                        <span className={`px-2 py-0.5 rounded-full text-xs capitalize ${
+                          String(d.status || '').toLowerCase() === 'success'
+                            ? 'bg-green-500/20 text-green-500'
+                            : String(d.status || '').toLowerCase() === 'pending'
+                            ? 'bg-yellow-500/20 text-yellow-500'
+                            : 'bg-red-500/20 text-red-500'
+                        }`}>{d.status}</span>
+                      </div>
+                      <div className="text-xs text-muted-foreground font-mono mt-1">{d.phone_number}</div>
+                      <div className="text-xs text-muted-foreground mt-1">{new Date(d.created_at).toLocaleString()}</div>
+                    </div>
+                  ))}
+                  {(selectedWallet.deposits || []).length === 0 && (
+                    <div className="text-sm text-muted-foreground">No deposits</div>
+                  )}
+                </div>
+              </div>
+
+              <div className="lg:col-span-1 glass rounded-xl p-4 border border-border/50">
+                <div className="text-sm font-semibold text-foreground mb-3">Recent Ledger</div>
+                <div className="space-y-2 max-h-72 overflow-y-auto">
+                  {(selectedWallet.ledger || []).slice(0, 10).map((l: any) => (
+                    <div key={l.id} className="p-3 rounded-lg bg-secondary/30">
+                      <div className="flex items-center justify-between">
+                        <div className="font-semibold text-foreground">KES {Number(l.amount || 0).toLocaleString()}</div>
+                        <span className={`px-2 py-0.5 rounded-full text-xs capitalize ${
+                          String(l.entry_type || '').toLowerCase() === 'credit'
+                            ? 'bg-green-500/20 text-green-500'
+                            : 'bg-red-500/20 text-red-500'
+                        }`}>{l.entry_type}</span>
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">{l.source || l.reference}</div>
+                      <div className="text-xs text-muted-foreground mt-1">{new Date(l.created_at).toLocaleString()}</div>
+                    </div>
+                  ))}
+                  {(selectedWallet.ledger || []).length === 0 && (
+                    <div className="text-sm text-muted-foreground">No ledger entries</div>
+                  )}
+                </div>
+              </div>
+
+              <div className="lg:col-span-1 glass rounded-xl p-4 border border-border/50">
+                <div className="text-sm font-semibold text-foreground mb-3">Withdrawal Requests</div>
+                <div className="space-y-2 max-h-72 overflow-y-auto">
+                  {(selectedWallet.withdrawals || []).slice(0, 10).map((w: any) => (
+                    <div key={w.id} className="p-3 rounded-lg bg-secondary/30">
+                      <div className="flex items-center justify-between">
+                        <div className="font-semibold text-foreground">KES {Number(w.amount || 0).toLocaleString()}</div>
+                        <span className={`px-2 py-0.5 rounded-full text-xs capitalize ${
+                          String(w.status || '').toLowerCase() === 'paid'
+                            ? 'bg-green-500/20 text-green-500'
+                            : String(w.status || '').toLowerCase() === 'pending'
+                            ? 'bg-yellow-500/20 text-yellow-500'
+                            : String(w.status || '').toLowerCase() === 'rejected'
+                            ? 'bg-red-500/20 text-red-500'
+                            : 'bg-blue-500/20 text-blue-500'
+                        }`}>{w.status}</span>
+                      </div>
+                      <div className="text-xs text-muted-foreground font-mono mt-1">{w.phone_number}</div>
+                      <div className="text-xs text-muted-foreground mt-1">{new Date(w.created_at).toLocaleString()}</div>
+                    </div>
+                  ))}
+                  {(selectedWallet.withdrawals || []).length === 0 && (
+                    <div className="text-sm text-muted-foreground">No withdrawals</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <>
+          {loadingWallets ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-border/50">
+                    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Owner</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Company</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Email</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Balance</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Created</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {wallets.map((w) => (
+                    <tr key={w.id} className="border-b border-border/30 hover:bg-secondary/30 transition-colors">
+                      <td className="py-3 px-4 text-foreground">{w.users?.full_name || "N/A"}</td>
+                      <td className="py-3 px-4 text-muted-foreground">{w.users?.company_name || "N/A"}</td>
+                      <td className="py-3 px-4 text-muted-foreground">{w.users?.email || "N/A"}</td>
+                      <td className="py-3 px-4 text-foreground font-semibold">KES {Number(w.balance || 0).toLocaleString()}</td>
+                      <td className="py-3 px-4 text-muted-foreground text-sm">{new Date(w.created_at).toLocaleDateString()}</td>
+                      <td className="py-3 px-4 text-right">
+                        <Button variant="outline" size="sm" onClick={() => fetchWalletDetail(w.id)}>
+                          <Eye className="w-4 h-4 mr-2" />
+                          View
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {wallets.length === 0 && !loadingWallets && (
+            <div className="text-center py-12 text-muted-foreground">
+              <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p>No wallets found</p>
+            </div>
+          )}
+        </>
+      )}
+    </motion.div>
+  );
+
   const RevenueChart = () => {
     const data = analytics?.dailyRevenue || {};
     const chartData = Object.entries(data)
@@ -1282,6 +1541,7 @@ export default function SuperAdmin() {
   { id: "overview", label: "Overview", icon: BarChart3 },
   { id: "tills", label: "Tills", icon: CreditCard },
   { id: "transactions", label: "Transactions", icon: Activity },
+  { id: "wallets", label: "Wallets", icon: Users },
   { id: "withdrawals", label: "Withdrawals", icon: DollarSign },
   { id: "activity", label: "Activity", icon: Zap },
   { id: "audit", label: "Audit Trail", icon: History },
@@ -1418,6 +1678,17 @@ export default function SuperAdmin() {
                   exit={{ opacity: 0, y: -20 }}
                 >
                   <TransactionsTable />
+                </motion.div>
+              )}
+
+              {activeTab === "wallets" && (
+                <motion.div
+                  key="wallets"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                >
+                  <WalletsTable />
                 </motion.div>
               )}
 
