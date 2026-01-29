@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import axios from "axios";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, RefreshCw } from "lucide-react";
+import { Check, Copy, Loader2, RefreshCw } from "lucide-react";
 import { formatTimeInAppTz } from "@/lib/utils";
 
 interface WalletInfo {
@@ -76,6 +76,14 @@ export default function DashboardWallet() {
 
   const [polling, setPolling] = useState(false);
   const pollingIntervalRef = useRef<number | null>(null);
+
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  const apiBaseUrl =
+    (import.meta as any)?.env?.VITE_API_BASE_URL ||
+    (import.meta.env?.MODE === "development"
+      ? "http://localhost:5000"
+      : "https://swiftpay-backend-uvv9.onrender.com");
 
   const formatAmount = (value: number) => {
     return new Intl.NumberFormat("en-KE", {
@@ -318,6 +326,17 @@ export default function DashboardWallet() {
     };
   }, [deposits, ledger]);
 
+  const copyToClipboard = async (key: string, value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedKey(key);
+      window.setTimeout(() => setCopiedKey((prev) => (prev === key ? null : prev)), 1200);
+      toast({ title: "Copied", description: "Copied to clipboard" });
+    } catch (error) {
+      toast({ title: "Copy failed", description: "Could not copy to clipboard", variant: "destructive" });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <DashboardSidebar />
@@ -358,6 +377,121 @@ export default function DashboardWallet() {
                 ) : (
                   <span className="text-xs text-muted-foreground">No deposits yet</span>
                 )}
+              </div>
+            </div>
+          </motion.div>
+
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass rounded-xl p-6">
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div>
+                <h2 className="text-xl font-semibold text-foreground">Merchant Integration (API Key)</h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Use this to trigger STK deposits into your wallet from your website/app.
+                </p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Keep your API key secret. Call this endpoint from your server/backend, not directly from browser JavaScript.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={() => (window.location.href = "/dashboard/api-keys")}>
+                  Manage API Keys
+                </Button>
+              </div>
+            </div>
+
+            <div className="mt-6 space-y-4">
+              <div className="glass rounded-lg p-4 border border-border/50">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <div className="text-sm font-semibold text-foreground">Endpoint</div>
+                    <div className="text-xs text-muted-foreground mt-1">POST</div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => copyToClipboard("endpoint", `${apiBaseUrl}/api/wallet/deposits/stk-push-api`)}
+                  >
+                    {copiedKey === "endpoint" ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />}
+                    Copy
+                  </Button>
+                </div>
+                <pre className="mt-3 whitespace-pre-wrap break-words rounded-md bg-secondary/50 border border-border p-3 text-xs text-foreground font-mono">
+{`${apiBaseUrl}/api/wallet/deposits/stk-push-api`}
+                </pre>
+                <div className="mt-2 text-xs text-muted-foreground">
+                  Auth header format required by SwiftPay: <span className="font-mono text-foreground">Authorization: Bearer &lt;API_KEY&gt;</span>
+                </div>
+              </div>
+
+              <div className="glass rounded-lg p-4 border border-border/50">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div className="text-sm font-semibold text-foreground">Example (curl)</div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      copyToClipboard(
+                        "curl",
+                        `curl -X POST "${apiBaseUrl}/api/wallet/deposits/stk-push-api" \\\n  -H "Content-Type: application/json" \\\n  -H "Authorization: Bearer YOUR_API_KEY" \\\n  -d '{"phone_number":"2547XXXXXXXX","amount":10,"reference":"ORDER-123","description":"Wallet top up"}'`
+                      )
+                    }
+                  >
+                    {copiedKey === "curl" ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />}
+                    Copy
+                  </Button>
+                </div>
+                <pre className="mt-3 whitespace-pre-wrap break-words rounded-md bg-secondary/50 border border-border p-3 text-xs text-foreground font-mono">
+{`curl -X POST "${apiBaseUrl}/api/wallet/deposits/stk-push-api" \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -d '{"phone_number":"2547XXXXXXXX","amount":10,"reference":"ORDER-123","description":"Wallet top up"}'`}
+                </pre>
+              </div>
+
+              <div className="glass rounded-lg p-4 border border-border/50">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div className="text-sm font-semibold text-foreground">Example (fetch)</div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      copyToClipboard(
+                        "fetch",
+                        `await fetch("${apiBaseUrl}/api/wallet/deposits/stk-push-api", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer YOUR_API_KEY",
+  },
+  body: JSON.stringify({
+    phone_number: "2547XXXXXXXX",
+    amount: 10,
+    reference: "ORDER-123",
+    description: "Wallet top up",
+  }),
+});`
+                      )
+                    }
+                  >
+                    {copiedKey === "fetch" ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />}
+                    Copy
+                  </Button>
+                </div>
+                <pre className="mt-3 whitespace-pre-wrap break-words rounded-md bg-secondary/50 border border-border p-3 text-xs text-foreground font-mono">
+{`await fetch("${apiBaseUrl}/api/wallet/deposits/stk-push-api", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer YOUR_API_KEY",
+  },
+  body: JSON.stringify({
+    phone_number: "2547XXXXXXXX",
+    amount: 10,
+    reference: "ORDER-123",
+    description: "Wallet top up",
+  }),
+});`}
+                </pre>
               </div>
             </div>
           </motion.div>
