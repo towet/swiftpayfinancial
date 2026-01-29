@@ -59,7 +59,8 @@ import {
   Lock,
   Unlock,
   History,
-  AlertOctagon
+  AlertOctagon,
+  Mail
 } from "lucide-react";
 import axios from "axios";
 
@@ -186,12 +187,34 @@ interface SystemHealthSummary {
   };
 }
 
+interface WithdrawalRequest {
+  id: string;
+  user_id: string;
+  amount: number;
+  phone_number: string;
+  status: string;
+  admin_notes?: string;
+  reviewed_by?: string;
+  reviewed_at?: string;
+  created_at: string;
+  updated_at: string;
+  users?: {
+    email?: string;
+    full_name?: string;
+    company_name?: string;
+  };
+}
+
 export default function SuperAdmin() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<"overview" | "tills" | "transactions" | "activity" | "audit" | "anomalies" | "health">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "tills" | "transactions" | "withdrawals" | "activity" | "audit" | "anomalies" | "health">("overview");
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [tills, setTills] = useState<Till[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>([]);
+  const [withdrawalsStatus, setWithdrawalsStatus] = useState<"all" | "pending" | "approved" | "rejected" | "paid">("pending");
+  const [loadingWithdrawals, setLoadingWithdrawals] = useState(false);
+  const [updatingWithdrawalId, setUpdatingWithdrawalId] = useState<string | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [alertRules, setAlertRules] = useState<AlertRule[]>([]);
@@ -202,6 +225,19 @@ export default function SuperAdmin() {
   const [dateRange, setDateRange] = useState("7d");
   const [page, setPage] = useState(1);
   const [selectedTills, setSelectedTills] = useState<Set<string>>(new Set());
+  const [sendingOnboardingEmails, setSendingOnboardingEmails] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [customEmailSubject, setCustomEmailSubject] = useState("🚀 Get Started with SwiftPay - Create Your First Till");
+  const [customEmailBody, setCustomEmailBody] = useState("");
+  const [showAdminRecipientsModal, setShowAdminRecipientsModal] = useState(false);
+  const [adminRecipientsEnabled, setAdminRecipientsEnabled] = useState(true);
+  const [adminRecipientEmails, setAdminRecipientEmails] = useState<string[]>([]);
+  const [adminSuperAdminEmails, setAdminSuperAdminEmails] = useState<string[]>([]);
+  const [adminAllRecipients, setAdminAllRecipients] = useState<string[]>([]);
+  const [adminNewRecipientEmail, setAdminNewRecipientEmail] = useState("");
+  const [loadingAdminRecipients, setLoadingAdminRecipients] = useState(false);
+  const [savingAdminRecipients, setSavingAdminRecipients] = useState(false);
+  const [testingAdminRecipients, setTestingAdminRecipients] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -216,7 +252,8 @@ export default function SuperAdmin() {
   useEffect(() => {
     if (activeTab === "tills") fetchTills();
     if (activeTab === "transactions") fetchTransactions();
-  }, [activeTab, page]);
+    if (activeTab === "withdrawals") fetchWithdrawalRequests();
+  }, [activeTab, page, withdrawalsStatus]);
 
   const fetchAnalytics = async () => {
     try {
@@ -257,6 +294,26 @@ export default function SuperAdmin() {
       }
     } catch (error) {
       console.error("Error fetching transactions:", error);
+    }
+  };
+
+  const fetchWithdrawalRequests = async () => {
+    setLoadingWithdrawals(true);
+    try {
+      const token = localStorage.getItem("token");
+      const response = await axios.get(
+        `/api/super-admin/withdrawal-requests?page=${page}&limit=20&status=${withdrawalsStatus}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      if (response.data.status === "success") {
+        setWithdrawalRequests(response.data.requests || []);
+      }
+    } catch (error) {
+      console.error("Error fetching withdrawal requests:", error);
+    } finally {
+      setLoadingWithdrawals(false);
     }
   };
 
@@ -375,6 +432,204 @@ export default function SuperAdmin() {
     }
   };
 
+  const handleSendOnboardingEmails = async () => {
+    if (!confirm("Send onboarding emails to all users who haven't created a till yet?")) return;
+    handleOpenEmailModal();
+  };
+
+  const handleOpenEmailModal = () => {
+    // Set default email body if not customized
+    if (!customEmailBody) {
+      const defaultBody = `
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+    <h1 style="color: white; margin: 0; font-size: 28px;">Welcome to SwiftPay!</h1>
+  </div>
+  <div style="background: #f9fafb; padding: 40px 30px; border-radius: 0 0 10px 10px;">
+    <p style="font-size: 18px; color: #1f2937; margin-bottom: 20px;">
+      Hi {{full_name}},
+    </p>
+    <p style="font-size: 16px; color: #4b5563; margin-bottom: 20px;">
+      Thanks for signing up for SwiftPay! We noticed you haven't created your first till yet.
+    </p>
+    <p style="font-size: 16px; color: #4b5563; margin-bottom: 30px;">
+      A <strong>till</strong> is your payment collection point — it's where you'll receive M-Pesa payments from your customers. Creating one takes less than 2 minutes.
+    </p>
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="{{dashboard_url}}/dashboard/tills" 
+         style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px 40px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">
+        Create Your First Till
+      </a>
+    </div>
+    <p style="font-size: 14px; color: #6b7280; margin-top: 30px; text-align: center;">
+      If you need help, check out our <a href="{{dashboard_url}}/developers/guide" style="color: #667eea;">developer guide</a>.
+    </p>
+    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+    <p style="font-size: 12px; color: #9ca3af; text-align: center;">
+      SwiftPay Financial - Building Trust in African Commerce<br>
+      <a href="mailto:support@swiftpayfinancial.com" style="color: #9ca3af; text-decoration: none;">support@swiftpayfinancial.com</a>
+    </p>
+  </div>
+</div>`;
+      setCustomEmailBody(defaultBody);
+    }
+    setShowEmailModal(true);
+  };
+
+  const isValidEmail = (value: string) => {
+    const s = value.trim().toLowerCase();
+    if (!s) return false;
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+  };
+
+  const fetchAdminRecipients = async () => {
+    setLoadingAdminRecipients(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.get("/api/super-admin/notification-recipients?key=withdrawals", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.data?.status === "success") {
+        setAdminRecipientsEnabled(res.data?.settings?.enabled !== false);
+        setAdminRecipientEmails(Array.isArray(res.data?.settings?.emails) ? res.data.settings.emails : []);
+        setAdminSuperAdminEmails(Array.isArray(res.data?.superAdminEmails) ? res.data.superAdminEmails : []);
+        setAdminAllRecipients(Array.isArray(res.data?.recipients) ? res.data.recipients : []);
+      }
+    } catch (error: any) {
+      toast({
+        title: "Notifications",
+        description: error?.response?.data?.message || "Failed to load admin notification recipients",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingAdminRecipients(false);
+    }
+  };
+
+  const handleOpenAdminRecipientsModal = async () => {
+    setShowAdminRecipientsModal(true);
+    await fetchAdminRecipients();
+  };
+
+  const addAdminRecipientEmail = () => {
+    const email = adminNewRecipientEmail.trim().toLowerCase();
+
+    if (!isValidEmail(email)) {
+      toast({ title: "Invalid email", description: "Please enter a valid email address", variant: "destructive" });
+      return;
+    }
+
+    if (adminRecipientEmails.map((e) => e.trim().toLowerCase()).includes(email)) {
+      toast({ title: "Already added", description: "This email is already in the list" });
+      return;
+    }
+
+    if (adminRecipientEmails.length >= 50) {
+      toast({ title: "Limit reached", description: "You can add a maximum of 50 emails", variant: "destructive" });
+      return;
+    }
+
+    setAdminRecipientEmails((prev) => [...prev, email]);
+    setAdminNewRecipientEmail("");
+  };
+
+  const removeAdminRecipientEmail = (email: string) => {
+    setAdminRecipientEmails((prev) => prev.filter((e) => e !== email));
+  };
+
+  const saveAdminRecipients = async () => {
+    setSavingAdminRecipients(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.put(
+        "/api/super-admin/notification-recipients",
+        {
+          key: "withdrawals",
+          enabled: adminRecipientsEnabled,
+          emails: adminRecipientEmails,
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (res.data?.status === "success") {
+        toast({ title: "Saved", description: "Withdrawal notification recipients updated" });
+        setAdminRecipientsEnabled(res.data?.settings?.enabled !== false);
+        setAdminRecipientEmails(Array.isArray(res.data?.settings?.emails) ? res.data.settings.emails : []);
+        setAdminSuperAdminEmails(Array.isArray(res.data?.superAdminEmails) ? res.data.superAdminEmails : []);
+        setAdminAllRecipients(Array.isArray(res.data?.recipients) ? res.data.recipients : []);
+      }
+    } catch (error: any) {
+      toast({
+        title: "Save failed",
+        description: error?.response?.data?.message || "Failed to save recipients",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingAdminRecipients(false);
+    }
+  };
+
+  const testAdminRecipients = async () => {
+    setTestingAdminRecipients(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.post(
+        "/api/super-admin/notification-recipients/test-email",
+        { key: "withdrawals" },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (res.data?.status === "success") {
+        toast({ title: "Test email sent", description: `Queued to ${Array.isArray(res.data?.recipients) ? res.data.recipients.length : 0} recipients` });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Test failed",
+        description: error?.response?.data?.message || "Failed to send test email",
+        variant: "destructive",
+      });
+    } finally {
+      setTestingAdminRecipients(false);
+    }
+  };
+
+  const handleUpdateWithdrawalRequest = async (id: string, status: "approved" | "rejected" | "paid") => {
+    if (status === "paid" && !confirm("Mark this withdrawal as paid?")) return;
+    if (status === "approved" && !confirm("Approve this withdrawal request?")) return;
+
+    let admin_notes: string | undefined;
+    if (status === "rejected") {
+      const notes = prompt("Reject withdrawal request. Optional notes:") || "";
+      admin_notes = notes;
+    }
+
+    setUpdatingWithdrawalId(id);
+    try {
+      const token = localStorage.getItem("token");
+      await axios.put(
+        `/api/super-admin/withdrawal-requests/${id}`,
+        {
+          status,
+          ...(admin_notes !== undefined ? { admin_notes } : {}),
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      toast({ title: "Success", description: `Withdrawal marked as ${status}` });
+      fetchWithdrawalRequests();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error?.response?.data?.message || "Failed to update withdrawal request",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingWithdrawalId(null);
+    }
+  };
+
   const handleDetectAnomalies = async () => {
     try {
       const token = localStorage.getItem("token");
@@ -444,6 +699,149 @@ export default function SuperAdmin() {
         <h3 className="text-3xl font-bold text-foreground mb-1">{value}</h3>
         <p className="text-muted-foreground text-sm">{title}</p>
       </div>
+    </motion.div>
+  );
+
+  const WithdrawalRequestsTable = () => (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="glass rounded-2xl p-6 border border-border/50"
+    >
+      <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
+        <h3 className="text-lg font-semibold text-foreground">Withdrawal Requests</h3>
+        <div className="flex items-center gap-2">
+          <select
+            value={withdrawalsStatus}
+            onChange={(e) => {
+              setPage(1);
+              setWithdrawalsStatus(e.target.value as any);
+            }}
+            className="h-10 rounded-md border border-border bg-background px-3 text-sm text-foreground"
+          >
+            <option value="all">All</option>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+            <option value="paid">Paid</option>
+          </select>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fetchWithdrawalRequests()}
+            disabled={loadingWithdrawals}
+          >
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-border/50">
+              <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Request</th>
+              <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">User</th>
+              <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Amount</th>
+              <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Phone</th>
+              <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Status</th>
+              <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Created</th>
+              <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {withdrawalRequests.map((req) => {
+              const s = String(req.status || "").toLowerCase();
+              const isPending = s === "pending";
+              const isApproved = s === "approved";
+              const isRejected = s === "rejected";
+              const isPaid = s === "paid";
+              const isBusy = updatingWithdrawalId === req.id;
+
+              return (
+                <tr key={req.id} className="border-b border-border/30 hover:bg-secondary/30 transition-colors">
+                  <td className="py-3 px-4 text-muted-foreground text-sm font-mono">{String(req.id).slice(0, 8)}...</td>
+                  <td className="py-3 px-4 text-muted-foreground">
+                    {req.users?.company_name || req.users?.full_name || req.users?.email || req.user_id}
+                  </td>
+                  <td className="py-3 px-4 text-foreground font-semibold">KES {Number(req.amount || 0).toLocaleString()}</td>
+                  <td className="py-3 px-4 text-muted-foreground">{req.phone_number}</td>
+                  <td className="py-3 px-4">
+                    <span
+                      className={`px-2 py-1 rounded-full text-xs ${
+                        isPaid
+                          ? "bg-green-500/20 text-green-500"
+                          : isApproved
+                            ? "bg-blue-500/20 text-blue-500"
+                            : isPending
+                              ? "bg-yellow-500/20 text-yellow-500"
+                              : isRejected
+                                ? "bg-red-500/20 text-red-500"
+                                : "bg-secondary/40 text-muted-foreground"
+                      }`}
+                    >
+                      {req.status}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-muted-foreground text-sm">{new Date(req.created_at).toLocaleString()}</td>
+                  <td className="py-3 px-4">
+                    <div className="flex items-center gap-2">
+                      {isPending && (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleUpdateWithdrawalRequest(req.id, "approved")}
+                            disabled={isBusy}
+                            className="border-border"
+                          >
+                            Approve
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleUpdateWithdrawalRequest(req.id, "rejected")}
+                            disabled={isBusy}
+                            className="border-border"
+                          >
+                            Reject
+                          </Button>
+                        </>
+                      )}
+                      {isApproved && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleUpdateWithdrawalRequest(req.id, "paid")}
+                          disabled={isBusy}
+                          className="border-border"
+                        >
+                          Mark Paid
+                        </Button>
+                      )}
+                      {!isPending && !isApproved && (
+                        <span className="text-sm text-muted-foreground">—</span>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {!loadingWithdrawals && withdrawalRequests.length === 0 && (
+        <div className="text-center py-12 text-muted-foreground">
+          <DollarSign className="w-12 h-12 mx-auto mb-4 opacity-50" />
+          <p>No withdrawal requests</p>
+          <p className="text-sm mt-1">Requests will appear here when users submit withdrawals</p>
+        </div>
+      )}
+      {loadingWithdrawals && (
+        <div className="text-center py-12 text-muted-foreground">Loading...</div>
+      )}
     </motion.div>
   );
 
@@ -850,9 +1248,27 @@ export default function SuperAdmin() {
                 <h1 className="text-3xl font-bold text-foreground mb-2">Super Admin Dashboard</h1>
                 <p className="text-muted-foreground">Monitor and manage the entire SwiftPay platform</p>
               </div>
-              <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20">
-                <Shield className="w-5 h-5 text-primary" />
-                <span className="text-sm font-medium text-primary">Super Admin Access</span>
+              <div className="flex items-center gap-3">
+                <Button
+                  onClick={handleOpenAdminRecipientsModal}
+                  variant="outline"
+                  className="gap-2"
+                >
+                  <Mail className="w-4 h-4" />
+                  Withdrawal Alerts
+                </Button>
+                <Button
+                  onClick={handleOpenEmailModal}
+                  variant="outline"
+                  className="gap-2"
+                >
+                  <Mail className="w-4 h-4" />
+                  Send Onboarding Emails
+                </Button>
+                <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20">
+                  <Shield className="w-5 h-5 text-primary" />
+                  <span className="text-sm font-medium text-primary">Super Admin Access</span>
+                </div>
               </div>
             </motion.div>
 
@@ -866,6 +1282,7 @@ export default function SuperAdmin() {
   { id: "overview", label: "Overview", icon: BarChart3 },
   { id: "tills", label: "Tills", icon: CreditCard },
   { id: "transactions", label: "Transactions", icon: Activity },
+  { id: "withdrawals", label: "Withdrawals", icon: DollarSign },
   { id: "activity", label: "Activity", icon: Zap },
   { id: "audit", label: "Audit Trail", icon: History },
   { id: "anomalies", label: "Anomalies", icon: Brain },
@@ -1001,6 +1418,18 @@ export default function SuperAdmin() {
                   exit={{ opacity: 0, y: -20 }}
                 >
                   <TransactionsTable />
+                </motion.div>
+              )}
+
+              {activeTab === "withdrawals" && (
+                <motion.div
+                  key="withdrawals"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="space-y-6"
+                >
+                  <WithdrawalRequestsTable />
                 </motion.div>
               )}
 
@@ -1307,6 +1736,223 @@ export default function SuperAdmin() {
           </div>
         </div>
       </main>
+
+      {/* Email Customization Modal */}
+      <AnimatePresence>
+        {showEmailModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowEmailModal(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-background rounded-2xl border border-border/50 w-full max-w-4xl max-h-[90vh] overflow-hidden"
+            >
+              <div className="p-6 border-b border-border/50">
+                <h2 className="text-2xl font-bold text-foreground">Customize Onboarding Email</h2>
+                <p className="text-muted-foreground mt-1">Edit the email content before sending to users without tills</p>
+              </div>
+              <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-2">Email Subject</label>
+                    <Input
+                      value={customEmailSubject}
+                      onChange={(e) => setCustomEmailSubject(e.target.value)}
+                      placeholder="Email subject line"
+                      className="w-full"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-2">Email Body (HTML)</label>
+                    <textarea
+                      value={customEmailBody}
+                      onChange={(e) => setCustomEmailBody(e.target.value)}
+                      placeholder="Email HTML content"
+                      className="w-full h-64 p-3 rounded-lg border border-border/50 bg-secondary/30 text-foreground font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    />
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Available placeholders: {"{{full_name}}"}, {"{{dashboard_url}}"}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-2">Preview</label>
+                    <div className="border border-border/50 rounded-lg p-4 bg-white">
+                      <div dangerouslySetInnerHTML={{ __html: customEmailBody.replace(/{{full_name}}/g, 'John Doe').replace(/{{dashboard_url}}/g, window.location.origin) }} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="p-6 border-t border-border/50 flex justify-end gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowEmailModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSendOnboardingEmails}
+                  disabled={sendingOnboardingEmails}
+                >
+                  {sendingOnboardingEmails ? "Sending..." : "Send Emails"}
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Withdrawal Notification Recipients Modal */}
+      <AnimatePresence>
+        {showAdminRecipientsModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowAdminRecipientsModal(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-background rounded-2xl border border-border/50 w-full max-w-3xl max-h-[90vh] overflow-hidden"
+            >
+              <div className="p-6 border-b border-border/50">
+                <h2 className="text-2xl font-bold text-foreground">Withdrawal Alert Recipients</h2>
+                <p className="text-muted-foreground mt-1">
+                  Alerts go to all Super Admin accounts plus the extra emails you add here.
+                </p>
+              </div>
+
+              <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)] space-y-6">
+                <div className="rounded-lg border border-border/50 bg-secondary/30 p-4">
+                  <div className="text-sm font-medium text-foreground mb-1">Status</div>
+                  <div className="text-sm text-muted-foreground mb-3">
+                    {adminRecipientsEnabled ? "Enabled" : "Disabled"} (disabling stops withdrawal emails)
+                  </div>
+                  <Button
+                    variant={adminRecipientsEnabled ? "outline" : "default"}
+                    onClick={() => setAdminRecipientsEnabled((v) => !v)}
+                    disabled={loadingAdminRecipients || savingAdminRecipients}
+                  >
+                    {adminRecipientsEnabled ? "Disable" : "Enable"}
+                  </Button>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-medium text-foreground">Super Admin emails</div>
+                      <div className="text-sm text-muted-foreground">Automatically included</div>
+                    </div>
+                    <div className="text-sm text-muted-foreground">{adminSuperAdminEmails.length}</div>
+                  </div>
+                  <div className="rounded-lg border border-border/50 bg-secondary/30 p-4 text-sm text-muted-foreground">
+                    {adminSuperAdminEmails.length === 0
+                      ? "No super admin emails found"
+                      : adminSuperAdminEmails.join(", ")}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-medium text-foreground">Extra recipient emails</div>
+                      <div className="text-sm text-muted-foreground">Up to 50</div>
+                    </div>
+                    <div className="text-sm text-muted-foreground">{adminRecipientEmails.length}/50</div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Input
+                      value={adminNewRecipientEmail}
+                      onChange={(e) => setAdminNewRecipientEmail(e.target.value)}
+                      placeholder="e.g. finance@company.com"
+                      type="email"
+                      disabled={loadingAdminRecipients || savingAdminRecipients}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={addAdminRecipientEmail}
+                      disabled={loadingAdminRecipients || savingAdminRecipients}
+                    >
+                      Add
+                    </Button>
+                  </div>
+
+                  <div className="space-y-2">
+                    {loadingAdminRecipients ? (
+                      <div className="rounded-lg border border-border bg-secondary/30 p-4 text-sm text-muted-foreground">
+                        Loading...
+                      </div>
+                    ) : adminRecipientEmails.length === 0 ? (
+                      <div className="rounded-lg border border-border bg-secondary/30 p-4 text-sm text-muted-foreground">
+                        No extra emails added yet.
+                      </div>
+                    ) : (
+                      adminRecipientEmails.map((email) => (
+                        <div key={email} className="flex items-center justify-between rounded-lg border border-border bg-secondary/30 px-4 py-3">
+                          <span className="text-sm text-foreground">{email}</span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeAdminRecipientEmail(email)}
+                            disabled={savingAdminRecipients || loadingAdminRecipients}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-border/50 bg-secondary/30 p-4">
+                  <div className="text-sm font-medium text-foreground mb-1">Total recipients (preview)</div>
+                  <div className="text-sm text-muted-foreground">
+                    {adminAllRecipients.length === 0 ? "None" : `${adminAllRecipients.length} recipients`}
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6 border-t border-border/50 flex justify-between gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowAdminRecipientsModal(false)}
+                  disabled={savingAdminRecipients || testingAdminRecipients}
+                >
+                  Close
+                </Button>
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={testAdminRecipients}
+                    disabled={savingAdminRecipients || testingAdminRecipients || loadingAdminRecipients}
+                  >
+                    {testingAdminRecipients ? "Testing..." : "Send Test Email"}
+                  </Button>
+                  <Button
+                    onClick={saveAdminRecipients}
+                    disabled={savingAdminRecipients || loadingAdminRecipients}
+                  >
+                    {savingAdminRecipients ? "Saving..." : "Save"}
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

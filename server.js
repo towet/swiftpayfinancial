@@ -257,6 +257,116 @@ const upsertUserNotificationSettings = async (userId, enabled, emails) => {
   return data?.[0] || payload;
 };
 
+const ADMIN_NOTIFICATION_KEYS = {
+  WITHDRAWALS: 'withdrawals'
+};
+
+const getAdminNotificationSettings = async (key) => {
+  const k = String(key || '').trim() || ADMIN_NOTIFICATION_KEYS.WITHDRAWALS;
+  const { data, error } = await supabase
+    .from('admin_notification_settings')
+    .select('enabled, emails')
+    .eq('key', k)
+    .single();
+
+  if (error || !data) {
+    return { enabled: true, emails: [] };
+  }
+
+  return {
+    enabled: data.enabled !== false,
+    emails: Array.isArray(data.emails) ? data.emails : []
+  };
+};
+
+const upsertAdminNotificationSettings = async (key, enabled, emails) => {
+  const k = String(key || '').trim() || ADMIN_NOTIFICATION_KEYS.WITHDRAWALS;
+  const payload = {
+    key: k,
+    enabled: enabled !== false,
+    emails: Array.isArray(emails) ? emails : [],
+    updated_at: new Date().toISOString()
+  };
+
+  const { data, error } = await supabase
+    .from('admin_notification_settings')
+    .upsert([payload], { onConflict: 'key' })
+    .select();
+
+  if (error) throw error;
+  return data?.[0] || payload;
+};
+
+const getSuperAdminEmails = async () => {
+  const { data, error } = await supabase
+    .from('users')
+    .select('email')
+    .eq('role', ROLES.SUPER_ADMIN);
+
+  if (error || !Array.isArray(data)) return [];
+
+  return data
+    .map((row) => normalizeEmail(row?.email))
+    .filter((email) => isValidEmail(email));
+};
+
+const getAdminNotificationRecipients = async ({ key }) => {
+  const settings = await getAdminNotificationSettings(key);
+  if (!settings.enabled) return { settings, superAdminEmails: [], recipients: [] };
+  const superAdminEmails = await getSuperAdminEmails();
+  const extraEmails = (settings.emails || []).map(normalizeEmail).filter(isValidEmail);
+  const recipients = Array.from(new Set([...superAdminEmails, ...extraEmails]));
+  return { settings, superAdminEmails, recipients };
+};
+
+const ensureWalletForUser = async (userId) => {
+  const { data: existing, error: existingError } = await supabase
+    .from('wallets')
+    .select('*')
+    .eq('user_id', userId)
+    .single();
+
+  if (existing && !existingError) return existing;
+
+  const { data: created, error: createError } = await supabase
+    .from('wallets')
+    .insert([
+      {
+        user_id: userId,
+        status: 'active'
+      }
+    ])
+    .select('*')
+    .single();
+
+  if (createError || !created) {
+    throw new Error(createError?.message || 'Failed to create wallet');
+  }
+  return created;
+};
+
+const computeWalletBalance = async (walletId) => {
+  const { data, error } = await supabase
+    .from('wallet_ledger')
+    .select('entry_type, amount')
+    .eq('wallet_id', walletId)
+    .order('created_at', { ascending: false })
+    .limit(5000);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  let balance = 0;
+  for (const row of data || []) {
+    const amt = Number(row?.amount || 0);
+    const type = String(row?.entry_type || '').toLowerCase();
+    if (type === 'credit') balance += amt;
+    if (type === 'debit') balance -= amt;
+  }
+  return balance;
+};
+
 const sendPaymentNotificationEmails = async ({ userId, event, transaction }) => {
   try {
     if (!userId) return;
@@ -454,6 +564,215 @@ const requireRole = (...allowedRoles) => {
 
 // Super Admin middleware (updated to use role constants)
 const verifySuperAdmin = requireRole(ROLES.SUPER_ADMIN);
+
+app.get('/api/wallet', verifyToken, async (req, res) => {
+  try {
+    const wallet = await ensureWalletForUser(req.userId);
+    const balance = await computeWalletBalance(wallet.id);
+    res.json({ status: 'success', wallet, balance });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+app.get('/api/wallet/ledger', verifyToken, async (req, res) => {
+  try {
+    const wallet = await ensureWalletForUser(req.userId);
+    const { data, error } = await supabase
+      .from('wallet_ledger')
+      .select('*')
+      .eq('wallet_id', wallet.id)
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    if (error) {
+      return res.status(400).json({ status: 'error', message: error.message });
+    }
+
+    const balance = await computeWalletBalance(wallet.id);
+    res.json({ status: 'success', wallet, balance, ledger: data || [] });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+app.get('/api/wallet/deposits', verifyToken, async (req, res) => {
+  try {
+    const wallet = await ensureWalletForUser(req.userId);
+    const { data, error } = await supabase
+      .from('wallet_stk_deposits')
+      .select('*')
+      .eq('wallet_id', wallet.id)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (error) {
+      return res.status(400).json({ status: 'error', message: error.message });
+    }
+
+    res.json({ status: 'success', wallet, deposits: data || [] });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+app.post('/api/wallet/deposits/stk-push', verifyToken, async (req, res) => {
+  try {
+    const amountRaw = req.body?.amount;
+    const phoneRaw = req.body?.phone_number || req.body?.phone || '';
+    const amount = Number(amountRaw);
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ status: 'error', message: 'Invalid amount' });
+    }
+    if (amount > 70000) {
+      return res.status(400).json({ status: 'error', message: 'Maximum deposit is 70000' });
+    }
+
+    const phone_number = String(phoneRaw || '').trim();
+    if (!phone_number || phone_number.length < 9) {
+      return res.status(400).json({ status: 'error', message: 'Phone number is required' });
+    }
+
+    const wallet = await ensureWalletForUser(req.userId);
+
+    const token = await getMpesaAccessToken();
+    const timestamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14);
+    const password = Buffer.from(`${MPESA_BUSINESS_SHORT_CODE}${MPESA_PASSKEY}${timestamp}`).toString('base64');
+
+    const payload = {
+      BusinessShortCode: MPESA_BUSINESS_SHORT_CODE,
+      Password: password,
+      Timestamp: timestamp,
+      TransactionType: 'CustomerBuyGoodsOnline',
+      Amount: amount,
+      PartyA: phone_number,
+      PartyB: MPESA_BUSINESS_SHORT_CODE,
+      PhoneNumber: phone_number,
+      CallBackURL: `${CALLBACK_URL}/api/callbacks/stk-push`,
+      AccountReference: wallet.id,
+      TransactionDesc: 'Wallet deposit via SwiftPay'
+    };
+
+    const response = await axios.post(STK_PUSH_URL, payload, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const mpesa_request_id = response.data.MerchantRequestID || response.data.MerchantRequestId || response.data.RequestId || response.data.RequestID;
+    const checkout_request_id = response.data.CheckoutRequestID || response.data.CheckoutRequestId;
+
+    const { data: deposit, error } = await supabase
+      .from('wallet_stk_deposits')
+      .insert([
+        {
+          wallet_id: wallet.id,
+          user_id: req.userId,
+          amount,
+          phone_number,
+          status: 'pending',
+          mpesa_request_id,
+          checkout_request_id,
+          mpesa_response: response.data,
+          updated_at: new Date().toISOString()
+        }
+      ])
+      .select('*')
+      .single();
+
+    if (error || !deposit) {
+      return res.status(400).json({ status: 'error', message: error?.message || 'Failed to create deposit record' });
+    }
+
+    res.json({ status: 'success', message: 'STK Push sent', deposit, mpesa: response.data });
+  } catch (error) {
+    console.error('Wallet STK Push Error:', error.response?.data || error.message);
+    res.status(500).json({
+      status: 'error',
+      message: error.response?.data?.errorMessage || error.message,
+      data: error.response?.data
+    });
+  }
+});
+
+app.post('/api/wallet/deposits/stk-push-api', verifyApiKey, async (req, res) => {
+  try {
+    const amountRaw = req.body?.amount;
+    const phoneRaw = req.body?.phone_number || req.body?.phone || '';
+    const reference = req.body?.reference;
+    const description = req.body?.description;
+
+    const amount = Number(amountRaw);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ status: 'error', message: 'Invalid amount' });
+    }
+    if (amount > 70000) {
+      return res.status(400).json({ status: 'error', message: 'Maximum deposit is 70000' });
+    }
+
+    const phone_number = String(phoneRaw || '').trim();
+    if (!phone_number || phone_number.length < 9) {
+      return res.status(400).json({ status: 'error', message: 'Phone number is required' });
+    }
+
+    const wallet = await ensureWalletForUser(req.userId);
+
+    const token = await getMpesaAccessToken();
+    const timestamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14);
+    const password = Buffer.from(`${MPESA_BUSINESS_SHORT_CODE}${MPESA_PASSKEY}${timestamp}`).toString('base64');
+
+    const payload = {
+      BusinessShortCode: MPESA_BUSINESS_SHORT_CODE,
+      Password: password,
+      Timestamp: timestamp,
+      TransactionType: 'CustomerBuyGoodsOnline',
+      Amount: amount,
+      PartyA: phone_number,
+      PartyB: MPESA_BUSINESS_SHORT_CODE,
+      PhoneNumber: phone_number,
+      CallBackURL: `${CALLBACK_URL}/api/callbacks/stk-push`,
+      AccountReference: reference || wallet.id,
+      TransactionDesc: description || 'Wallet deposit via SwiftPay'
+    };
+
+    const response = await axios.post(STK_PUSH_URL, payload, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const mpesa_request_id = response.data.MerchantRequestID || response.data.MerchantRequestId || response.data.RequestId || response.data.RequestID;
+    const checkout_request_id = response.data.CheckoutRequestID || response.data.CheckoutRequestId;
+
+    await supabase
+      .from('wallet_stk_deposits')
+      .insert([
+        {
+          wallet_id: wallet.id,
+          user_id: req.userId,
+          amount,
+          phone_number,
+          status: 'pending',
+          mpesa_request_id,
+          checkout_request_id,
+          mpesa_response: response.data,
+          updated_at: new Date().toISOString()
+        }
+      ]);
+
+    res.json({ status: 'success', message: 'STK Push sent', data: response.data, wallet_id: wallet.id });
+  } catch (error) {
+    console.error('Wallet STK Push API Error:', error.response?.data || error.message);
+    res.status(500).json({
+      status: 'error',
+      message: error.response?.data?.errorMessage || error.message,
+      data: error.response?.data
+    });
+  }
+});
 
 // Object-level authorization helpers
 const authorizeTillAccess = async (userId, userRole, tillId) => {
@@ -751,6 +1070,268 @@ app.get('/api/user', verifyToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Get user error:', error);
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+app.get('/api/super-admin/notification-recipients', verifyToken, verifySuperAdmin, async (req, res) => {
+  try {
+    const key = String(req.query?.key || ADMIN_NOTIFICATION_KEYS.WITHDRAWALS);
+    const result = await getAdminNotificationRecipients({ key });
+
+    res.json({
+      status: 'success',
+      key,
+      settings: result.settings,
+      superAdminEmails: result.superAdminEmails,
+      recipients: result.recipients
+    });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+app.put('/api/super-admin/notification-recipients', verifyToken, verifySuperAdmin, async (req, res) => {
+  try {
+    const key = String(req.body?.key || ADMIN_NOTIFICATION_KEYS.WITHDRAWALS);
+    const enabled = req.body?.enabled !== false;
+    const rawEmails = Array.isArray(req.body?.emails) ? req.body.emails : [];
+
+    const normalized = rawEmails
+      .map(normalizeEmail)
+      .filter((e) => e);
+
+    const unique = Array.from(new Set(normalized));
+    if (unique.length > 50) {
+      return res.status(400).json({ status: 'error', message: 'You can add a maximum of 50 emails' });
+    }
+
+    const invalid = unique.filter((e) => !isValidEmail(e));
+    if (invalid.length > 0) {
+      return res.status(400).json({ status: 'error', message: `Invalid email(s): ${invalid.join(', ')}` });
+    }
+
+    const saved = await upsertAdminNotificationSettings(key, enabled, unique);
+    const result = await getAdminNotificationRecipients({ key });
+
+    res.json({
+      status: 'success',
+      key,
+      settings: { enabled: saved.enabled !== false, emails: saved.emails || [] },
+      superAdminEmails: result.superAdminEmails,
+      recipients: result.recipients
+    });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+app.post('/api/super-admin/notification-recipients/test-email', verifyToken, verifySuperAdmin, async (req, res) => {
+  try {
+    const key = String(req.body?.key || ADMIN_NOTIFICATION_KEYS.WITHDRAWALS);
+    const { recipients } = await getAdminNotificationRecipients({ key });
+
+    if (recipients.length === 0) {
+      return res.status(400).json({ status: 'error', message: 'No recipients configured' });
+    }
+
+    const when = new Date().toISOString();
+    const html = buildEmailHtml({
+      title: 'SwiftPay Admin Notification Test',
+      lead: 'This is a test email for your admin notification recipients.',
+      contentHtml: `
+        <div style="color:#e5e7eb">
+          <div style="margin-bottom:10px">Key: <b>${key}</b></div>
+          <div style="margin-bottom:10px">Time: <b>${when}</b></div>
+          <div>Recipients: <b>${recipients.length}</b></div>
+        </div>
+      `,
+      footerHtml: 'If you received this email, your admin notification routing is working.'
+    });
+
+    await Promise.all(
+      recipients.map((to) =>
+        sendEmail({
+          to,
+          subject: 'SwiftPay Admin Notification Test',
+          html
+        })
+      )
+    );
+
+    res.json({ status: 'success', message: 'Test email queued', recipients });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+app.post('/api/wallet/withdrawals', verifyToken, async (req, res) => {
+  try {
+    const amountRaw = req.body?.amount;
+    const phoneRaw = req.body?.phone_number || req.body?.phone || '';
+
+    const amount = Number(amountRaw);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ status: 'error', message: 'Invalid amount' });
+    }
+    if (amount > 70000) {
+      return res.status(400).json({ status: 'error', message: 'Maximum withdrawal is 70000' });
+    }
+
+    const phone_number = String(phoneRaw || '').trim();
+    if (!phone_number || phone_number.length < 9) {
+      return res.status(400).json({ status: 'error', message: 'Phone number is required' });
+    }
+
+    const { data, error } = await supabase
+      .from('wallet_withdrawal_requests')
+      .insert([
+        {
+          user_id: req.userId,
+          amount,
+          phone_number,
+          status: 'pending'
+        }
+      ])
+      .select('*')
+      .single();
+
+    if (error || !data) {
+      return res.status(400).json({ status: 'error', message: error?.message || 'Failed to create withdrawal request' });
+    }
+
+    let notified = 0;
+    try {
+      const { recipients } = await getAdminNotificationRecipients({ key: ADMIN_NOTIFICATION_KEYS.WITHDRAWALS });
+      if (Array.isArray(recipients) && recipients.length > 0) {
+        const dashboardUrl = process.env.FRONTEND_URL || 'https://swiftpayfinancial.com';
+        const html = buildEmailHtml({
+          title: 'New Wallet Withdrawal Request',
+          lead: 'A user has requested a wallet withdrawal.',
+          contentHtml: `
+            <div style="color:#e5e7eb">
+              <div style="margin-bottom:10px">Request ID: <b>${data.id}</b></div>
+              <div style="margin-bottom:10px">User: <b>${req.user?.email || ''}</b></div>
+              <div style="margin-bottom:10px">Amount: <b>KES ${data.amount}</b></div>
+              <div style="margin-bottom:10px">Phone: <b>${data.phone_number}</b></div>
+              <div style="margin-bottom:10px">Status: <b>${data.status}</b></div>
+              <div style="margin-top:16px">
+                <a href="${dashboardUrl}/dashboard/super-admin" style="display:inline-block;background:linear-gradient(135deg,#2563eb,#7c3aed);color:white;text-decoration:none;padding:10px 14px;border-radius:10px;font-weight:600">
+                  Open Super Admin Dashboard
+                </a>
+              </div>
+            </div>
+          `,
+          footerHtml: 'SwiftPay Financial - Building Trust in African Commerce'
+        });
+
+        await Promise.all(
+          recipients.map((to) =>
+            sendEmail({
+              to,
+              subject: `SwiftPay Withdrawal Request: KES ${data.amount}`,
+              html
+            })
+          )
+        );
+        notified = recipients.length;
+      }
+    } catch (notifyErr) {
+      console.warn('Failed to send admin withdrawal notification emails:', notifyErr?.message || notifyErr);
+    }
+
+    res.json({ status: 'success', withdrawalRequest: data, notified });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+app.get('/api/wallet/withdrawals', verifyToken, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('wallet_withdrawal_requests')
+      .select('*')
+      .eq('user_id', req.userId)
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    if (error) {
+      return res.status(400).json({ status: 'error', message: error.message });
+    }
+
+    res.json({ status: 'success', withdrawals: data || [] });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+app.get('/api/super-admin/withdrawal-requests', verifyToken, verifySuperAdmin, async (req, res) => {
+  try {
+    const { page = 1, limit = 20, status = 'all' } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
+
+    let query = supabase
+      .from('wallet_withdrawal_requests')
+      .select('*, users:user_id (email, full_name, company_name)', { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .range(offset, offset + Number(limit) - 1);
+
+    if (status && status !== 'all') {
+      query = query.eq('status', status);
+    }
+
+    const { data, error, count } = await query;
+    if (error) {
+      return res.status(400).json({ status: 'error', message: error.message });
+    }
+
+    res.json({
+      status: 'success',
+      requests: data || [],
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total: count || 0,
+        pages: Math.ceil((count || 0) / Number(limit))
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+app.put('/api/super-admin/withdrawal-requests/:id', verifyToken, verifySuperAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const nextStatus = String(req.body?.status || '').trim().toLowerCase();
+    const adminNotes = req.body?.admin_notes;
+
+    const allowed = new Set(['pending', 'approved', 'rejected', 'paid']);
+    if (nextStatus && !allowed.has(nextStatus)) {
+      return res.status(400).json({ status: 'error', message: 'Invalid status' });
+    }
+
+    const patch = {
+      updated_at: new Date().toISOString(),
+      reviewed_by: req.userId,
+      reviewed_at: new Date().toISOString()
+    };
+    if (nextStatus) patch.status = nextStatus;
+    if (adminNotes !== undefined) patch.admin_notes = adminNotes;
+
+    const { data, error } = await supabase
+      .from('wallet_withdrawal_requests')
+      .update(patch)
+      .eq('id', id)
+      .select('*, users:user_id (email, full_name, company_name)')
+      .single();
+
+    if (error || !data) {
+      return res.status(400).json({ status: 'error', message: error?.message || 'Failed to update request' });
+    }
+
+    res.json({ status: 'success', request: data });
+  } catch (error) {
     res.status(500).json({ status: 'error', message: error.message });
   }
 });
@@ -1064,6 +1645,108 @@ app.get('/api/super-admin/activity', verifyToken, verifySuperAdmin, async (req, 
     });
   } catch (error) {
     console.error('Get activity error:', error);
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+// Send Onboarding Emails to Users Without Tills
+app.post('/api/admin/send-onboarding-emails', verifyToken, verifySuperAdmin, async (req, res) => {
+  try {
+    const { subject, html } = req.body;
+
+    // Get users without tills
+    const { data: usersWithoutTills, error } = await supabase
+      .from('users')
+      .select('id, email, full_name, company_name, created_at')
+      .not('id', 'in', supabase.from('tills').select('user_id'));
+
+    if (error) {
+      return res.status(400).json({ status: 'error', message: error.message });
+    }
+
+    if (!usersWithoutTills || usersWithoutTills.length === 0) {
+      return res.json({
+        status: 'success',
+        message: 'All users have created tills',
+        sent: 0,
+        failed: 0
+      });
+    }
+
+    let sent = 0;
+    let failed = 0;
+    const errors = [];
+
+    for (const user of usersWithoutTills) {
+      try {
+        // Use custom email if provided, otherwise use default
+        let emailHtml, emailSubject;
+
+        if (html && subject) {
+          // Replace placeholders with actual user data
+          emailHtml = html
+            .replace(/{{full_name}}/g, user.full_name || 'there')
+            .replace(/{{dashboard_url}}/g, process.env.FRONTEND_URL || 'https://swiftpayfinancial.com');
+          emailSubject = subject;
+        } else {
+          // Default email template
+          emailHtml = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+              <h1 style="color: white; margin: 0; font-size: 28px;">Welcome to SwiftPay!</h1>
+            </div>
+            <div style="background: #f9fafb; padding: 40px 30px; border-radius: 0 0 10px 10px;">
+              <p style="font-size: 18px; color: #1f2937; margin-bottom: 20px;">
+                Hi ${user.full_name || 'there'},
+              </p>
+              <p style="font-size: 16px; color: #4b5563; margin-bottom: 20px;">
+                Thanks for signing up for SwiftPay! We noticed you haven't created your first till yet.
+              </p>
+              <p style="font-size: 16px; color: #4b5563; margin-bottom: 30px;">
+                A <strong>till</strong> is your payment collection point — it's where you'll receive M-Pesa payments from your customers. Creating one takes less than 2 minutes.
+              </p>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${process.env.FRONTEND_URL || 'https://swiftpayfinancial.com'}/dashboard/tills" 
+                   style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px 40px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">
+                  Create Your First Till
+                </a>
+              </div>
+              <p style="font-size: 14px; color: #6b7280; margin-top: 30px; text-align: center;">
+                If you need help, check out our <a href="${process.env.FRONTEND_URL || 'https://swiftpayfinancial.com'}/developers/guide" style="color: #667eea;">developer guide</a>.
+              </p>
+              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+              <p style="font-size: 12px; color: #9ca3af; text-align: center;">
+                SwiftPay Financial - Building Trust in African Commerce<br>
+                <a href="mailto:support@swiftpayfinancial.com" style="color: #9ca3af; text-decoration: none;">support@swiftpayfinancial.com</a>
+              </p>
+            </div>
+          </div>
+          `;
+          emailSubject = '🚀 Get Started with SwiftPay - Create Your First Till';
+        }
+
+        await sendEmail({
+          to: user.email,
+          subject: emailSubject,
+          html: emailHtml
+        });
+
+        sent++;
+      } catch (err) {
+        failed++;
+        errors.push({ email: user.email, error: err.message });
+      }
+    }
+
+    res.json({
+      status: 'success',
+      message: `Sent ${sent} onboarding emails${failed > 0 ? `, ${failed} failed` : ''}`,
+      sent,
+      failed,
+      errors: errors.length > 0 ? errors : undefined
+    });
+  } catch (error) {
+    console.error('Send onboarding emails error:', error);
     res.status(500).json({ status: 'error', message: error.message });
   }
 });
@@ -3414,6 +4097,83 @@ const processMpesaCallback = async (req, res) => {
     const phone = result.find(item => item.Name === 'PhoneNumber')?.Value;
     const mpesaReceiptNumber = result.find(item => item.Name === 'MpesaReceiptNumber')?.Value;
 
+    let walletDepositQuery = supabase
+      .from('wallet_stk_deposits')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (checkoutRequestId) {
+      walletDepositQuery = walletDepositQuery.eq('checkout_request_id', checkoutRequestId);
+    } else if (merchantRequestId) {
+      walletDepositQuery = walletDepositQuery.eq('mpesa_request_id', merchantRequestId);
+    } else {
+      walletDepositQuery = walletDepositQuery.eq('phone_number', phone).eq('amount', amount).eq('status', 'pending');
+    }
+
+    const { data: existingDeposit } = await walletDepositQuery;
+    const priorDeposit = existingDeposit?.[0];
+
+    const normalizedResultCode = resultCode === null || typeof resultCode === 'undefined'
+      ? null
+      : parseInt(String(resultCode), 10);
+
+    if (priorDeposit?.id) {
+      if (normalizedResultCode === 0) {
+        if (String(priorDeposit.status || '').toLowerCase() !== 'success') {
+          const { data: updated } = await supabase
+            .from('wallet_stk_deposits')
+            .update({
+              status: 'success',
+              mpesa_request_id: priorDeposit.mpesa_request_id || merchantRequestId || null,
+              checkout_request_id: priorDeposit.checkout_request_id || checkoutRequestId || null,
+              callback_data: callbackData,
+              completed_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', priorDeposit.id)
+            .select('*')
+            .single();
+
+          const ledgerPayload = {
+            wallet_id: priorDeposit.wallet_id,
+            entry_type: 'credit',
+            amount: amount || priorDeposit.amount,
+            currency: 'KES',
+            source: 'stk_deposit',
+            reference: 'wallet_deposit',
+            phone_number: phone || priorDeposit.phone_number,
+            mpesa_receipt_number: mpesaReceiptNumber || null,
+            checkout_request_id: updated?.checkout_request_id || priorDeposit.checkout_request_id || checkoutRequestId || null
+          };
+
+          try {
+            await supabase.from('wallet_ledger').insert([ledgerPayload]);
+          } catch (ledgerErr) {
+            console.warn('Wallet ledger credit insert failed:', ledgerErr?.message || ledgerErr);
+          }
+        }
+
+        return res.json({ status: 'success', message: 'Callback processed' });
+      }
+
+      if (String(priorDeposit.status || '').toLowerCase() !== 'failed') {
+        await supabase
+          .from('wallet_stk_deposits')
+          .update({
+            status: 'failed',
+            mpesa_request_id: priorDeposit.mpesa_request_id || merchantRequestId || null,
+            checkout_request_id: priorDeposit.checkout_request_id || checkoutRequestId || null,
+            callback_data: callbackData,
+            completed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', priorDeposit.id);
+      }
+
+      return res.json({ status: 'success', message: 'Callback processed' });
+    }
+
     let lookupQuery = supabase
       .from('transactions')
       .select('*')
@@ -3442,11 +4202,9 @@ const processMpesaCallback = async (req, res) => {
       return res.json({ status: 'success', message: 'Callback processed' });
     }
 
-    const normalizedResultCode = resultCode === null || typeof resultCode === 'undefined'
-      ? null
-      : parseInt(String(resultCode), 10);
+    const normalizedResultCode2 = normalizedResultCode;
 
-    if (normalizedResultCode === 0) {
+    if (normalizedResultCode2 === 0) {
       if (String(prior.status || '').toLowerCase() === 'success') {
         return res.json({ status: 'success', message: 'Callback processed' });
       }

@@ -5,6 +5,7 @@ import {
   Receipt, 
   Key, 
   Wallet, 
+  DollarSign,
   Code2, 
   BarChart3, 
   Bell, 
@@ -35,6 +36,7 @@ const menuItems = [
   { icon: ShieldCheckIcon, label: "Trust-Shield", path: "/dashboard/escrow" },
   { icon: Coins, label: "Capital", path: "/dashboard/capital" },
   { icon: LinkIcon, label: "Payment Links", path: "/dashboard/payment-links" },
+  { icon: DollarSign, label: "Withdrawals", path: "/dashboard/withdrawals" },
   { icon: Key, label: "API Keys", path: "/dashboard/api-keys" },
   { icon: Wallet, label: "Accounts", path: "/dashboard/accounts" },
   { icon: Code2, label: "Integrations", path: "/dashboard/integrations" },
@@ -55,8 +57,11 @@ export function DashboardSidebar() {
   const navigate = useNavigate();
 
   const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    localStorage.removeItem("lastActivityAt");
     localStorage.removeItem("swiftpay_auth");
-    navigate("/");
+    navigate("/login");
   };
 
   return (

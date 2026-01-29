@@ -25,6 +25,7 @@ import DeveloperPortal from "./pages/DeveloperPortal";
 import DeveloperDocs from "./pages/DeveloperDocs";
 import DeveloperGuide from "./pages/DeveloperGuide";
 import DashboardWebhooks from "./pages/DashboardWebhooks";
+import DashboardWithdrawals from "./pages/DashboardWithdrawals";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -52,6 +53,7 @@ const AppContent = () => {
         <Route path="/dashboard/escrow" element={<ProtectedRoute element={<DashboardEscrow />} />} />
         <Route path="/dashboard/capital" element={<ProtectedRoute element={<DashboardCapital />} />} />
         <Route path="/dashboard/payment-links" element={<ProtectedRoute element={<PaymentLinks />} />} />
+        <Route path="/dashboard/withdrawals" element={<ProtectedRoute element={<DashboardWithdrawals />} />} />
         <Route path="/dashboard/profile" element={<ProtectedRoute element={<Profile />} />} />
         <Route path="/dashboard/super-admin" element={<ProtectedRoute element={<SuperAdmin />} />} />
         <Route path="/dashboard/super-admin/tills/:id/analytics" element={<ProtectedRoute element={<TillAnalytics />} />} />
