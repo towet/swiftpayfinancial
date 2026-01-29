@@ -624,6 +624,21 @@ app.get('/api/wallet/deposits', verifyToken, async (req, res) => {
   }
 });
 
+app.get('/api/debug/mpesa-wallet', verifyToken, (req, res) => {
+  res.json({
+    status: 'success',
+    config: {
+      mpesa_business_short_code: MPESA_BUSINESS_SHORT_CODE,
+      mpesa_passkey_configured: Boolean(MPESA_PASSKEY),
+      wallet_short_code: MPESA_WALLET_SHORT_CODE,
+      wallet_passkey_configured: Boolean(MPESA_WALLET_PASSKEY),
+      wallet_party_b: MPESA_WALLET_PARTY_B,
+      wallet_transaction_type: MPESA_WALLET_TRANSACTION_TYPE,
+      callback_url: CALLBACK_URL
+    }
+  });
+});
+
 app.post('/api/wallet/deposits/stk-push', verifyToken, async (req, res) => {
   try {
     const amountRaw = req.body?.amount;
@@ -696,7 +711,19 @@ app.post('/api/wallet/deposits/stk-push', verifyToken, async (req, res) => {
       return res.status(400).json({ status: 'error', message: error?.message || 'Failed to create deposit record' });
     }
 
-    res.json({ status: 'success', message: 'STK Push sent', deposit, mpesa: response.data });
+    res.json({
+      status: 'success',
+      message: 'STK Push sent',
+      deposit,
+      mpesa: response.data,
+      debug: {
+        business_short_code: payload.BusinessShortCode,
+        transaction_type: payload.TransactionType,
+        party_b: payload.PartyB,
+        callback_url: payload.CallBackURL,
+        account_reference: payload.AccountReference
+      }
+    });
   } catch (error) {
     console.error('Wallet STK Push Error:', error.response?.data || error.message);
     res.status(500).json({
@@ -775,7 +802,19 @@ app.post('/api/wallet/deposits/stk-push-api', verifyApiKey, async (req, res) => 
         }
       ]);
 
-    res.json({ status: 'success', message: 'STK Push sent', data: response.data, wallet_id: wallet.id });
+    res.json({
+      status: 'success',
+      message: 'STK Push sent',
+      data: response.data,
+      wallet_id: wallet.id,
+      debug: {
+        business_short_code: payload.BusinessShortCode,
+        transaction_type: payload.TransactionType,
+        party_b: payload.PartyB,
+        callback_url: payload.CallBackURL,
+        account_reference: payload.AccountReference
+      }
+    });
   } catch (error) {
     console.error('Wallet STK Push API Error:', error.response?.data || error.message);
     res.status(500).json({
