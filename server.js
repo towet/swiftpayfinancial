@@ -624,7 +624,7 @@ app.get('/api/wallet/deposits', verifyToken, async (req, res) => {
   }
 });
 
-app.get('/api/debug/mpesa-wallet', verifyToken, (req, res) => {
+app.get('/api/debug/mpesa-wallet', verifyToken, verifySuperAdmin, (req, res) => {
   res.json({
     status: 'success',
     config: {
