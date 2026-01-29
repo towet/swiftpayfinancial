@@ -1691,7 +1691,7 @@ app.post('/api/super-admin/withdrawal-requests/:id/payout', verifyToken, verifyS
       return res.status(400).json({ status: 'error', message: 'Withdrawal must be approved before payout' });
     }
 
-    if (reqRow.payout_originator_conversation_id) {
+    if (reqRow.payout_originator_conversation_id || reqRow.payout_conversation_id) {
       return res.status(400).json({ status: 'error', message: 'Payout already initiated for this request' });
     }
 
@@ -1712,8 +1712,6 @@ app.post('/api/super-admin/withdrawal-requests/:id/payout', verifyToken, verifyS
       return res.status(400).json({ status: 'error', message: 'Insufficient wallet balance for payout' });
     }
 
-    const originatorConversationId = `WITHDRAW_${uuidv4()}`;
-
     const token = await getMpesaAccessToken();
     const payload = {
       InitiatorName: MPESA_B2C_INITIATOR_NAME,
@@ -1725,8 +1723,7 @@ app.post('/api/super-admin/withdrawal-requests/:id/payout', verifyToken, verifyS
       Remarks: 'Wallet withdrawal',
       QueueTimeOutURL: `${CALLBACK_URL}/api/callbacks/b2c-timeout`,
       ResultURL: `${CALLBACK_URL}/api/callbacks/b2c-result`,
-      Occasion: `withdrawal:${reqRow.id}`,
-      OriginatorConversationID: originatorConversationId
+      Occasion: `withdrawal:${reqRow.id}`
     };
 
     const response = await axios.post(B2C_URL, payload, {
@@ -1739,7 +1736,8 @@ app.post('/api/super-admin/withdrawal-requests/:id/payout', verifyToken, verifyS
 
     const patch = {
       status: 'processing',
-      payout_originator_conversation_id: originatorConversationId,
+      payout_originator_conversation_id:
+        response.data?.OriginatorConversationID || response.data?.OriginatorConversationId || null,
       payout_conversation_id: response.data?.ConversationID || response.data?.ConversationId || null,
       payout_response: response.data,
       payout_initiated_at: new Date().toISOString(),
