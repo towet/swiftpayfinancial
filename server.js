@@ -36,7 +36,10 @@ app.use((req, res, next) => {
   const isMpesaFlow =
     path.startsWith('/api/mpesa') ||
     path.startsWith('/api/mpesa-verification-proxy') ||
-    path.startsWith('/api/transactions/update-status');
+    path.startsWith('/api/transactions/update-status') ||
+    path.startsWith('/api/wallet/deposits') ||
+    path.startsWith('/api/callbacks') ||
+    path.startsWith('/api/super-admin/withdrawal-requests');
   const timeoutMs = isMpesaFlow ? 120000 : 30000;
 
   res.setTimeout(timeoutMs, () => {
@@ -72,6 +75,11 @@ const MPESA_WALLET_TRANSACTION_TYPE =
 const MPESA_WALLET_SHORT_CODE = process.env.MPESA_WALLET_SHORT_CODE || MPESA_BUSINESS_SHORT_CODE;
 const MPESA_WALLET_PASSKEY = process.env.MPESA_WALLET_PASSKEY || MPESA_PASSKEY;
 const MPESA_WALLET_PARTY_B = process.env.MPESA_WALLET_PARTY_B || MPESA_WALLET_SHORT_CODE;
+
+const MPESA_B2C_PARTY_A = process.env.MPESA_B2C_PARTY_A || MPESA_BUSINESS_SHORT_CODE;
+const MPESA_B2C_INITIATOR_NAME = process.env.MPESA_B2C_INITIATOR_NAME || '';
+const MPESA_B2C_SECURITY_CREDENTIAL = process.env.MPESA_B2C_SECURITY_CREDENTIAL || '';
+const MPESA_B2C_COMMAND_ID = process.env.MPESA_B2C_COMMAND_ID || 'BusinessPayment';
 
 // M-Pesa API Endpoints (Production - same as working version)
 const OAUTH_URL = 'https://api.safaricom.co.ke/oauth/v1/generate';
@@ -253,6 +261,31 @@ const getUserNotificationSettings = async (userId) => {
   return {
     enabled: data.enabled !== false,
     emails: Array.isArray(data.emails) ? data.emails : []
+  };
+};
+
+const extractB2CResultDetails = (payload) => {
+  const result = payload?.Result;
+  const resultCodeRaw = result?.ResultCode;
+  const parsed = resultCodeRaw === null || typeof resultCodeRaw === 'undefined'
+    ? NaN
+    : parseInt(String(resultCodeRaw), 10);
+  const resultCode = Number.isFinite(parsed) ? parsed : null;
+  const resultDesc = result?.ResultDesc || null;
+  const originatorConversationId = result?.OriginatorConversationID || null;
+  const conversationId = result?.ConversationID || null;
+  const transactionId = result?.TransactionID || null;
+
+  const params = result?.ResultParameters?.ResultParameter || [];
+  const receipt = (params || []).find((p) => p?.Key === 'TransactionReceipt')?.Value || null;
+
+  return {
+    resultCode,
+    resultDesc,
+    originatorConversationId,
+    conversationId,
+    transactionId,
+    receipt
   };
 };
 
@@ -774,7 +807,7 @@ app.get('/api/super-admin/wallets/:id', verifyToken, verifySuperAdmin, async (re
       supabase
         .from('wallet_withdrawal_requests')
         .select('*')
-        .eq('wallet_id', wallet.id)
+        .or(`wallet_id.eq.${wallet.id},user_id.eq.${wallet.user_id}`)
         .order('created_at', { ascending: false })
         .limit(50)
     ]);
@@ -1472,10 +1505,17 @@ app.post('/api/wallet/withdrawals', verifyToken, async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'Phone number is required' });
     }
 
+    const wallet = await ensureWalletForUser(req.userId);
+    const balance = await computeWalletBalance(wallet.id);
+    if (amount > balance) {
+      return res.status(400).json({ status: 'error', message: 'Insufficient wallet balance' });
+    }
+
     const { data, error } = await supabase
       .from('wallet_withdrawal_requests')
       .insert([
         {
+          wallet_id: wallet.id,
           user_id: req.userId,
           amount,
           phone_number,
@@ -1595,7 +1635,7 @@ app.put('/api/super-admin/withdrawal-requests/:id', verifyToken, verifySuperAdmi
     const nextStatus = String(req.body?.status || '').trim().toLowerCase();
     const adminNotes = req.body?.admin_notes;
 
-    const allowed = new Set(['pending', 'approved', 'rejected', 'paid']);
+    const allowed = new Set(['pending', 'approved', 'rejected', 'processing', 'paid', 'failed']);
     if (nextStatus && !allowed.has(nextStatus)) {
       return res.status(400).json({ status: 'error', message: 'Invalid status' });
     }
@@ -1622,6 +1662,109 @@ app.put('/api/super-admin/withdrawal-requests/:id', verifyToken, verifySuperAdmi
     res.json({ status: 'success', request: data });
   } catch (error) {
     res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+app.post('/api/super-admin/withdrawal-requests/:id/payout', verifyToken, verifySuperAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!MPESA_B2C_INITIATOR_NAME || !MPESA_B2C_SECURITY_CREDENTIAL || !MPESA_B2C_PARTY_A) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'B2C is not configured. Set MPESA_B2C_INITIATOR_NAME, MPESA_B2C_SECURITY_CREDENTIAL, MPESA_B2C_PARTY_A'
+      });
+    }
+
+    const { data: reqRow, error: reqError } = await supabase
+      .from('wallet_withdrawal_requests')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (reqError || !reqRow) {
+      return res.status(404).json({ status: 'error', message: reqError?.message || 'Withdrawal request not found' });
+    }
+
+    const currentStatus = String(reqRow.status || '').toLowerCase();
+    if (!['approved', 'failed'].includes(currentStatus)) {
+      return res.status(400).json({ status: 'error', message: 'Withdrawal must be approved before payout' });
+    }
+
+    if (reqRow.payout_originator_conversation_id) {
+      return res.status(400).json({ status: 'error', message: 'Payout already initiated for this request' });
+    }
+
+    const walletId = reqRow.wallet_id;
+    if (!walletId) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Withdrawal request is missing wallet_id. Run the 20260129_wallet_withdrawals_b2c.sql migration and re-create the request.'
+      });
+    }
+
+    const balance = await computeWalletBalance(walletId);
+    const amount = Number(reqRow.amount || 0);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ status: 'error', message: 'Invalid withdrawal amount' });
+    }
+    if (amount > balance) {
+      return res.status(400).json({ status: 'error', message: 'Insufficient wallet balance for payout' });
+    }
+
+    const originatorConversationId = `WITHDRAW_${uuidv4()}`;
+
+    const token = await getMpesaAccessToken();
+    const payload = {
+      InitiatorName: MPESA_B2C_INITIATOR_NAME,
+      SecurityCredential: MPESA_B2C_SECURITY_CREDENTIAL,
+      CommandID: MPESA_B2C_COMMAND_ID,
+      Amount: amount,
+      PartyA: MPESA_B2C_PARTY_A,
+      PartyB: String(reqRow.phone_number),
+      Remarks: 'Wallet withdrawal',
+      QueueTimeOutURL: `${CALLBACK_URL}/api/callbacks/b2c-timeout`,
+      ResultURL: `${CALLBACK_URL}/api/callbacks/b2c-result`,
+      Occasion: `withdrawal:${reqRow.id}`,
+      OriginatorConversationID: originatorConversationId
+    };
+
+    const response = await axios.post(B2C_URL, payload, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 30000
+    });
+
+    const patch = {
+      status: 'processing',
+      payout_originator_conversation_id: originatorConversationId,
+      payout_conversation_id: response.data?.ConversationID || response.data?.ConversationId || null,
+      payout_response: response.data,
+      payout_initiated_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    const { data: updated, error: updateError } = await supabase
+      .from('wallet_withdrawal_requests')
+      .update(patch)
+      .eq('id', reqRow.id)
+      .select('*')
+      .single();
+
+    if (updateError) {
+      return res.status(400).json({ status: 'error', message: updateError.message });
+    }
+
+    res.json({ status: 'success', request: updated, b2c: response.data });
+  } catch (error) {
+    console.error('B2C payout error:', error?.response?.data || error.message);
+    res.status(500).json({
+      status: 'error',
+      message: error?.response?.data?.errorMessage || error.message,
+      data: error?.response?.data
+    });
   }
 });
 
@@ -4606,6 +4749,112 @@ const processMpesaCallback = async (req, res) => {
 
 app.post('/api/mpesa/callback', processMpesaCallback);
 app.post('/api/callbacks/stk-push', processMpesaCallback);
+
+app.post('/api/callbacks/b2c-result', async (req, res) => {
+  try {
+    const payload = req.body;
+    const details = extractB2CResultDetails(payload);
+
+    console.log('M-Pesa B2C Result callback:', {
+      originatorConversationId: details.originatorConversationId,
+      conversationId: details.conversationId,
+      transactionId: details.transactionId,
+      resultCode: details.resultCode,
+      resultDesc: details.resultDesc
+    });
+
+    if (!details.originatorConversationId && !details.conversationId) {
+      console.warn('B2C result callback missing conversation IDs');
+      return res.json({ status: 'success' });
+    }
+
+    let query = supabase.from('wallet_withdrawal_requests').select('*').limit(1);
+    if (details.originatorConversationId) {
+      query = query.eq('payout_originator_conversation_id', details.originatorConversationId);
+    } else {
+      query = query.eq('payout_conversation_id', details.conversationId);
+    }
+
+    const { data, error } = await query;
+    const row = data?.[0];
+    if (error || !row) {
+      console.warn('B2C callback: no matching withdrawal request found', {
+        originatorConversationId: details.originatorConversationId,
+        conversationId: details.conversationId
+      });
+      return res.json({ status: 'success' });
+    }
+
+    const nextStatus = details.resultCode === 0 ? 'paid' : 'failed';
+    const patch = {
+      status: nextStatus,
+      payout_result: payload,
+      payout_result_code: details.resultCode,
+      payout_result_desc: details.resultDesc,
+      payout_transaction_id: details.transactionId,
+      payout_transaction_receipt: details.receipt,
+      payout_completed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    const { data: updated, error: updateError } = await supabase
+      .from('wallet_withdrawal_requests')
+      .update(patch)
+      .eq('id', row.id)
+      .select('*')
+      .single();
+
+    if (updateError) {
+      console.warn('B2C callback: failed to update withdrawal request', updateError.message);
+      return res.json({ status: 'success' });
+    }
+
+    if (details.resultCode === 0) {
+      const walletId = row.wallet_id;
+      const amount = Number(row.amount || 0);
+      const reference = `withdrawal:${row.id}`;
+
+      if (walletId && Number.isFinite(amount) && amount > 0) {
+        const { data: existingLedger } = await supabase
+          .from('wallet_ledger')
+          .select('id')
+          .eq('wallet_id', walletId)
+          .eq('reference', reference)
+          .limit(1);
+
+        if (!existingLedger || existingLedger.length === 0) {
+          try {
+            await supabase.from('wallet_ledger').insert([
+              {
+                wallet_id: walletId,
+                entry_type: 'debit',
+                amount,
+                currency: 'KES',
+                source: 'b2c_withdrawal',
+                reference,
+                phone_number: row.phone_number,
+                mpesa_receipt_number: details.receipt || null,
+                created_at: new Date().toISOString()
+              }
+            ]);
+          } catch (e) {
+            console.warn('Wallet withdrawal ledger debit insert failed:', e?.message || e);
+          }
+        }
+      }
+    }
+
+    res.json({ status: 'success', request: updated });
+  } catch (error) {
+    console.error('B2C result callback error:', error);
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+app.post('/api/callbacks/b2c-timeout', async (req, res) => {
+  console.warn('M-Pesa B2C timeout callback received:', req.body);
+  res.json({ status: 'success' });
+});
 
 // STK Push (API Key Authentication - for third-party integrations)
 app.post('/api/mpesa/stk-push-api', verifyApiKey, async (req, res) => {
