@@ -69,7 +69,9 @@ const MPESA_WALLET_TRANSACTION_TYPE =
   process.env.MPESA_WALLET_TRANSACTION_TYPE ||
   (String(MPESA_BUSINESS_SHORT_CODE || '').length === 6 ? 'CustomerBuyGoodsOnline' : 'CustomerPayBillOnline');
 
-const MPESA_WALLET_PARTY_B = process.env.MPESA_WALLET_PARTY_B || MPESA_BUSINESS_SHORT_CODE;
+const MPESA_WALLET_SHORT_CODE = process.env.MPESA_WALLET_SHORT_CODE || MPESA_BUSINESS_SHORT_CODE;
+const MPESA_WALLET_PASSKEY = process.env.MPESA_WALLET_PASSKEY || MPESA_PASSKEY;
+const MPESA_WALLET_PARTY_B = process.env.MPESA_WALLET_PARTY_B || MPESA_WALLET_SHORT_CODE;
 
 // M-Pesa API Endpoints (Production - same as working version)
 const OAUTH_URL = 'https://api.safaricom.co.ke/oauth/v1/generate';
@@ -646,10 +648,10 @@ app.post('/api/wallet/deposits/stk-push', verifyToken, async (req, res) => {
 
     const token = await getMpesaAccessToken();
     const timestamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14);
-    const password = Buffer.from(`${MPESA_BUSINESS_SHORT_CODE}${MPESA_PASSKEY}${timestamp}`).toString('base64');
+    const password = Buffer.from(`${MPESA_WALLET_SHORT_CODE}${MPESA_WALLET_PASSKEY}${timestamp}`).toString('base64');
 
     const payload = {
-      BusinessShortCode: MPESA_BUSINESS_SHORT_CODE,
+      BusinessShortCode: MPESA_WALLET_SHORT_CODE,
       Password: password,
       Timestamp: timestamp,
       TransactionType: MPESA_WALLET_TRANSACTION_TYPE,
@@ -731,10 +733,10 @@ app.post('/api/wallet/deposits/stk-push-api', verifyApiKey, async (req, res) => 
 
     const token = await getMpesaAccessToken();
     const timestamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14);
-    const password = Buffer.from(`${MPESA_BUSINESS_SHORT_CODE}${MPESA_PASSKEY}${timestamp}`).toString('base64');
+    const password = Buffer.from(`${MPESA_WALLET_SHORT_CODE}${MPESA_WALLET_PASSKEY}${timestamp}`).toString('base64');
 
     const payload = {
-      BusinessShortCode: MPESA_BUSINESS_SHORT_CODE,
+      BusinessShortCode: MPESA_WALLET_SHORT_CODE,
       Password: password,
       Timestamp: timestamp,
       TransactionType: MPESA_WALLET_TRANSACTION_TYPE,
