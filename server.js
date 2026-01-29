@@ -413,6 +413,49 @@ const reconcileWalletPendingDeposits = async ({ walletId }) => {
   return { updated };
 };
 
+const extractStkCallbackDetails = (callbackData) => {
+  const stkCallback = callbackData?.Body?.stkCallback;
+  const resultCodeRaw = stkCallback?.ResultCode;
+  const parsed = resultCodeRaw === null || typeof resultCodeRaw === 'undefined'
+    ? NaN
+    : parseInt(String(resultCodeRaw), 10);
+  const resultCode = Number.isFinite(parsed) ? parsed : null;
+
+  const resultDesc = stkCallback?.ResultDesc || null;
+  const merchantRequestId = stkCallback?.MerchantRequestID || stkCallback?.MerchantRequestId || null;
+  const checkoutRequestId = stkCallback?.CheckoutRequestID || stkCallback?.CheckoutRequestId || null;
+
+  const items = stkCallback?.CallbackMetadata?.Item || [];
+  const amount = items.find((item) => item.Name === 'Amount')?.Value ?? null;
+  const phone = items.find((item) => item.Name === 'PhoneNumber')?.Value ?? null;
+  const mpesaReceiptNumber = items.find((item) => item.Name === 'MpesaReceiptNumber')?.Value ?? null;
+  const transactionDate = items.find((item) => item.Name === 'TransactionDate')?.Value ?? null;
+
+  return {
+    resultCode,
+    resultDesc,
+    merchantRequestId,
+    checkoutRequestId,
+    amount,
+    phone,
+    mpesaReceiptNumber,
+    transactionDate
+  };
+};
+
+const withWalletDepositDerivedFields = (deposit) => {
+  const callbackData = deposit?.callback_data;
+  const details = callbackData ? extractStkCallbackDetails(callbackData) : {};
+
+  return {
+    ...deposit,
+    result_code: details?.resultCode ?? null,
+    result_desc: details?.resultDesc ?? null,
+    mpesa_receipt_number: details?.mpesaReceiptNumber ?? null,
+    transaction_date: details?.transactionDate ?? null
+  };
+};
+
 const computeWalletBalance = async (walletId) => {
   const { data, error } = await supabase
     .from('wallet_ledger')
@@ -751,7 +794,7 @@ app.get('/api/super-admin/wallets/:id', verifyToken, verifySuperAdmin, async (re
       wallet,
       balance,
       ledger: ledger || [],
-      deposits: deposits || [],
+      deposits: (deposits || []).map(withWalletDepositDerivedFields),
       withdrawals: withdrawals || []
     });
   } catch (error) {
@@ -812,7 +855,8 @@ app.get('/api/wallet/deposits', verifyToken, async (req, res) => {
       return res.status(400).json({ status: 'error', message: error.message });
     }
 
-    res.json({ status: 'success', wallet, deposits: data || [] });
+    const deposits = (data || []).map(withWalletDepositDerivedFields);
+    res.json({ status: 'success', wallet, deposits });
   } catch (error) {
     res.status(500).json({ status: 'error', message: error.message });
   }
@@ -4332,15 +4376,24 @@ const processMpesaCallback = async (req, res) => {
     const callbackData = req.body;
     console.log('M-Pesa Callback received:', callbackData);
 
-    const stkCallback = callbackData?.Body?.stkCallback;
-    const resultCode = stkCallback?.ResultCode;
-    const merchantRequestId = stkCallback?.MerchantRequestID;
-    const checkoutRequestId = stkCallback?.CheckoutRequestID;
+    const details = extractStkCallbackDetails(callbackData);
+    const resultCode = details.resultCode;
+    const resultDesc = details.resultDesc;
+    const merchantRequestId = details.merchantRequestId;
+    const checkoutRequestId = details.checkoutRequestId;
+    const amount = details.amount;
+    const phone = details.phone;
+    const mpesaReceiptNumber = details.mpesaReceiptNumber;
 
-    const result = stkCallback?.CallbackMetadata?.Item || [];
-    const amount = result.find(item => item.Name === 'Amount')?.Value;
-    const phone = result.find(item => item.Name === 'PhoneNumber')?.Value;
-    const mpesaReceiptNumber = result.find(item => item.Name === 'MpesaReceiptNumber')?.Value;
+    console.log('M-Pesa STK callback parsed:', {
+      resultCode,
+      resultDesc,
+      merchantRequestId,
+      checkoutRequestId,
+      amount,
+      phone,
+      mpesaReceiptNumber
+    });
 
     let walletDepositQuery = supabase
       .from('wallet_stk_deposits')
@@ -4359,9 +4412,7 @@ const processMpesaCallback = async (req, res) => {
     const { data: existingDeposit } = await walletDepositQuery;
     const priorDeposit = existingDeposit?.[0];
 
-    const normalizedResultCode = resultCode === null || typeof resultCode === 'undefined'
-      ? null
-      : parseInt(String(resultCode), 10);
+    const normalizedResultCode = resultCode;
 
     if (priorDeposit?.id) {
       if (normalizedResultCode === 0) {
@@ -4397,6 +4448,13 @@ const processMpesaCallback = async (req, res) => {
           } catch (ledgerErr) {
             console.warn('Wallet ledger credit insert failed:', ledgerErr?.message || ledgerErr);
           }
+
+          console.log('Wallet deposit marked success:', {
+            id: priorDeposit.id,
+            wallet_id: priorDeposit.wallet_id,
+            checkoutRequestId: updated?.checkout_request_id || priorDeposit.checkout_request_id || checkoutRequestId || null,
+            mpesaReceiptNumber
+          });
         }
 
         return res.json({ status: 'success', message: 'Callback processed' });
@@ -4414,6 +4472,15 @@ const processMpesaCallback = async (req, res) => {
             updated_at: new Date().toISOString()
           })
           .eq('id', priorDeposit.id);
+
+        console.warn('Wallet deposit marked failed:', {
+          id: priorDeposit.id,
+          wallet_id: priorDeposit.wallet_id,
+          resultCode: normalizedResultCode,
+          resultDesc,
+          merchantRequestId,
+          checkoutRequestId
+        });
       }
 
       return res.json({ status: 'success', message: 'Callback processed' });
@@ -4441,6 +4508,7 @@ const processMpesaCallback = async (req, res) => {
         phone,
         amount,
         resultCode,
+        resultDesc,
         merchantRequestId,
         checkoutRequestId
       });
