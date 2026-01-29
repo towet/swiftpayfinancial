@@ -65,6 +65,12 @@ const MPESA_BUSINESS_SHORT_CODE = process.env.MPESA_BUSINESS_SHORT_CODE || '';
 const MPESA_PASSKEY = process.env.MPESA_PASSKEY || '';
 const CALLBACK_URL = process.env.RENDER_EXTERNAL_URL || process.env.CALLBACK_URL || 'http://localhost:5000';
 
+const MPESA_WALLET_TRANSACTION_TYPE =
+  process.env.MPESA_WALLET_TRANSACTION_TYPE ||
+  (String(MPESA_BUSINESS_SHORT_CODE || '').length === 6 ? 'CustomerBuyGoodsOnline' : 'CustomerPayBillOnline');
+
+const MPESA_WALLET_PARTY_B = process.env.MPESA_WALLET_PARTY_B || MPESA_BUSINESS_SHORT_CODE;
+
 // M-Pesa API Endpoints (Production - same as working version)
 const OAUTH_URL = 'https://api.safaricom.co.ke/oauth/v1/generate';
 const STK_PUSH_URL = 'https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest';
@@ -636,6 +642,8 @@ app.post('/api/wallet/deposits/stk-push', verifyToken, async (req, res) => {
 
     const wallet = await ensureWalletForUser(req.userId);
 
+    const accountReference = `WALLET${String(wallet.id || '').replace(/-/g, '').slice(0, 6)}`;
+
     const token = await getMpesaAccessToken();
     const timestamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14);
     const password = Buffer.from(`${MPESA_BUSINESS_SHORT_CODE}${MPESA_PASSKEY}${timestamp}`).toString('base64');
@@ -644,13 +652,13 @@ app.post('/api/wallet/deposits/stk-push', verifyToken, async (req, res) => {
       BusinessShortCode: MPESA_BUSINESS_SHORT_CODE,
       Password: password,
       Timestamp: timestamp,
-      TransactionType: 'CustomerBuyGoodsOnline',
+      TransactionType: MPESA_WALLET_TRANSACTION_TYPE,
       Amount: amount,
       PartyA: phone_number,
-      PartyB: MPESA_BUSINESS_SHORT_CODE,
+      PartyB: MPESA_WALLET_PARTY_B,
       PhoneNumber: phone_number,
       CallBackURL: `${CALLBACK_URL}/api/callbacks/stk-push`,
-      AccountReference: wallet.id,
+      AccountReference: accountReference,
       TransactionDesc: 'Wallet deposit via SwiftPay'
     };
 
@@ -719,6 +727,8 @@ app.post('/api/wallet/deposits/stk-push-api', verifyApiKey, async (req, res) => 
 
     const wallet = await ensureWalletForUser(req.userId);
 
+    const accountReference = `WALLET${String(wallet.id || '').replace(/-/g, '').slice(0, 6)}`;
+
     const token = await getMpesaAccessToken();
     const timestamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14);
     const password = Buffer.from(`${MPESA_BUSINESS_SHORT_CODE}${MPESA_PASSKEY}${timestamp}`).toString('base64');
@@ -727,13 +737,13 @@ app.post('/api/wallet/deposits/stk-push-api', verifyApiKey, async (req, res) => 
       BusinessShortCode: MPESA_BUSINESS_SHORT_CODE,
       Password: password,
       Timestamp: timestamp,
-      TransactionType: 'CustomerBuyGoodsOnline',
+      TransactionType: MPESA_WALLET_TRANSACTION_TYPE,
       Amount: amount,
       PartyA: phone_number,
-      PartyB: MPESA_BUSINESS_SHORT_CODE,
+      PartyB: MPESA_WALLET_PARTY_B,
       PhoneNumber: phone_number,
       CallBackURL: `${CALLBACK_URL}/api/callbacks/stk-push`,
-      AccountReference: reference || wallet.id,
+      AccountReference: reference || accountReference,
       TransactionDesc: description || 'Wallet deposit via SwiftPay'
     };
 
