@@ -1636,10 +1636,21 @@ app.put('/api/super-admin/withdrawal-requests/:id', verifyToken, verifySuperAdmi
     const { id } = req.params;
     const nextStatus = String(req.body?.status || '').trim().toLowerCase();
     const adminNotes = req.body?.admin_notes;
+    const mpesaReceiptNumber = req.body?.mpesa_receipt_number || req.body?.mpesa_receipt || null;
 
     const allowed = new Set(['pending', 'approved', 'rejected', 'processing', 'paid', 'failed']);
     if (nextStatus && !allowed.has(nextStatus)) {
       return res.status(400).json({ status: 'error', message: 'Invalid status' });
+    }
+
+    const { data: existingRequest, error: existingError } = await supabase
+      .from('wallet_withdrawal_requests')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (existingError || !existingRequest) {
+      return res.status(404).json({ status: 'error', message: existingError?.message || 'Withdrawal request not found' });
     }
 
     const patch = {
@@ -1659,6 +1670,49 @@ app.put('/api/super-admin/withdrawal-requests/:id', verifyToken, verifySuperAdmi
 
     if (error || !data) {
       return res.status(400).json({ status: 'error', message: error?.message || 'Failed to update request' });
+    }
+
+    if (nextStatus === 'paid') {
+      let walletId = existingRequest.wallet_id;
+      if (!walletId) {
+        try {
+          const wallet = await ensureWalletForUser(existingRequest.user_id);
+          walletId = wallet?.id;
+        } catch (e) {
+          walletId = null;
+        }
+      }
+
+      const amount = Number(existingRequest.amount || 0);
+      const reference = `withdrawal:${existingRequest.id}`;
+      if (walletId && Number.isFinite(amount) && amount > 0) {
+        const { data: existingLedger } = await supabase
+          .from('wallet_ledger')
+          .select('id')
+          .eq('wallet_id', walletId)
+          .eq('reference', reference)
+          .limit(1);
+
+        if (!existingLedger || existingLedger.length === 0) {
+          try {
+            await supabase.from('wallet_ledger').insert([
+              {
+                wallet_id: walletId,
+                entry_type: 'debit',
+                amount,
+                currency: 'KES',
+                source: 'manual_withdrawal',
+                reference,
+                phone_number: existingRequest.phone_number,
+                mpesa_receipt_number: mpesaReceiptNumber ? String(mpesaReceiptNumber) : null,
+                created_at: new Date().toISOString()
+              }
+            ]);
+          } catch (ledgerErr) {
+            console.warn('Manual withdrawal ledger debit insert failed:', ledgerErr?.message || ledgerErr);
+          }
+        }
+      }
     }
 
     res.json({ status: 'success', request: data });
