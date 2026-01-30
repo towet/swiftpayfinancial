@@ -6275,24 +6275,28 @@ app.get('/api/dashboard/stats', verifyToken, async (req, res) => {
       }
     } else {
       // User has no tills, get all transactions (for admin/testing) with pagination
-      while (hasMore) {
-        const result = await supabase
-          .from('transactions')
-          .select('*')
-          .range(page * pageSize, (page + 1) * pageSize - 1)
-          .order('created_at', { ascending: false });
-        
-        if (result.error) {
-          return res.status(400).json({ status: 'error', message: result.error.message });
+      if (req.userRole === ROLES.SUPER_ADMIN) {
+        while (hasMore) {
+          const result = await supabase
+            .from('transactions')
+            .select('*')
+            .range(page * pageSize, (page + 1) * pageSize - 1)
+            .order('created_at', { ascending: false });
+          
+          if (result.error) {
+            return res.status(400).json({ status: 'error', message: result.error.message });
+          }
+          
+          if (result.data && result.data.length > 0) {
+            allTransactions = allTransactions.concat(result.data);
+            page++;
+            hasMore = result.data.length === pageSize;
+          } else {
+            hasMore = false;
+          }
         }
-        
-        if (result.data && result.data.length > 0) {
-          allTransactions = allTransactions.concat(result.data);
-          page++;
-          hasMore = result.data.length === pageSize;
-        } else {
-          hasMore = false;
-        }
+      } else {
+        hasMore = false;
       }
     }
 
@@ -6637,13 +6641,18 @@ app.get('/api/dashboard/realtime', verifyToken, async (req, res) => {
       error = result.error;
     } else {
       // User has no tills, get all transactions (for admin/testing)
-      const result = await supabase
-        .from('transactions')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(50);
-      transactions = result.data;
-      error = result.error;
+      if (req.userRole === ROLES.SUPER_ADMIN) {
+        const result = await supabase
+          .from('transactions')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(50);
+        transactions = result.data;
+        error = result.error;
+      } else {
+        transactions = [];
+        error = null;
+      }
     }
 
     if (error) throw error;
