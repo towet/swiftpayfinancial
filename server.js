@@ -1177,7 +1177,7 @@ const authorizeUserAccess = (currentUserId, currentUserRole, targetUserId) => {
   return currentUserId === targetUserId;
 };
 
-async function fetchTransactionsForUserAnalytics({ userId, requestedTillId }) {
+async function fetchTransactionsForUserAnalytics({ userId, userRole, requestedTillId }) {
   const { data: tills } = await supabase
     .from('tills')
     .select('id')
@@ -1220,6 +1220,15 @@ async function fetchTransactionsForUserAnalytics({ userId, requestedTillId }) {
       }
     }
   } else {
+    if (userRole !== ROLES.SUPER_ADMIN) {
+      if (requestedTillId) {
+        const err = new Error('Invalid tillId for this user');
+        err.statusCode = 403;
+        throw err;
+      }
+      return [];
+    }
+
     while (hasMore) {
       let query = supabase
         .from('transactions')
@@ -3493,6 +3502,7 @@ app.get('/api/dashboard/ai-insights', verifyToken, async (req, res) => {
     const promise = (async () => {
       const transactions = await fetchTransactionsForUserAnalytics({
         userId: req.userId,
+        userRole: req.userRole,
         requestedTillId
       });
 
@@ -5686,6 +5696,7 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
     };
     const transactions = await fetchTransactionsForUserAnalytics({
       userId: req.userId,
+      userRole: req.userRole,
       requestedTillId
     });
 
