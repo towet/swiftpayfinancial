@@ -750,6 +750,13 @@ app.get('/api/wallet', verifyToken, async (req, res) => {
   }
 });
 
+app.get('/pay/:id', (req, res) => {
+  const id = String(req.params?.id || '').trim();
+  const linkBaseRaw = process.env.FRONTEND_URL || 'https://swiftpayfinancial.com';
+  const linkBase = String(linkBaseRaw || '').replace(/\/+$/g, '');
+  res.redirect(302, `${linkBase}/pay/${id}`);
+});
+
 app.get('/api/super-admin/wallets', verifyToken, verifySuperAdmin, async (req, res) => {
   try {
     const { page = 1, limit = 20, search = '' } = req.query;
@@ -4355,7 +4362,8 @@ app.post('/api/payment-links', verifyToken, async (req, res) => {
 
     // Generate unique link ID
     const linkId = uuidv4();
-    const linkBase = process.env.FRONTEND_URL || process.env.RENDER_EXTERNAL_URL || 'http://localhost:8080';
+    const linkBaseRaw = process.env.FRONTEND_URL || req.headers?.origin || 'https://swiftpayfinancial.com';
+    const linkBase = String(linkBaseRaw || '').replace(/\/+$/g, '');
     const link = `${linkBase}/pay/${linkId}`;
     
     // Calculate expiry date
