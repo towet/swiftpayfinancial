@@ -513,6 +513,35 @@ const computeWalletBalance = async (walletId) => {
   return balance;
 };
 
+const OPEN_WITHDRAWAL_STATUSES = ['pending', 'approved', 'processing'];
+
+const computeReservedWithdrawalAmount = async (walletId, excludeWithdrawalId = null) => {
+  const { data, error } = await supabase
+    .from('wallet_withdrawal_requests')
+    .select('id, amount, status')
+    .eq('wallet_id', walletId)
+    .in('status', OPEN_WITHDRAWAL_STATUSES)
+    .order('created_at', { ascending: false })
+    .limit(5000);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  let reserved = 0;
+  for (const row of data || []) {
+    if (excludeWithdrawalId && row?.id === excludeWithdrawalId) continue;
+    reserved += Number(row?.amount || 0);
+  }
+  return reserved;
+};
+
+const computeWalletAvailableBalance = async (walletId, excludeWithdrawalId = null) => {
+  const ledgerBalance = await computeWalletBalance(walletId);
+  const reserved = await computeReservedWithdrawalAmount(walletId, excludeWithdrawalId);
+  return ledgerBalance - reserved;
+};
+
 const sendPaymentNotificationEmails = async ({ userId, event, transaction }) => {
   try {
     if (!userId) return;
@@ -1508,9 +1537,9 @@ app.post('/api/wallet/withdrawals', verifyToken, async (req, res) => {
     }
 
     const wallet = await ensureWalletForUser(req.userId);
-    const balance = await computeWalletBalance(wallet.id);
-    if (amount > balance) {
-      return res.status(400).json({ status: 'error', message: 'Insufficient wallet balance' });
+    const available = await computeWalletAvailableBalance(wallet.id);
+    if (amount > available) {
+      return res.status(400).json({ status: 'error', message: 'Insufficient available wallet balance' });
     }
 
     const { data, error } = await supabase
@@ -1653,6 +1682,24 @@ app.put('/api/super-admin/withdrawal-requests/:id', verifyToken, verifySuperAdmi
       return res.status(404).json({ status: 'error', message: existingError?.message || 'Withdrawal request not found' });
     }
 
+    if (['approved', 'paid', 'processing'].includes(nextStatus)) {
+      let walletId = existingRequest.wallet_id;
+      if (!walletId) {
+        const wallet = await ensureWalletForUser(existingRequest.user_id);
+        walletId = wallet?.id;
+      }
+
+      if (!walletId) {
+        return res.status(400).json({ status: 'error', message: 'Withdrawal request is missing wallet_id' });
+      }
+
+      const available = await computeWalletAvailableBalance(walletId, existingRequest.id);
+      const amount = Number(existingRequest.amount || 0);
+      if (Number.isFinite(amount) && amount > available) {
+        return res.status(400).json({ status: 'error', message: 'Insufficient available wallet balance' });
+      }
+    }
+
     const patch = {
       updated_at: new Date().toISOString(),
       reviewed_by: req.userId,
@@ -1759,13 +1806,13 @@ app.post('/api/super-admin/withdrawal-requests/:id/payout', verifyToken, verifyS
       });
     }
 
-    const balance = await computeWalletBalance(walletId);
+    const available = await computeWalletAvailableBalance(walletId, reqRow.id);
     const amount = Number(reqRow.amount || 0);
     if (!Number.isFinite(amount) || amount <= 0) {
       return res.status(400).json({ status: 'error', message: 'Invalid withdrawal amount' });
     }
-    if (amount > balance) {
-      return res.status(400).json({ status: 'error', message: 'Insufficient wallet balance for payout' });
+    if (amount > available) {
+      return res.status(400).json({ status: 'error', message: 'Insufficient available wallet balance for payout' });
     }
 
     const originatorConversationId = `WDR_${uuidv4().replace(/-/g, '').slice(0, 16)}`;
