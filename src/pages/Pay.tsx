@@ -136,10 +136,18 @@ export default function Pay() {
     return "details";
   }, [stkSent, submitting]);
 
+  const stepIndex = step === "details" ? 0 : step === "sending" ? 1 : 2;
+
   return (
-    <div className="min-h-screen mesh-gradient">
-      <div className="min-h-screen bg-background/70">
-        <div className="min-h-screen flex items-center justify-center p-4 sm:p-6">
+    <div className="min-h-screen bg-background">
+      <div className="min-h-screen relative overflow-hidden">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute -top-28 -left-24 h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
+          <div className="absolute -bottom-32 -right-24 h-80 w-80 rounded-full bg-indigo-500/10 blur-3xl" />
+          <div className="absolute top-1/2 left-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full bg-safaricom/10 blur-3xl" />
+        </div>
+
+        <div className="min-h-screen flex items-center justify-center p-4 sm:p-6 relative">
           <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-5xl">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
               <div className="hidden lg:block">
@@ -149,7 +157,7 @@ export default function Pay() {
                     SwiftPay Payment Link
                   </div>
                   <div className="mt-3 text-4xl font-extrabold tracking-tight">
-                    <span className="gradient-text">Pay in seconds.</span>
+                    <span className="text-primary">Pay in seconds.</span>
                     <span className="text-foreground"> Securely.</span>
                   </div>
                   <div className="mt-4 text-muted-foreground leading-relaxed">
@@ -157,7 +165,7 @@ export default function Pay() {
                   </div>
                   <div className="mt-6 grid grid-cols-1 gap-3">
                     <div className="glass rounded-2xl border border-border/50 p-4 flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-2xl gradient-primary flex items-center justify-center glow-sm">
+                      <div className="h-10 w-10 rounded-2xl bg-primary flex items-center justify-center glow-sm">
                         <ShieldCheck className="h-5 w-5 text-primary-foreground" />
                       </div>
                       <div>
@@ -166,7 +174,7 @@ export default function Pay() {
                       </div>
                     </div>
                     <div className="glass rounded-2xl border border-border/50 p-4 flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-2xl gradient-safaricom flex items-center justify-center glow-safaricom">
+                      <div className="h-10 w-10 rounded-2xl bg-safaricom flex items-center justify-center glow-safaricom">
                         <Wallet className="h-5 w-5 text-safaricom-foreground" />
                       </div>
                       <div>
@@ -220,7 +228,10 @@ export default function Pay() {
                                 <ChevronLeft className="h-5 w-5 text-gray-800" />
                               </button>
                               <div className="min-w-0 px-3 text-center">
-                                <div className="text-[11px] font-extrabold uppercase tracking-widest text-gray-400">SwiftPay Checkout</div>
+                                <div className="text-[10px] font-extrabold uppercase tracking-[0.26em] text-indigo-600 inline-flex items-center justify-center gap-2">
+                                  <Sparkles className="h-3.5 w-3.5" />
+                                  SwiftPay Checkout
+                                </div>
                                 <div className="text-sm font-black text-gray-900 truncate">{link.title}</div>
                               </div>
                               <div className="w-10" />
@@ -229,22 +240,24 @@ export default function Pay() {
 
                           <main className="px-4">
                             <div className="pt-6 pb-4 text-center space-y-3">
-                              <div className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-gray-400">
+                              <div className="inline-flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.22em] text-gray-500">
                                 <Lock className="h-4 w-4" />
                                 Secure payment link
                               </div>
-                              <div className="text-3xl font-black tracking-tight text-gray-900">{displayAmount}</div>
+                              <div className="text-[34px] leading-none font-black tracking-tight text-indigo-700 drop-shadow-sm tabular-nums">{displayAmount}</div>
                               {link.description ? (
                                 <div className="text-sm text-gray-500 leading-relaxed">{link.description}</div>
                               ) : null}
                               <div className="flex items-center justify-center gap-2 pt-1">
                                 <Badge
                                   variant={expired ? "destructive" : completed ? "secondary" : "outline"}
-                                  className="bg-white text-gray-700 border-gray-200"
+                                  className="bg-white text-gray-800 border-gray-200 shadow-sm inline-flex items-center gap-1"
                                 >
+                                  <ShieldCheck className="h-3.5 w-3.5" />
                                   {expired ? "Expired" : completed ? "Completed" : "Active"}
                                 </Badge>
-                                <Badge variant="outline" className="bg-white text-gray-700 border-gray-200">
+                                <Badge variant="outline" className="bg-white text-gray-800 border-gray-200 shadow-sm inline-flex items-center gap-1">
+                                  <Wallet className="h-3.5 w-3.5" />
                                   M-Pesa STK
                                 </Badge>
                               </div>
@@ -263,35 +276,57 @@ export default function Pay() {
                                   className="p-5 bg-white rounded-3xl border border-gray-100 shadow-sm"
                                 >
                                   <div className="flex items-center justify-between">
-                                    <div className="text-xs font-extrabold uppercase tracking-widest text-gray-400">Pay with M-Pesa</div>
-                                    <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                                      Step {step === "details" ? 1 : step === "sending" ? 2 : 3} / 3
+                                    <div className="text-xs font-extrabold uppercase tracking-[0.24em] text-gray-500 inline-flex items-center gap-2">
+                                      <Wallet className="h-4 w-4 text-emerald-600" />
+                                      Pay with M-Pesa
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <div className="flex items-center gap-1">
+                                        {[0, 1, 2].map((i) => (
+                                          <span
+                                            key={i}
+                                            className={`h-1.5 w-1.5 rounded-full ${i <= stepIndex ? "bg-indigo-600" : "bg-gray-200"}`}
+                                          />
+                                        ))}
+                                      </div>
+                                      <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                                        Step {step === "details" ? 1 : step === "sending" ? 2 : 3} / 3
+                                      </div>
                                     </div>
                                   </div>
                                   <div className="mt-4 space-y-4">
                                     <div>
-                                      <div className="text-[11px] font-black uppercase tracking-widest text-gray-400">Phone number</div>
+                                      <div className="text-[11px] font-black uppercase tracking-[0.22em] text-gray-500 inline-flex items-center gap-2">
+                                        <Phone className="h-3.5 w-3.5" />
+                                        Phone number
+                                      </div>
                                       <div className="mt-2 relative">
                                         <Phone className="h-4 w-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                                         <Input
                                           value={phone}
                                           onChange={(e) => setPhone(e.target.value.replace(/\s+/g, ""))}
                                           placeholder="2547XXXXXXXX"
-                                          className="pl-9 bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 rounded-xl h-12"
+                                          className="pl-9 bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 rounded-xl h-12 focus-visible:ring-indigo-500"
                                           inputMode="tel"
                                         />
                                       </div>
-                                      <div className="mt-2 text-[11px] text-gray-500">Use format: 2547XXXXXXXX</div>
+                                      <div className="mt-2 text-[11px] text-gray-500 inline-flex items-center gap-2">
+                                        <Lock className="h-3.5 w-3.5" />
+                                        Use format: 2547XXXXXXXX
+                                      </div>
                                     </div>
 
                                     {isCustomAmount ? (
                                       <div>
-                                        <div className="text-[11px] font-black uppercase tracking-widest text-gray-400">Amount (KES)</div>
+                                        <div className="text-[11px] font-black uppercase tracking-[0.22em] text-gray-500 inline-flex items-center gap-2">
+                                          <Wallet className="h-3.5 w-3.5" />
+                                          Amount (KES)
+                                        </div>
                                         <Input
                                           value={amount}
                                           onChange={(e) => setAmount(e.target.value)}
                                           placeholder="e.g. 500"
-                                          className="mt-2 bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 rounded-xl h-12"
+                                          className="mt-2 bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 rounded-xl h-12 focus-visible:ring-indigo-500"
                                           inputMode="decimal"
                                         />
                                         <div className="mt-3 grid grid-cols-4 gap-2">
@@ -300,7 +335,7 @@ export default function Pay() {
                                               type="button"
                                               key={v}
                                               onClick={() => setAmount(String(v))}
-                                              className="h-10 rounded-xl bg-gray-100 hover:bg-gray-200 text-xs font-black text-gray-800 transition-colors"
+                                              className="h-10 rounded-xl bg-white border border-gray-200 hover:border-indigo-200 hover:bg-indigo-50 text-xs font-black text-gray-900 transition-colors"
                                             >
                                               {v}
                                             </button>
@@ -310,8 +345,8 @@ export default function Pay() {
                                     ) : null}
 
                                     <Button
-                                      className="w-full h-12 rounded-2xl shadow-lg hover:scale-[1.01] active:scale-[0.99] transition-transform"
-                                      variant="gradient"
+                                      className="w-full h-12 rounded-2xl shadow-xl shadow-indigo-600/20 hover:shadow-indigo-600/25 hover:scale-[1.01] active:scale-[0.99] transition-transform bg-indigo-600 hover:bg-indigo-700"
+                                      variant="default"
                                       disabled={submitting}
                                       onClick={pay}
                                     >
