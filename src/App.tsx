@@ -27,6 +27,7 @@ import DeveloperGuide from "./pages/DeveloperGuide";
 import DashboardWebhooks from "./pages/DashboardWebhooks";
 import DashboardWithdrawals from "./pages/DashboardWithdrawals";
 import DashboardWallet from "./pages/DashboardWallet";
+import Pay from "./pages/Pay.tsx";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -48,6 +49,7 @@ const AppContent = () => {
         <Route path="/developers" element={<DeveloperPortal />} />
         <Route path="/developers/docs" element={<DeveloperDocs />} />
         <Route path="/developers/guide" element={<DeveloperGuide />} />
+        <Route path="/pay/:id" element={<Pay />} />
         <Route path="/dashboard" element={<ProtectedRoute element={<Dashboard />} />} />
         <Route path="/dashboard/transactions" element={<ProtectedRoute element={<DashboardTransactions />} />} />
         <Route path="/dashboard/mini-apps" element={<ProtectedRoute element={<DashboardMiniApps />} />} />
@@ -62,7 +64,7 @@ const AppContent = () => {
         <Route path="/dashboard/api-keys" element={<ProtectedRoute element={<DashboardApiKeys />} />} />
         <Route path="/dashboard/accounts" element={<ProtectedRoute element={<DashboardAccounts />} />} />
         <Route path="/dashboard/analytics" element={<ProtectedRoute element={<DashboardAnalytics />} />} />
-        <Route path="/dashboard/integrations" element={<ProtectedRoute element={<Dashboard />} />} />
+        <Route path="/dashboard/integrations" element={<ProtectedRoute element={<Navigate to="/developers" />} />} />
         <Route path="/dashboard/webhooks" element={<ProtectedRoute element={<DashboardWebhooks />} />} />
         <Route path="/dashboard/settings" element={<ProtectedRoute element={<DashboardSettings />} />} />
         <Route path="/shop/:slug" element={<MiniAppView />} />

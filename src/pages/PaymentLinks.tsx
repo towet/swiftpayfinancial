@@ -24,6 +24,7 @@ import {
   MessageCircle,
   Mail,
   Plus,
+  Code2,
   Zap,
   Calendar,
   Tag,
@@ -41,8 +42,8 @@ interface PaymentLink {
   description: string;
   link: string;
   status: 'active' | 'expired' | 'completed';
-  createdAt: string;
-  expiresAt: string;
+  created_at: string;
+  expires_at: string | null;
   clicks: number;
   conversions: number;
   revenue: number;
@@ -63,6 +64,7 @@ export default function PaymentLinks() {
   const [selectedLink, setSelectedLink] = useState<PaymentLink | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
+  const [showEmbedModal, setShowEmbedModal] = useState(false);
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
@@ -85,7 +87,14 @@ export default function PaymentLinks() {
       const response = await axios.get("/api/payment-links", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setLinks(response.data.links || []);
+      const normalized = (response.data.links || []).map((row: any) => ({
+        ...row,
+        amount: Number(row?.amount || 0),
+        clicks: Number(row?.clicks || 0),
+        conversions: Number(row?.conversions || 0),
+        revenue: Number(row?.revenue || 0),
+      }));
+      setLinks(normalized);
     } catch (error) {
       console.error("Error fetching payment links:", error);
     } finally {
@@ -142,6 +151,36 @@ export default function PaymentLinks() {
       title: "Copied!",
       description: "Link copied to clipboard",
     });
+  };
+
+  const getEmbedHtml = (link: PaymentLink) => {
+    const url = link.link;
+    const label = link.amount > 0 ? `Pay KES ${Number(link.amount).toLocaleString()}` : "Pay Now";
+
+    return `<a href="${url}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;justify-content:center;padding:12px 16px;border-radius:12px;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;font-weight:700;text-decoration:none;background:linear-gradient(135deg,#00C853,#2563EB);color:#ffffff;box-shadow:0 10px 20px rgba(0,0,0,0.18)">${label}</a>`;
+  };
+
+  const getEmbedReact = (link: PaymentLink) => {
+    const url = link.link;
+    return `<a
+  href="${url}"
+  target="_blank"
+  rel="noreferrer"
+  style={{
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "12px 16px",
+    borderRadius: 12,
+    fontWeight: 700,
+    textDecoration: "none",
+    background: "linear-gradient(135deg, #00C853, #2563EB)",
+    color: "#fff",
+    boxShadow: "0 10px 20px rgba(0,0,0,0.18)",
+  }}
+>
+  Pay with SwiftPay
+</a>`;
   };
 
   const shareViaWhatsApp = (link: PaymentLink) => {
@@ -248,7 +287,7 @@ export default function PaymentLinks() {
                 <span className="text-xs text-muted-foreground">Total Clicks</span>
               </div>
               <h3 className="text-2xl font-bold text-foreground">
-                {links.reduce((sum, l) => sum + l.clicks, 0)}
+                {links.reduce((sum, l) => sum + Number(l.clicks || 0), 0)}
               </h3>
             </motion.div>
 
@@ -265,7 +304,7 @@ export default function PaymentLinks() {
                 <span className="text-xs text-muted-foreground">Revenue</span>
               </div>
               <h3 className="text-2xl font-bold text-foreground">
-                KES {links.reduce((sum, l) => sum + l.revenue, 0).toLocaleString()}
+                KES {links.reduce((sum, l) => sum + Number(l.revenue || 0), 0).toLocaleString()}
               </h3>
             </motion.div>
 
@@ -282,8 +321,8 @@ export default function PaymentLinks() {
                 <span className="text-xs text-muted-foreground">Conversion Rate</span>
               </div>
               <h3 className="text-2xl font-bold text-foreground">
-                {links.length > 0 && links.reduce((sum, l) => sum + l.clicks, 0) > 0
-                  ? ((links.reduce((sum, l) => sum + l.conversions, 0) / links.reduce((sum, l) => sum + l.clicks, 0)) * 100).toFixed(1)
+                {links.length > 0 && links.reduce((sum, l) => sum + Number(l.clicks || 0), 0) > 0
+                  ? ((links.reduce((sum, l) => sum + Number(l.conversions || 0), 0) / links.reduce((sum, l) => sum + Number(l.clicks || 0), 0)) * 100).toFixed(1)
                   : '0'}%
               </h3>
             </motion.div>
@@ -516,16 +555,16 @@ export default function PaymentLinks() {
                           </div>
                           <div className="flex items-center gap-2">
                             <Users className="w-4 h-4 text-muted-foreground" />
-                            <span className="text-foreground">{link.clicks} clicks</span>
+                            <span className="text-foreground">{Number(link.clicks || 0)} clicks</span>
                           </div>
                           <div className="flex items-center gap-2">
                             <TrendingUp className="w-4 h-4 text-muted-foreground" />
-                            <span className="text-foreground">{link.conversions} conversions</span>
+                            <span className="text-foreground">{Number(link.conversions || 0)} conversions</span>
                           </div>
                           <div className="flex items-center gap-2">
                             <Calendar className="w-4 h-4 text-muted-foreground" />
                             <span className="text-foreground">
-                              Expires {new Date(link.expiresAt).toLocaleDateString()}
+                              Expires {link.expires_at ? new Date(link.expires_at).toLocaleDateString() : '—'}
                             </span>
                           </div>
                         </div>
@@ -564,6 +603,18 @@ export default function PaymentLinks() {
                         >
                           <QrCode className="w-4 h-4 mr-2" />
                           QR
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setSelectedLink(link);
+                            setShowEmbedModal(true);
+                          }}
+                          className="border-border text-muted-foreground hover:bg-secondary/50"
+                        >
+                          <Code2 className="w-4 h-4 mr-2" />
+                          Embed
                         </Button>
                         <Button
                           size="sm"
@@ -682,6 +733,79 @@ export default function PaymentLinks() {
                 <Copy className="w-4 h-4 mr-2" />
                 Copy Link Instead
               </Button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showEmbedModal && selectedLink && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowEmbedModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="glass rounded-2xl border border-border/50 p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-xl font-bold text-foreground mb-2">Embed Payment Button</h3>
+              <p className="text-muted-foreground mb-6">
+                Copy/paste a button into your website. This opens a secure SwiftPay checkout page (no API keys exposed).
+              </p>
+
+              <div className="space-y-4">
+                <div className="glass rounded-xl border border-border/50 p-4">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="text-sm font-semibold text-foreground">HTML</div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => copyToClipboard(getEmbedHtml(selectedLink))}
+                      className="border-border text-muted-foreground hover:bg-secondary/50"
+                    >
+                      <Copy className="w-4 h-4 mr-2" />
+                      Copy
+                    </Button>
+                  </div>
+                  <pre className="mt-3 whitespace-pre-wrap break-words rounded-md bg-secondary/50 border border-border p-3 text-xs text-foreground font-mono">
+{getEmbedHtml(selectedLink)}
+                  </pre>
+                </div>
+
+                <div className="glass rounded-xl border border-border/50 p-4">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="text-sm font-semibold text-foreground">React</div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => copyToClipboard(getEmbedReact(selectedLink))}
+                      className="border-border text-muted-foreground hover:bg-secondary/50"
+                    >
+                      <Copy className="w-4 h-4 mr-2" />
+                      Copy
+                    </Button>
+                  </div>
+                  <pre className="mt-3 whitespace-pre-wrap break-words rounded-md bg-secondary/50 border border-border p-3 text-xs text-foreground font-mono">
+{getEmbedReact(selectedLink)}
+                  </pre>
+                </div>
+
+                <div className="flex justify-end">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowEmbedModal(false)}
+                    className="border-border text-muted-foreground hover:bg-secondary/50"
+                  >
+                    Close
+                  </Button>
+                </div>
+              </div>
             </motion.div>
           </motion.div>
         )}

@@ -4345,11 +4345,24 @@ app.post('/api/payment-links', verifyToken, async (req, res) => {
 
     // Generate unique link ID
     const linkId = uuidv4();
-    const link = `${process.env.RENDER_EXTERNAL_URL || 'http://localhost:8080'}/pay/${linkId}`;
+    const linkBase = process.env.FRONTEND_URL || process.env.RENDER_EXTERNAL_URL || 'http://localhost:8080';
+    const link = `${linkBase}/pay/${linkId}`;
     
     // Calculate expiry date
     const expiryDate = new Date();
     expiryDate.setDate(expiryDate.getDate() + (parseInt(expiryDays) || 30));
+
+    const { data: userTills } = await supabase
+      .from('tills')
+      .select('*')
+      .eq('user_id', req.userId)
+      .order('created_at', { ascending: true });
+
+    const activeTill = (userTills || []).find((t) => {
+      const isSuspended = Boolean(t?.is_suspended);
+      const status = String(t?.status || '').toLowerCase();
+      return !isSuspended && status !== 'suspended';
+    });
 
     const { data, error } = await supabase
       .from('payment_links')
@@ -4357,6 +4370,7 @@ app.post('/api/payment-links', verifyToken, async (req, res) => {
         {
           id: linkId,
           user_id: req.userId,
+          till_id: activeTill?.id || null,
           title,
           amount: parseFloat(amount) || 0,
           description: description || '',
@@ -4465,25 +4479,240 @@ app.post('/api/payment-links/:id/click', async (req, res) => {
   try {
     const { id } = req.params;
 
-    const { data, error } = await supabase
+    const { data: existing, error: getError } = await supabase
       .from('payment_links')
-      .update({
-        clicks: supabase.raw('clicks + 1')
-      })
+      .select('id, clicks')
       .eq('id', id)
-      .select();
+      .single();
 
-    if (error) {
-      return res.status(400).json({ status: 'error', message: error.message });
+    if (getError || !existing) {
+      return res.status(404).json({ status: 'error', message: 'Payment link not found' });
+    }
+
+    const nextClicks = Number(existing.clicks || 0) + 1;
+    const { data: updated, error: updateError } = await supabase
+      .from('payment_links')
+      .update({ clicks: nextClicks, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select('*')
+      .single();
+
+    if (updateError || !updated) {
+      return res.status(400).json({ status: 'error', message: updateError?.message || 'Failed to track click' });
+    }
+
+    res.json({ status: 'success', link: updated });
+  } catch (error) {
+    console.error('Track click error:', error);
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+app.post('/api/payment-links/:id/pay', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const phoneRaw = req.body?.phone_number || req.body?.phone || '';
+    const amountRaw = req.body?.amount;
+
+    const phone_number = String(phoneRaw || '').trim();
+    if (!phone_number || phone_number.length < 9) {
+      return res.status(400).json({ status: 'error', message: 'Phone number is required' });
+    }
+
+    const { data: linkRow, error: linkError } = await supabase
+      .from('payment_links')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (linkError || !linkRow) {
+      return res.status(404).json({ status: 'error', message: 'Payment link not found' });
+    }
+
+    const now = new Date();
+    const expiryDate = linkRow.expires_at ? new Date(linkRow.expires_at) : null;
+    if (expiryDate && expiryDate < now && String(linkRow.status || '').toLowerCase() === 'active') {
+      await supabase
+        .from('payment_links')
+        .update({ status: 'expired', updated_at: new Date().toISOString() })
+        .eq('id', id);
+      return res.status(400).json({ status: 'error', message: 'Payment link expired' });
+    }
+
+    const status = String(linkRow.status || '').toLowerCase();
+    if (status !== 'active') {
+      return res.status(400).json({ status: 'error', message: `Payment link is ${status}` });
+    }
+
+    const fixedAmount = Number(linkRow.amount || 0);
+    const amount = fixedAmount > 0 ? fixedAmount : Number(amountRaw);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ status: 'error', message: 'Invalid amount' });
+    }
+    if (amount > 70000) {
+      return res.status(400).json({ status: 'error', message: 'Maximum deposit is 70000' });
+    }
+
+    let selectedTill = null;
+    if (linkRow.till_id) {
+      const { data: existingTill } = await supabase
+        .from('tills')
+        .select('*')
+        .eq('id', linkRow.till_id)
+        .eq('user_id', linkRow.user_id)
+        .single();
+
+      if (existingTill) {
+        const isSuspended = Boolean(existingTill?.is_suspended);
+        const status = String(existingTill?.status || '').toLowerCase();
+        if (!isSuspended && status !== 'suspended') {
+          selectedTill = existingTill;
+        }
+      }
+    }
+
+    if (!selectedTill) {
+      const { data: userTills } = await supabase
+        .from('tills')
+        .select('*')
+        .eq('user_id', linkRow.user_id)
+        .order('created_at', { ascending: true });
+
+      selectedTill = (userTills || []).find((t) => {
+        const isSuspended = Boolean(t?.is_suspended);
+        const status = String(t?.status || '').toLowerCase();
+        return !isSuspended && status !== 'suspended';
+      }) || null;
+    }
+
+    const accountReference = `PAY${String(linkRow.id || '').replace(/-/g, '').slice(0, 8)}`;
+
+    if (selectedTill?.id && selectedTill?.till_number) {
+      const token = await getMpesaAccessToken();
+      const timestamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14);
+      const password = Buffer.from(`${MPESA_BUSINESS_SHORT_CODE}${MPESA_PASSKEY}${timestamp}`).toString('base64');
+
+      const payload = {
+        BusinessShortCode: MPESA_BUSINESS_SHORT_CODE,
+        Password: password,
+        Timestamp: timestamp,
+        TransactionType: 'CustomerBuyGoodsOnline',
+        Amount: amount,
+        PartyA: phone_number,
+        PartyB: selectedTill.till_number,
+        PhoneNumber: phone_number,
+        CallBackURL: `${CALLBACK_URL}/api/callbacks/stk-push`,
+        AccountReference: accountReference,
+        TransactionDesc: 'SwiftPay payment link'
+      };
+
+      const response = await axios.post(STK_PUSH_URL, payload, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const mpesa_request_id = response.data.MerchantRequestID || response.data.MerchantRequestId || response.data.RequestId || response.data.RequestID;
+      const checkout_request_id = response.data.CheckoutRequestID || response.data.CheckoutRequestId;
+
+      const { data: txn, error: txnError } = await supabase
+        .from('transactions')
+        .insert([
+          {
+            till_id: selectedTill.id,
+            phone_number,
+            amount,
+            status: 'pending',
+            transaction_type: 'stk_push',
+            reference: accountReference,
+            description: 'SwiftPay payment link',
+            mpesa_request_id,
+            checkout_request_id,
+            mpesa_response: response.data,
+            payment_link_id: linkRow.id
+          }
+        ])
+        .select('*')
+        .single();
+
+      if (txnError || !txn) {
+        return res.status(400).json({ status: 'error', message: txnError?.message || 'Failed to create transaction record' });
+      }
+
+      res.json({
+        status: 'success',
+        message: 'STK Push sent',
+        destination: { type: 'till', till_id: selectedTill.id },
+        transaction: txn,
+        mpesa: response.data
+      });
+      return;
+    }
+
+    const wallet = await ensureWalletForUser(linkRow.user_id);
+
+    const token = await getMpesaAccessToken();
+    const timestamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14);
+    const password = Buffer.from(`${MPESA_WALLET_SHORT_CODE}${MPESA_WALLET_PASSKEY}${timestamp}`).toString('base64');
+
+    const payload = {
+      BusinessShortCode: MPESA_WALLET_SHORT_CODE,
+      Password: password,
+      Timestamp: timestamp,
+      TransactionType: MPESA_WALLET_TRANSACTION_TYPE,
+      Amount: amount,
+      PartyA: phone_number,
+      PartyB: MPESA_WALLET_PARTY_B,
+      PhoneNumber: phone_number,
+      CallBackURL: `${CALLBACK_URL}/api/callbacks/stk-push`,
+      AccountReference: accountReference,
+      TransactionDesc: 'SwiftPay payment link'
+    };
+
+    const response = await axios.post(STK_PUSH_URL, payload, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const mpesa_request_id = response.data.MerchantRequestID || response.data.MerchantRequestId || response.data.RequestId || response.data.RequestID;
+    const checkout_request_id = response.data.CheckoutRequestID || response.data.CheckoutRequestId;
+
+    const { data: deposit, error: depositError } = await supabase
+      .from('wallet_stk_deposits')
+      .insert([
+        {
+          wallet_id: wallet.id,
+          user_id: linkRow.user_id,
+          amount,
+          phone_number,
+          status: 'pending',
+          mpesa_request_id,
+          checkout_request_id,
+          mpesa_response: response.data,
+          payment_link_id: linkRow.id,
+          updated_at: new Date().toISOString()
+        }
+      ])
+      .select('*')
+      .single();
+
+    if (depositError || !deposit) {
+      return res.status(400).json({ status: 'error', message: depositError?.message || 'Failed to create deposit record' });
     }
 
     res.json({
       status: 'success',
-      link: data[0]
+      message: 'STK Push sent',
+      destination: { type: 'wallet', wallet_id: wallet.id },
+      deposit,
+      mpesa: response.data
     });
   } catch (error) {
-    console.error('Track click error:', error);
-    res.status(500).json({ status: 'error', message: error.message });
+    console.error('Payment link pay error:', error?.response?.data || error.message);
+    res.status(500).json({ status: 'error', message: error?.response?.data?.errorMessage || error.message, data: error?.response?.data });
   }
 });
 
@@ -4696,6 +4925,28 @@ const processMpesaCallback = async (req, res) => {
             console.warn('Wallet ledger credit insert failed:', ledgerErr?.message || ledgerErr);
           }
 
+          const paymentLinkId = priorDeposit?.payment_link_id || null;
+          if (paymentLinkId) {
+            try {
+              const { data: pl, error: plError } = await supabase
+                .from('payment_links')
+                .select('id, conversions, revenue')
+                .eq('id', paymentLinkId)
+                .single();
+
+              if (!plError && pl) {
+                const nextConversions = Number(pl.conversions || 0) + 1;
+                const nextRevenue = Number(pl.revenue || 0) + Number(amount || priorDeposit.amount || 0);
+                await supabase
+                  .from('payment_links')
+                  .update({ conversions: nextConversions, revenue: nextRevenue, updated_at: new Date().toISOString() })
+                  .eq('id', paymentLinkId);
+              }
+            } catch (plUpdateErr) {
+              console.warn('Payment link conversion update failed:', plUpdateErr?.message || plUpdateErr);
+            }
+          }
+
           console.log('Wallet deposit marked success:', {
             id: priorDeposit.id,
             wallet_id: priorDeposit.wallet_id,
@@ -4788,6 +5039,28 @@ const processMpesaCallback = async (req, res) => {
 
       if (transaction && transaction.length > 0) {
         const txn = transaction[0];
+
+        const paymentLinkId = txn?.payment_link_id || null;
+        if (paymentLinkId) {
+          try {
+            const { data: pl, error: plError } = await supabase
+              .from('payment_links')
+              .select('id, conversions, revenue')
+              .eq('id', paymentLinkId)
+              .single();
+
+            if (!plError && pl) {
+              const nextConversions = Number(pl.conversions || 0) + 1;
+              const nextRevenue = Number(pl.revenue || 0) + Number(amount || txn.amount || 0);
+              await supabase
+                .from('payment_links')
+                .update({ conversions: nextConversions, revenue: nextRevenue, updated_at: new Date().toISOString() })
+                .eq('id', paymentLinkId);
+            }
+          } catch (plUpdateErr) {
+            console.warn('Payment link conversion update failed:', plUpdateErr?.message || plUpdateErr);
+          }
+        }
 
         const { data: till } = await supabase
           .from('tills')
