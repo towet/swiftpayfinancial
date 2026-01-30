@@ -11,6 +11,7 @@ import {
   BarChart3, 
   Bell, 
   Settings,
+  Shield,
   LogOut,
   ChevronLeft,
   ChevronRight,
@@ -30,7 +31,7 @@ import { cn } from "@/lib/utils";
 import logo from "@/assets/swiftlogosss-Photoroom.png";
 import { SwiftPaySupport } from "@/components/ui/SwiftPaySupport";
 
-const menuItems = [
+const baseMenuItems = [
   { icon: LayoutDashboard, label: "Overview", path: "/dashboard" },
   { icon: Receipt, label: "Transactions", path: "/dashboard/transactions" },
   { icon: Store, label: "Mini-Apps", path: "/dashboard/mini-apps" },
@@ -57,6 +58,20 @@ export function DashboardSidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+
+  let userRole: string | null = null;
+  try {
+    const rawUser = localStorage.getItem("user");
+    const parsedUser = rawUser ? JSON.parse(rawUser) : null;
+    userRole = parsedUser?.role ? String(parsedUser.role) : null;
+  } catch (e) {
+    userRole = null;
+  }
+
+  const menuItems =
+    userRole === "super_admin"
+      ? [...baseMenuItems, { icon: Shield, label: "Super Admin", path: "/dashboard/super-admin" }]
+      : baseMenuItems;
 
   const handleLogout = () => {
     localStorage.removeItem("token");
