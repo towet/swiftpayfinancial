@@ -86,7 +86,9 @@ const OAUTH_URL = 'https://api.safaricom.co.ke/oauth/v1/generate';
 const STK_PUSH_URL = 'https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest';
 const ACCOUNT_BALANCE_URL = 'https://api.safaricom.co.ke/mpesa/accountbalance/v1/query';
 const TRANSACTION_STATUS_URL = 'https://api.safaricom.co.ke/mpesa/transactionstatus/v1/query';
-const B2C_URL = 'https://api.safaricom.co.ke/mpesa/b2c/v1/paymentrequest';
+const B2C_URL =
+  process.env.MPESA_B2C_URL ||
+  'https://api.safaricom.co.ke/mpesa/b2c/v3/paymentrequest';
 
 // JWT Secret
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -1691,7 +1693,7 @@ app.post('/api/super-admin/withdrawal-requests/:id/payout', verifyToken, verifyS
       return res.status(400).json({ status: 'error', message: 'Withdrawal must be approved before payout' });
     }
 
-    if (reqRow.payout_originator_conversation_id || reqRow.payout_conversation_id) {
+    if ((reqRow.payout_originator_conversation_id || reqRow.payout_conversation_id) && currentStatus !== 'failed') {
       return res.status(400).json({ status: 'error', message: 'Payout already initiated for this request' });
     }
 
@@ -1712,8 +1714,11 @@ app.post('/api/super-admin/withdrawal-requests/:id/payout', verifyToken, verifyS
       return res.status(400).json({ status: 'error', message: 'Insufficient wallet balance for payout' });
     }
 
+    const originatorConversationId = `WDR_${uuidv4().replace(/-/g, '').slice(0, 16)}`;
+
     const token = await getMpesaAccessToken();
     const payload = {
+      OriginatorConversationID: originatorConversationId,
       InitiatorName: MPESA_B2C_INITIATOR_NAME,
       SecurityCredential: MPESA_B2C_SECURITY_CREDENTIAL,
       CommandID: MPESA_B2C_COMMAND_ID,
@@ -1723,7 +1728,7 @@ app.post('/api/super-admin/withdrawal-requests/:id/payout', verifyToken, verifyS
       Remarks: 'Wallet withdrawal',
       QueueTimeOutURL: `${CALLBACK_URL}/api/callbacks/b2c-timeout`,
       ResultURL: `${CALLBACK_URL}/api/callbacks/b2c-result`,
-      Occasion: `withdrawal:${reqRow.id}`
+      Occassion: `withdrawal:${reqRow.id}`
     };
 
     const response = await axios.post(B2C_URL, payload, {
@@ -1737,7 +1742,7 @@ app.post('/api/super-admin/withdrawal-requests/:id/payout', verifyToken, verifyS
     const patch = {
       status: 'processing',
       payout_originator_conversation_id:
-        response.data?.OriginatorConversationID || response.data?.OriginatorConversationId || null,
+        response.data?.OriginatorConversationID || response.data?.OriginatorConversationId || originatorConversationId,
       payout_conversation_id: response.data?.ConversationID || response.data?.ConversationId || null,
       payout_response: response.data,
       payout_initiated_at: new Date().toISOString(),
