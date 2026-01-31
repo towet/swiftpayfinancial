@@ -9,6 +9,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { normalizeKenyanPhoneNumber } from "@/lib/utils";
 
 export default function DeveloperPortal() {
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
@@ -52,6 +53,16 @@ export default function DeveloperPortal() {
     setPlaygroundResult(null);
 
     try {
+      const normalizedPhone = normalizeKenyanPhoneNumber(playgroundData.phoneNumber);
+      if (!normalizedPhone) {
+        toast({
+          title: "Invalid phone number",
+          description: "Enter a valid phone number (e.g. 07XXXXXXXX or 2547XXXXXXXX)",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const response = await fetch('https://swiftpay-backend-uvv9.onrender.com/api/mpesa/stk-push-api', {
         method: 'POST',
         headers: {
@@ -59,7 +70,7 @@ export default function DeveloperPortal() {
           'Authorization': `Bearer ${playgroundData.apiKey}`,
         },
         body: JSON.stringify({
-          phone_number: playgroundData.phoneNumber,
+          phone_number: normalizedPhone,
           amount: parseFloat(playgroundData.amount),
           till_id: playgroundData.tillId,
           reference: playgroundData.reference
@@ -83,6 +94,16 @@ export default function DeveloperPortal() {
     setCodeTestResult(null);
 
     try {
+      const normalizedPhone = normalizeKenyanPhoneNumber(codeTestCredentials.phoneNumber);
+      if (!normalizedPhone) {
+        toast({
+          title: "Invalid phone number",
+          description: "Enter a valid phone number (e.g. 07XXXXXXXX or 2547XXXXXXXX)",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const response = await fetch('https://swiftpay-backend-uvv9.onrender.com/api/mpesa/stk-push-api', {
         method: 'POST',
         headers: {
@@ -90,7 +111,7 @@ export default function DeveloperPortal() {
           'Authorization': `Bearer ${codeTestCredentials.apiKey}`,
         },
         body: JSON.stringify({
-          phone_number: codeTestCredentials.phoneNumber,
+          phone_number: normalizedPhone,
           amount: parseFloat(codeTestCredentials.amount),
           till_id: codeTestCredentials.tillId,
           reference: `CODE-TEST-${Date.now()}`
@@ -117,15 +138,6 @@ export default function DeveloperPortal() {
     } finally {
       setCodeTestLoading(false);
     }
-  };
-
-  const normalizePhoneNumber = (phone: string) => {
-    if (!phone) return phone;
-    let cleaned = phone.replace(/[\s\-\(\)]/g, '');
-    if (cleaned.startsWith('0')) {
-      cleaned = '254' + cleaned.substring(1);
-    }
-    return cleaned;
   };
 
   const wizardSteps = [
@@ -1417,13 +1429,13 @@ async function checkPaymentStatus(checkoutId, maxAttempts = 10, interval = 3000)
                       </label>
                       <Input
                         type="tel"
-                        placeholder="254712345678"
+                        placeholder="07XXXXXXXX"
                         value={playgroundData.phoneNumber}
-                        onChange={(e) => setPlaygroundData({ ...playgroundData, phoneNumber: normalizePhoneNumber(e.target.value) })}
+                        onChange={(e) => setPlaygroundData({ ...playgroundData, phoneNumber: e.target.value })}
                         className="bg-secondary/50 border-border text-foreground placeholder:text-muted-foreground/50"
                       />
                       <p className="text-xs text-muted-foreground mt-1">
-                        Must be in 254 format (e.g., 254712345678)
+                        Accepted formats: 07XXXXXXXX or 2547XXXXXXXX
                       </p>
                     </div>
 
@@ -1770,9 +1782,9 @@ async function checkPaymentStatus(checkoutId, maxAttempts = 10, interval = 3000)
                         </label>
                         <Input
                           type="tel"
-                          placeholder="254712345678"
+                          placeholder="07XXXXXXXX"
                           value={codeTestCredentials.phoneNumber}
-                          onChange={(e) => setCodeTestCredentials({ ...codeTestCredentials, phoneNumber: normalizePhoneNumber(e.target.value) })}
+                          onChange={(e) => setCodeTestCredentials({ ...codeTestCredentials, phoneNumber: e.target.value })}
                           className="bg-secondary/50 border-border text-foreground"
                         />
                       </div>

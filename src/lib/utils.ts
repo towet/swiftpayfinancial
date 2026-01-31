@@ -34,3 +34,20 @@ export function formatTimeInAppTz(timestamp: string | null | undefined): string 
     timeZone: APP_TIME_ZONE,
   });
 }
+
+export function normalizeKenyanPhoneNumber(phone: string | null | undefined): string | null {
+  if (!phone) return null;
+  const cleaned = String(phone)
+    .trim()
+    .replace(/[\s\-\(\)]/g, "")
+    .replace(/^\+/, "");
+
+  const digitsOnly = cleaned.replace(/\D/g, "");
+  if (!digitsOnly) return null;
+
+  if (/^254\d{9}$/.test(digitsOnly)) return digitsOnly;
+  if (/^0\d{9}$/.test(digitsOnly)) return `254${digitsOnly.slice(1)}`;
+  if (/^[71]\d{8}$/.test(digitsOnly)) return `254${digitsOnly}`;
+
+  return null;
+}

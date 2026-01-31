@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import axios from "axios";
 import { useToast } from "@/hooks/use-toast";
 import { Check, Copy, Loader2, RefreshCw } from "lucide-react";
-import { formatTimeInAppTz } from "@/lib/utils";
+import { formatTimeInAppTz, normalizeKenyanPhoneNumber } from "@/lib/utils";
 
 interface WalletInfo {
   id: string;
@@ -240,11 +240,11 @@ export default function DashboardWallet() {
       return;
     }
 
-    const phone_number = String(phoneNumber || "").trim();
-    if (!phone_number || phone_number.length < 9) {
+    const phone_number = normalizeKenyanPhoneNumber(phoneNumber);
+    if (!phone_number) {
       toast({
         title: "Invalid phone number",
-        description: "Enter a valid phone number (e.g. 2547XXXXXXXX)",
+        description: "Enter a valid phone number (e.g. 07XXXXXXXX or 2547XXXXXXXX)",
         variant: "destructive",
       });
       return;
@@ -530,7 +530,7 @@ export default function DashboardWallet() {
                 <Input
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
-                  placeholder="e.g. 2547XXXXXXXX"
+                  placeholder="e.g. 07XXXXXXXX"
                   className="mt-2 bg-secondary border-border"
                 />
               </div>

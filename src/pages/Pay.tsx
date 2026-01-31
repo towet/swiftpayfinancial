@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { normalizeKenyanPhoneNumber } from "@/lib/utils";
 import { CheckCircle2, ChevronLeft, Loader2, Lock, Phone, ShieldCheck, Sparkles, Wallet } from "lucide-react";
 
 interface PaymentLink {
@@ -64,11 +65,11 @@ export default function Pay() {
   }, [id]);
 
   const pay = async () => {
-    const phone_number = String(phone || "").trim();
-    if (!phone_number || phone_number.length < 9) {
+    const phone_number = normalizeKenyanPhoneNumber(phone);
+    if (!phone_number) {
       toast({
         title: "Invalid phone",
-        description: "Enter a valid phone number (e.g. 2547XXXXXXXX)",
+        description: "Enter a valid phone number (e.g. 07XXXXXXXX or 2547XXXXXXXX)",
         variant: "destructive",
       });
       return;
@@ -304,15 +305,15 @@ export default function Pay() {
                                         <Phone className="h-4 w-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                                         <Input
                                           value={phone}
-                                          onChange={(e) => setPhone(e.target.value.replace(/\s+/g, ""))}
-                                          placeholder="2547XXXXXXXX"
+                                          onChange={(e) => setPhone(e.target.value)}
+                                          placeholder="07XXXXXXXX"
                                           className="pl-9 bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 rounded-xl h-12 focus-visible:ring-indigo-500"
                                           inputMode="tel"
                                         />
                                       </div>
                                       <div className="mt-2 text-[11px] text-gray-500 inline-flex items-center gap-2">
                                         <Lock className="h-3.5 w-3.5" />
-                                        Use format: 2547XXXXXXXX
+                                        Use format: 07XXXXXXXX or 2547XXXXXXXX
                                       </div>
                                     </div>
 
