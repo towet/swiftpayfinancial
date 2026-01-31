@@ -1233,7 +1233,10 @@ async function fetchTransactionsForUserAnalytics({ userId, userRole, requestedTi
         err.statusCode = 403;
         throw err;
       }
-      return [];
+
+      // Wallet-only merchants: no tills means there are no till transactions
+      allTransactions = [];
+      hasMore = false;
     }
 
     while (hasMore) {
@@ -1263,6 +1266,36 @@ async function fetchTransactionsForUserAnalytics({ userId, userRole, requestedTi
         hasMore = false;
       }
     }
+  }
+
+  // Include wallet-based payment link payments so wallet-only merchants have analytics + reporting.
+  // If the caller is filtering by a specific till, exclude them (they're not till-based).
+  if (!requestedTillId) {
+    const { data: walletDeposits, error: walletDepositsError } = await supabase
+      .from('wallet_stk_deposits')
+      .select('*')
+      .eq('user_id', userId)
+      .not('payment_link_id', 'is', null)
+      .order('created_at', { ascending: false });
+
+    if (walletDepositsError) {
+      const err = new Error(walletDepositsError.message);
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const mappedWalletDeposits = (walletDeposits || []).map((d) => {
+      const pl = String(d.payment_link_id || '').replace(/-/g, '').slice(0, 8);
+      return {
+        ...d,
+        id: `wallet_stk_${d.id}`,
+        reference: pl ? `PAYLINK-${pl}` : `WALLET-${String(d.id || '').slice(0, 8)}`,
+        transaction_type: 'wallet_stk_deposit',
+        till_id: null
+      };
+    });
+
+    return allTransactions.concat(mappedWalletDeposits);
   }
 
   return allTransactions;
@@ -5497,9 +5530,40 @@ app.get('/api/transactions', verifyToken, async (req, res) => {
       return res.status(400).json({ status: 'error', message: error.message });
     }
 
+    let mappedWalletDeposits = [];
+    if (!tillId) {
+      const { data: walletDeposits } = await supabase
+        .from('wallet_stk_deposits')
+        .select('*')
+        .eq('user_id', req.userId)
+        .not('payment_link_id', 'is', null)
+        .order('created_at', { ascending: false });
+
+      mappedWalletDeposits = (walletDeposits || []).map((d) => {
+        const pl = String(d.payment_link_id || '').replace(/-/g, '').slice(0, 8);
+        return {
+          id: `wallet_stk_${d.id}`,
+          reference: pl ? `PAYLINK-${pl}` : `WALLET-${String(d.id || '').slice(0, 8)}`,
+          amount: d.amount,
+          phone_number: d.phone_number,
+          status: d.status,
+          created_at: d.created_at,
+          transaction_type: 'wallet_stk_deposit',
+          payment_link_id: d.payment_link_id,
+          checkout_request_id: d.checkout_request_id,
+          mpesa_request_id: d.mpesa_request_id
+        };
+      });
+    }
+
+    const merged = ([]
+      .concat(data || [])
+      .concat(mappedWalletDeposits || []))
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
     res.json({
       status: 'success',
-      transactions: data
+      transactions: merged
     });
   } catch (error) {
     res.status(500).json({ status: 'error', message: error.message });
@@ -6254,73 +6318,14 @@ app.get('/api/dashboard/stats', verifyToken, async (req, res) => {
       return s === 'success' || s === 'paid' || s === 'completed';
     };
 
-    const { data: tills, error: tillsError } = await supabase
-      .from('tills')
-      .select('id')
-      .eq('user_id', req.userId);
-
-    if (tillsError) {
-      return res.status(400).json({ status: 'error', message: tillsError.message });
-    }
-
-    const tillIds = (tills || []).map(t => t.id);
-
-    let allTransactions = [];
-    let hasMore = true;
-    let page = 0;
-    const pageSize = 1000;
-    
-    if (tillIds.length > 0) {
-      // User has tills, get all transactions for those tills with pagination
-      while (hasMore) {
-        const result = await supabase
-          .from('transactions')
-          .select('*')
-          .in('till_id', tillIds)
-          .range(page * pageSize, (page + 1) * pageSize - 1)
-          .order('created_at', { ascending: false });
-        
-        if (result.error) {
-          return res.status(400).json({ status: 'error', message: result.error.message });
-        }
-        
-        if (result.data && result.data.length > 0) {
-          allTransactions = allTransactions.concat(result.data);
-          page++;
-          hasMore = result.data.length === pageSize;
-        } else {
-          hasMore = false;
-        }
-      }
-    } else {
-      // User has no tills, get all transactions (for admin/testing) with pagination
-      if (req.userRole === ROLES.SUPER_ADMIN) {
-        while (hasMore) {
-          const result = await supabase
-            .from('transactions')
-            .select('*')
-            .range(page * pageSize, (page + 1) * pageSize - 1)
-            .order('created_at', { ascending: false });
-          
-          if (result.error) {
-            return res.status(400).json({ status: 'error', message: result.error.message });
-          }
-          
-          if (result.data && result.data.length > 0) {
-            allTransactions = allTransactions.concat(result.data);
-            page++;
-            hasMore = result.data.length === pageSize;
-          } else {
-            hasMore = false;
-          }
-        }
-      } else {
-        hasMore = false;
-      }
-    }
-
-    const txs = allTransactions;
+    const txs = await fetchTransactionsForUserAnalytics({
+      userId: req.userId,
+      userRole: req.userRole,
+      requestedTillId: null
+    });
     const successfulTransactions = txs.filter(t => isPaidStatus(t.status));
+
+    // ...
 
     const stats = {
       totalTransactions: txs.length,
