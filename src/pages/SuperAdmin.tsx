@@ -108,6 +108,8 @@ interface SuperAdminWallet {
   created_at: string;
   updated_at: string;
   balance?: number;
+  reserved?: number;
+  available_balance?: number;
   users?: {
     email?: string;
     full_name?: string;
@@ -119,6 +121,8 @@ interface SuperAdminWallet {
 interface SuperAdminWalletDetail {
   wallet: SuperAdminWallet;
   balance: number;
+  reserved?: number;
+  available_balance?: number;
   ledger: Array<any>;
   deposits: Array<any>;
   withdrawals: Array<any>;
@@ -317,6 +321,12 @@ export default function SuperAdmin() {
         setSelectedWallet({
           wallet: res.data.wallet,
           balance: Number(res.data.balance || 0),
+          reserved: Number(res.data.reserved || 0),
+          available_balance: Number(
+            res.data.available_balance !== undefined
+              ? res.data.available_balance
+              : Number(res.data.balance || 0) - Number(res.data.reserved || 0)
+          ),
           ledger: Array.isArray(res.data.ledger) ? res.data.ledger : [],
           deposits: Array.isArray(res.data.deposits) ? res.data.deposits : [],
           withdrawals: Array.isArray(res.data.withdrawals) ? res.data.withdrawals : [],
@@ -961,8 +971,14 @@ export default function SuperAdmin() {
             </div>
             <div className="flex items-center gap-2">
               <div className="text-right">
-                <div className="text-sm text-muted-foreground">Balance</div>
-                <div className="text-xl font-bold text-foreground">KES {Number(selectedWallet.balance || 0).toLocaleString()}</div>
+                <div className="text-sm text-muted-foreground">Available</div>
+                <div className="text-xl font-bold text-foreground">KES {Number(selectedWallet.available_balance || 0).toLocaleString()}</div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  Ledger: <span className="font-mono text-foreground">KES {Number(selectedWallet.balance || 0).toLocaleString()}</span>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Reserved: <span className="font-mono text-foreground">KES {Number(selectedWallet.reserved || 0).toLocaleString()}</span>
+                </div>
               </div>
               <Button variant="outline" onClick={() => setSelectedWallet(null)}>
                 Back to list
@@ -1067,7 +1083,7 @@ export default function SuperAdmin() {
                     <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Owner</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Company</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Email</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Balance</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Available</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Created</th>
                     <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Actions</th>
                   </tr>
@@ -1078,7 +1094,9 @@ export default function SuperAdmin() {
                       <td className="py-3 px-4 text-foreground">{w.users?.full_name || "N/A"}</td>
                       <td className="py-3 px-4 text-muted-foreground">{w.users?.company_name || "N/A"}</td>
                       <td className="py-3 px-4 text-muted-foreground">{w.users?.email || "N/A"}</td>
-                      <td className="py-3 px-4 text-foreground font-semibold">KES {Number(w.balance || 0).toLocaleString()}</td>
+                      <td className="py-3 px-4 text-foreground font-semibold">
+                        KES {Number((w.available_balance ?? w.balance) || 0).toLocaleString()}
+                      </td>
                       <td className="py-3 px-4 text-muted-foreground text-sm">{new Date(w.created_at).toLocaleDateString()}</td>
                       <td className="py-3 px-4 text-right">
                         <Button variant="outline" size="sm" onClick={() => fetchWalletDetail(w.id)}>

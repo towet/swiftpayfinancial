@@ -744,7 +744,9 @@ app.get('/api/wallet', verifyToken, async (req, res) => {
   try {
     const wallet = await ensureWalletForUser(req.userId);
     const balance = await computeWalletBalance(wallet.id);
-    res.json({ status: 'success', wallet, balance });
+    const reserved = await computeReservedWithdrawalAmount(wallet.id);
+    const available_balance = balance - reserved;
+    res.json({ status: 'success', wallet, balance, reserved, available_balance });
   } catch (error) {
     res.status(500).json({ status: 'error', message: error.message });
   }
@@ -787,9 +789,16 @@ app.get('/api/super-admin/wallets', verifyToken, verifySuperAdmin, async (req, r
       (data || []).map(async (w) => {
         try {
           const balance = await computeWalletBalance(w.id);
-          return { ...w, balance };
+          let reserved = 0;
+          try {
+            reserved = await computeReservedWithdrawalAmount(w.id);
+          } catch (e) {
+            reserved = 0;
+          }
+          const available_balance = balance - reserved;
+          return { ...w, balance, reserved, available_balance };
         } catch (e) {
-          return { ...w, balance: 0 };
+          return { ...w, balance: 0, reserved: 0, available_balance: 0 };
         }
       })
     );
@@ -828,6 +837,13 @@ app.get('/api/super-admin/wallets/:id', verifyToken, verifySuperAdmin, async (re
     }
 
     const balance = await computeWalletBalance(wallet.id);
+    let reserved = 0;
+    try {
+      reserved = await computeReservedWithdrawalAmount(wallet.id);
+    } catch (e) {
+      reserved = 0;
+    }
+    const available_balance = balance - reserved;
 
     const [{ data: ledger, error: ledgerError }, { data: deposits, error: depositsError }, { data: withdrawals, error: withdrawalsError }] = await Promise.all([
       supabase
@@ -864,6 +880,8 @@ app.get('/api/super-admin/wallets/:id', verifyToken, verifySuperAdmin, async (re
       status: 'success',
       wallet,
       balance,
+      reserved,
+      available_balance,
       ledger: ledger || [],
       deposits: (deposits || []).map(withWalletDepositDerivedFields),
       withdrawals: withdrawals || []
@@ -899,7 +917,9 @@ app.get('/api/wallet/ledger', verifyToken, async (req, res) => {
     }
 
     const balance = await computeWalletBalance(wallet.id);
-    res.json({ status: 'success', wallet, balance, ledger: data || [] });
+    const reserved = await computeReservedWithdrawalAmount(wallet.id);
+    const available_balance = balance - reserved;
+    res.json({ status: 'success', wallet, balance, reserved, available_balance, ledger: data || [] });
   } catch (error) {
     res.status(500).json({ status: 'error', message: error.message });
   }

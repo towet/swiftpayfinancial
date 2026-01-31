@@ -62,6 +62,8 @@ export default function DashboardWallet() {
 
   const [wallet, setWallet] = useState<WalletInfo | null>(null);
   const [balance, setBalance] = useState<number>(0);
+  const [reserved, setReserved] = useState<number>(0);
+  const [availableBalance, setAvailableBalance] = useState<number>(0);
 
   const [ledger, setLedger] = useState<WalletLedgerEntry[]>([]);
   const [deposits, setDeposits] = useState<WalletDeposit[]>([]);
@@ -104,6 +106,14 @@ export default function DashboardWallet() {
       if (response.data?.status === "success") {
         setWallet(response.data.wallet);
         setBalance(Number(response.data.balance || 0));
+        setReserved(Number(response.data.reserved || 0));
+        setAvailableBalance(
+          Number(
+            response.data.available_balance !== undefined
+              ? response.data.available_balance
+              : Number(response.data.balance || 0) - Number(response.data.reserved || 0)
+          )
+        );
       }
     } catch (error: any) {
       toast({
@@ -127,6 +137,14 @@ export default function DashboardWallet() {
       if (response.data?.status === "success") {
         setLedger(response.data.ledger || []);
         setBalance(Number(response.data.balance || 0));
+        setReserved(Number(response.data.reserved || 0));
+        setAvailableBalance(
+          Number(
+            response.data.available_balance !== undefined
+              ? response.data.available_balance
+              : Number(response.data.balance || 0) - Number(response.data.reserved || 0)
+          )
+        );
       }
     } catch (error: any) {
       toast({
@@ -361,7 +379,17 @@ export default function DashboardWallet() {
 
             <div className="mt-6 flex items-center justify-between gap-4 flex-wrap">
               <div>
-                <div className="text-3xl font-bold text-foreground">{loadingWallet ? "..." : formatAmount(balance)}</div>
+                <div className="text-3xl font-bold text-foreground">
+                  {loadingWallet ? "..." : formatAmount(availableBalance)}
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-1">
+                  <div className="text-xs text-muted-foreground">
+                    Ledger: <span className="font-mono text-foreground">{formatAmount(balance)}</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Reserved: <span className="font-mono text-foreground">{formatAmount(reserved)}</span>
+                  </div>
+                </div>
                 <div className="text-xs text-muted-foreground mt-1">Wallet ID: <span className="font-mono">{wallet?.id || "—"}</span></div>
               </div>
               <div className="flex items-center gap-2">
