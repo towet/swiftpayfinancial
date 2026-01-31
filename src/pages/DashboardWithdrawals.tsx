@@ -62,6 +62,21 @@ export default function DashboardWithdrawals() {
     fetchWithdrawals();
   }, []);
 
+  useEffect(() => {
+    const handler = () => {
+      fetchWithdrawals();
+    };
+    window.addEventListener('swiftpay:data-refresh', handler as any);
+    const channel = new BroadcastChannel('swiftpay-refresh');
+    channel.onmessage = () => {
+      fetchWithdrawals();
+    };
+    return () => {
+      window.removeEventListener('swiftpay:data-refresh', handler as any);
+      channel.close();
+    };
+  }, []);
+
   const formatAmount = (value: number) => {
     return new Intl.NumberFormat("en-KE", {
       style: "currency",
@@ -127,6 +142,13 @@ export default function DashboardWithdrawals() {
         setAmount("");
         setPhoneNumber("");
         fetchWithdrawals();
+        try {
+          window.dispatchEvent(new Event('swiftpay:data-refresh'));
+          const channel = new BroadcastChannel('swiftpay-refresh');
+          channel.postMessage({ type: 'data-refresh' });
+          channel.close();
+        } catch (e) {
+        }
       } else {
         toast({
           title: "Request failed",

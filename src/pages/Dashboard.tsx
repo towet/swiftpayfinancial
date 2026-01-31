@@ -41,6 +41,9 @@ export default function Dashboard() {
     },
   ]);
   const [loading, setLoading] = useState(true);
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [walletReserved, setWalletReserved] = useState(0);
+  const [walletAvailable, setWalletAvailable] = useState(0);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -65,11 +68,18 @@ export default function Dashboard() {
   const fetchDashboardStats = async () => {
     try {
       const token = localStorage.getItem("token");
-      
-      // Fetch stats from backend
-      const statsResponse = await axios.get("/api/dashboard/stats", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+
+      const [statsResponse, tillsResponse, walletResponse] = await Promise.all([
+        axios.get("/api/dashboard/stats", {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        axios.get("/api/tills", {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        axios.get("/api/wallet", {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
 
       const dashStats = statsResponse.data.stats;
 
@@ -80,11 +90,18 @@ export default function Dashboard() {
         ? ((successfulTransactions / totalTransactions) * 100).toFixed(1)
         : 0;
 
-      // Fetch tills count
-      const tillsResponse = await axios.get("/api/tills", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
       const activeTills = tillsResponse.data.tills?.length || 0;
+
+      const wBalance = Number(walletResponse?.data?.balance || 0);
+      const wReserved = Number(walletResponse?.data?.reserved || 0);
+      const wAvailable = Number(
+        walletResponse?.data?.available_balance !== undefined
+          ? walletResponse.data.available_balance
+          : wBalance - wReserved
+      );
+      setWalletBalance(wBalance);
+      setWalletReserved(wReserved);
+      setWalletAvailable(wAvailable);
 
       // Update stats
       setStats([
@@ -135,6 +152,34 @@ export default function Dashboard() {
         <DashboardHeader title="Dashboard" breadcrumbs={["Home", "Overview"]} />
 
         <div className="p-6 space-y-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glass rounded-xl p-6"
+          >
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div>
+                <h2 className="text-xl font-semibold text-foreground">Wallet</h2>
+                <p className="text-sm text-muted-foreground mt-1">Available balance updates immediately when withdrawals are approved (reserved).</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+              <div className="bg-secondary/40 rounded-lg p-4 border border-border">
+                <p className="text-xs text-muted-foreground">Ledger</p>
+                <p className="text-lg font-semibold text-foreground mt-1">KES {Number(walletBalance || 0).toLocaleString()}</p>
+              </div>
+              <div className="bg-secondary/40 rounded-lg p-4 border border-border">
+                <p className="text-xs text-muted-foreground">Reserved</p>
+                <p className="text-lg font-semibold text-foreground mt-1">KES {Number(walletReserved || 0).toLocaleString()}</p>
+              </div>
+              <div className="bg-secondary/40 rounded-lg p-4 border border-border">
+                <p className="text-xs text-muted-foreground">Available</p>
+                <p className="text-lg font-semibold text-foreground mt-1">KES {Number(walletAvailable || 0).toLocaleString()}</p>
+              </div>
+            </div>
+          </motion.div>
+
           {/* Stats Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {stats.map((stat, index) => (
