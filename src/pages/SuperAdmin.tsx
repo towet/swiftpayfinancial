@@ -705,6 +705,9 @@ export default function SuperAdmin() {
       toast({ title: "Success", description: `Withdrawal marked as ${status}` });
       try {
         window.dispatchEvent(new Event('swiftpay:data-refresh'));
+        const channel = new BroadcastChannel('swiftpay-refresh');
+        channel.postMessage({ type: 'data-refresh' });
+        channel.close();
       } catch (e) {
       }
       fetchWithdrawalRequests();

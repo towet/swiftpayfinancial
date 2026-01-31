@@ -40,8 +40,13 @@ export function ActivityTimeline() {
       fetchActivityLogs();
     };
     window.addEventListener('swiftpay:data-refresh', handler as any);
+    const channel = new BroadcastChannel('swiftpay-refresh');
+    channel.onmessage = () => {
+      fetchActivityLogs();
+    };
     return () => {
       window.removeEventListener('swiftpay:data-refresh', handler as any);
+      channel.close();
     };
   }, []);
 

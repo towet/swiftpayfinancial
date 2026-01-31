@@ -181,8 +181,13 @@ export default function DashboardAnalytics() {
       fetchAnalyticsData();
     };
     window.addEventListener('swiftpay:data-refresh', handler as any);
+    const channel = new BroadcastChannel('swiftpay-refresh');
+    channel.onmessage = () => {
+      fetchAnalyticsData();
+    };
     return () => {
       window.removeEventListener('swiftpay:data-refresh', handler as any);
+      channel.close();
     };
   }, []);
 

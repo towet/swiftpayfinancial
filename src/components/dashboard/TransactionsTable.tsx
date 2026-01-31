@@ -37,8 +37,13 @@ export function TransactionsTable({ limit, showViewAll = true }: TransactionsTab
       fetchTransactions();
     };
     window.addEventListener('swiftpay:data-refresh', handler as any);
+    const channel = new BroadcastChannel('swiftpay-refresh');
+    channel.onmessage = () => {
+      fetchTransactions();
+    };
     return () => {
       window.removeEventListener('swiftpay:data-refresh', handler as any);
+      channel.close();
     };
   }, []);
 
