@@ -516,11 +516,27 @@ const computeWalletBalance = async (walletId) => {
 const OPEN_WITHDRAWAL_STATUSES = ['pending', 'approved', 'processing'];
 
 const computeReservedWithdrawalAmount = async (walletId, excludeWithdrawalId = null) => {
+  let userId = null;
+  try {
+    const { data: walletRow } = await supabase
+      .from('wallets')
+      .select('user_id')
+      .eq('id', walletId)
+      .single();
+    userId = walletRow?.user_id || null;
+  } catch (e) {
+    userId = null;
+  }
+
+  const orFilters = [`wallet_id.eq.${walletId}`];
+  if (userId) {
+    orFilters.push(`user_id.eq.${userId}`);
+  }
+
   const { data, error } = await supabase
     .from('wallet_withdrawal_requests')
-    .select('id, amount, status')
-    .eq('wallet_id', walletId)
-    .in('status', OPEN_WITHDRAWAL_STATUSES)
+    .select('id, amount, status, wallet_id, user_id')
+    .or(orFilters.join(','))
     .order('created_at', { ascending: false })
     .limit(5000);
 
@@ -531,6 +547,8 @@ const computeReservedWithdrawalAmount = async (walletId, excludeWithdrawalId = n
   let reserved = 0;
   for (const row of data || []) {
     if (excludeWithdrawalId && row?.id === excludeWithdrawalId) continue;
+    const status = String(row?.status || '').trim().toLowerCase();
+    if (!OPEN_WITHDRAWAL_STATUSES.includes(status)) continue;
     reserved += Number(row?.amount || 0);
   }
   return reserved;
@@ -1736,6 +1754,8 @@ app.put('/api/super-admin/withdrawal-requests/:id', verifyToken, verifySuperAdmi
     const adminNotes = req.body?.admin_notes;
     const mpesaReceiptNumber = req.body?.mpesa_receipt_number || req.body?.mpesa_receipt || null;
 
+    let resolvedWalletId = null;
+
     const allowed = new Set(['pending', 'approved', 'rejected', 'processing', 'paid', 'failed']);
     if (nextStatus && !allowed.has(nextStatus)) {
       return res.status(400).json({ status: 'error', message: 'Invalid status' });
@@ -1758,6 +1778,8 @@ app.put('/api/super-admin/withdrawal-requests/:id', verifyToken, verifySuperAdmi
         walletId = wallet?.id;
       }
 
+      resolvedWalletId = walletId;
+
       if (!walletId) {
         return res.status(400).json({ status: 'error', message: 'Withdrawal request is missing wallet_id' });
       }
@@ -1776,6 +1798,7 @@ app.put('/api/super-admin/withdrawal-requests/:id', verifyToken, verifySuperAdmi
     };
     if (nextStatus) patch.status = nextStatus;
     if (adminNotes !== undefined) patch.admin_notes = adminNotes;
+    if (!existingRequest.wallet_id && resolvedWalletId) patch.wallet_id = resolvedWalletId;
 
     const { data, error } = await supabase
       .from('wallet_withdrawal_requests')
