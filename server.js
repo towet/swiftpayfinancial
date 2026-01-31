@@ -4957,7 +4957,7 @@ const processMpesaCallback = async (req, res) => {
                 const nextRevenue = Number(pl.revenue || 0) + Number(amount || priorDeposit.amount || 0);
                 await supabase
                   .from('payment_links')
-                  .update({ conversions: nextConversions, revenue: nextRevenue, updated_at: new Date().toISOString() })
+                  .update({ status: 'completed', conversions: nextConversions, revenue: nextRevenue, updated_at: new Date().toISOString() })
                   .eq('id', paymentLinkId);
               }
             } catch (plUpdateErr) {
@@ -5072,7 +5072,7 @@ const processMpesaCallback = async (req, res) => {
               const nextRevenue = Number(pl.revenue || 0) + Number(amount || txn.amount || 0);
               await supabase
                 .from('payment_links')
-                .update({ conversions: nextConversions, revenue: nextRevenue, updated_at: new Date().toISOString() })
+                .update({ status: 'completed', conversions: nextConversions, revenue: nextRevenue, updated_at: new Date().toISOString() })
                 .eq('id', paymentLinkId);
             }
           } catch (plUpdateErr) {

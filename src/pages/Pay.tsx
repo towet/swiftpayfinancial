@@ -38,6 +38,20 @@ export default function Pay() {
     return fixed <= 0;
   }, [link?.amount]);
 
+  const refreshLink = async () => {
+    if (!id) return;
+
+    try {
+      const res = await axios.get(`/api/payment-links/${id}`);
+      if (res.data?.status === "success") {
+        setLink(res.data.link);
+        const fixed = Number(res.data.link?.amount || 0);
+        setAmount(fixed > 0 ? String(fixed) : "");
+      }
+    } catch (e) {
+    }
+  };
+
   useEffect(() => {
     const fetchLink = async () => {
       setLoading(true);
@@ -143,7 +157,6 @@ export default function Pay() {
   useEffect(() => {
     if (!id) return;
     if (!stkSent) return;
-    if (!link) return;
     if (expired || completed) return;
 
     let cancelled = false;
@@ -158,7 +171,15 @@ export default function Pay() {
       try {
         const res = await axios.get(`/api/payment-links/${id}`);
         if (!cancelled && res.data?.status === "success") {
-          setLink(res.data.link);
+          const nextLink = res.data.link;
+          setLink(nextLink);
+
+          const nextStatus = String(nextLink?.status || "").toLowerCase();
+          if (nextStatus === "completed" || nextStatus === "expired") {
+            window.clearInterval(interval);
+            setCheckingPayment(false);
+            return;
+          }
         }
       } catch (e) {
       }
@@ -174,7 +195,7 @@ export default function Pay() {
       window.clearInterval(interval);
       setCheckingPayment(false);
     };
-  }, [completed, expired, id, link, stkSent]);
+  }, [completed, expired, id, stkSent]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -470,7 +491,7 @@ export default function Pay() {
                                     <div className="text-xs text-emerald-700/80 mt-1">
                                       Open the STK prompt, confirm <span className="font-black">{displayAmount}</span>, then enter your M-Pesa PIN.
                                     </div>
-                                    <div className="mt-4 flex gap-2">
+                                    <div className="mt-4 flex gap-2 flex-wrap">
                                       <Button
                                         type="button"
                                         variant="outline"
@@ -479,6 +500,15 @@ export default function Pay() {
                                         disabled={submitting}
                                       >
                                         Send again
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="rounded-full bg-white border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                                        onClick={refreshLink}
+                                        disabled={submitting}
+                                      >
+                                        Refresh status
                                       </Button>
                                       <Button
                                         type="button"
