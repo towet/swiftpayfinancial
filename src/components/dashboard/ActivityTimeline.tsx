@@ -35,6 +35,16 @@ export function ActivityTimeline() {
     fetchActivityLogs();
   }, []);
 
+  useEffect(() => {
+    const handler = () => {
+      fetchActivityLogs();
+    };
+    window.addEventListener('swiftpay:data-refresh', handler as any);
+    return () => {
+      window.removeEventListener('swiftpay:data-refresh', handler as any);
+    };
+  }, []);
+
   const fetchActivityLogs = async () => {
     try {
       const token = localStorage.getItem("token");

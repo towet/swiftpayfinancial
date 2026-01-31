@@ -23,6 +23,16 @@ export function RevenueChart() {
     fetchRevenueData();
   }, [activeRange]);
 
+  useEffect(() => {
+    const handler = () => {
+      fetchRevenueData();
+    };
+    window.addEventListener('swiftpay:data-refresh', handler as any);
+    return () => {
+      window.removeEventListener('swiftpay:data-refresh', handler as any);
+    };
+  }, []);
+
   const fetchRevenueData = async () => {
     try {
       setLoading(true);

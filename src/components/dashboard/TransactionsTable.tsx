@@ -32,6 +32,16 @@ export function TransactionsTable({ limit, showViewAll = true }: TransactionsTab
     fetchTransactions();
   }, []);
 
+  useEffect(() => {
+    const handler = () => {
+      fetchTransactions();
+    };
+    window.addEventListener('swiftpay:data-refresh', handler as any);
+    return () => {
+      window.removeEventListener('swiftpay:data-refresh', handler as any);
+    };
+  }, []);
+
   const fetchTransactions = async () => {
     try {
       const token = localStorage.getItem("token");

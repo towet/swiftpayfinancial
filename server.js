@@ -1324,10 +1324,17 @@ async function fetchTransactionsForUserAnalytics({ userId, userRole, requestedTi
 
     const mappedWalletDeposits = (walletDeposits || []).map((d) => {
       const pl = String(d.payment_link_id || '').replace(/-/g, '').slice(0, 8);
+      const normalizedStatus = String(d.status || '').trim().toLowerCase();
+      const status =
+        normalizedStatus === 'paid' || normalizedStatus === 'completed'
+          ? 'success'
+          : normalizedStatus;
       return {
         ...d,
         id: `wallet_stk_${d.id}`,
         reference: pl ? `PAYLINK-${pl}` : `WALLET-${String(d.id || '').slice(0, 8)}`,
+        amount: Number(d.amount || 0),
+        status,
         transaction_type: 'wallet_stk_deposit',
         till_id: null
       };
@@ -5584,12 +5591,17 @@ app.get('/api/transactions', verifyToken, async (req, res) => {
 
       mappedWalletDeposits = (walletDeposits || []).map((d) => {
         const pl = String(d.payment_link_id || '').replace(/-/g, '').slice(0, 8);
+        const normalizedStatus = String(d.status || '').trim().toLowerCase();
+        const status =
+          normalizedStatus === 'paid' || normalizedStatus === 'completed'
+            ? 'success'
+            : normalizedStatus;
         return {
           id: `wallet_stk_${d.id}`,
           reference: pl ? `PAYLINK-${pl}` : `WALLET-${String(d.id || '').slice(0, 8)}`,
-          amount: d.amount,
+          amount: Number(d.amount || 0),
           phone_number: d.phone_number,
-          status: d.status,
+          status,
           created_at: d.created_at,
           transaction_type: 'wallet_stk_deposit',
           payment_link_id: d.payment_link_id,
@@ -6372,7 +6384,7 @@ app.get('/api/dashboard/stats', verifyToken, async (req, res) => {
 
     const stats = {
       totalTransactions: txs.length,
-      totalAmount: successfulTransactions.reduce((sum, t) => sum + (t.amount || 0), 0),
+      totalAmount: successfulTransactions.reduce((sum, t) => sum + Number(t.amount || 0), 0),
       successfulTransactions: successfulTransactions.length,
       failedTransactions: txs.filter(t => String(t.status || '').toLowerCase() === 'failed').length,
       pendingTransactions: txs.filter(t => String(t.status || '').toLowerCase() === 'pending').length

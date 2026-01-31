@@ -39,6 +39,16 @@ export default function DashboardTransactions() {
   }, []);
 
   useEffect(() => {
+    const handler = () => {
+      fetchTransactions();
+    };
+    window.addEventListener('swiftpay:data-refresh', handler as any);
+    return () => {
+      window.removeEventListener('swiftpay:data-refresh', handler as any);
+    };
+  }, []);
+
+  useEffect(() => {
     filterTransactions();
   }, [transactions, activeFilter, searchQuery]);
 

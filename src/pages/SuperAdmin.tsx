@@ -703,6 +703,10 @@ export default function SuperAdmin() {
         }
       );
       toast({ title: "Success", description: `Withdrawal marked as ${status}` });
+      try {
+        window.dispatchEvent(new Event('swiftpay:data-refresh'));
+      } catch (e) {
+      }
       fetchWithdrawalRequests();
     } catch (error: any) {
       toast({

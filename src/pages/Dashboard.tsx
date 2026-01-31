@@ -47,6 +47,16 @@ export default function Dashboard() {
     fetchDashboardStats();
   }, []);
 
+  useEffect(() => {
+    const handler = () => {
+      fetchDashboardStats();
+    };
+    window.addEventListener('swiftpay:data-refresh', handler as any);
+    return () => {
+      window.removeEventListener('swiftpay:data-refresh', handler as any);
+    };
+  }, []);
+
   const fetchDashboardStats = async () => {
     try {
       const token = localStorage.getItem("token");

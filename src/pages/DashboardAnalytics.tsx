@@ -177,6 +177,16 @@ export default function DashboardAnalytics() {
   }, [activeRange, selectedTillId]);
 
   useEffect(() => {
+    const handler = () => {
+      fetchAnalyticsData();
+    };
+    window.addEventListener('swiftpay:data-refresh', handler as any);
+    return () => {
+      window.removeEventListener('swiftpay:data-refresh', handler as any);
+    };
+  }, []);
+
+  useEffect(() => {
     fetchGeminiInsights(false);
   }, [activeRange, selectedTillId]);
 
