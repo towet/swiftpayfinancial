@@ -31,6 +31,7 @@ export default function Pay() {
   const [amount, setAmount] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
   const [stkSent, setStkSent] = useState(false);
+  const [checkingPayment, setCheckingPayment] = useState(false);
 
   const isCustomAmount = useMemo(() => {
     const fixed = Number(link?.amount || 0);
@@ -138,6 +139,42 @@ export default function Pay() {
   }, [stkSent, submitting]);
 
   const stepIndex = step === "details" ? 0 : step === "sending" ? 1 : 2;
+
+  useEffect(() => {
+    if (!id) return;
+    if (!stkSent) return;
+    if (!link) return;
+    if (expired || completed) return;
+
+    let cancelled = false;
+    setCheckingPayment(true);
+
+    let tries = 0;
+    const maxTries = 20;
+    const intervalMs = 3000;
+
+    const interval = window.setInterval(async () => {
+      tries += 1;
+      try {
+        const res = await axios.get(`/api/payment-links/${id}`);
+        if (!cancelled && res.data?.status === "success") {
+          setLink(res.data.link);
+        }
+      } catch (e) {
+      }
+
+      if (tries >= maxTries) {
+        window.clearInterval(interval);
+        if (!cancelled) setCheckingPayment(false);
+      }
+    }, intervalMs);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      setCheckingPayment(false);
+    };
+  }, [completed, expired, id, link, stkSent]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -269,6 +306,50 @@ export default function Pay() {
                                 <div className="text-sm font-black text-rose-700">This link has expired.</div>
                                 <div className="text-xs text-rose-600">Ask the merchant to generate a new link.</div>
                               </div>
+                            ) : completed ? (
+                              <motion.div
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm"
+                              >
+                                <div className="flex items-center justify-center">
+                                  <div className="h-16 w-16 rounded-2xl bg-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-600/20">
+                                    <CheckCircle2 className="h-9 w-9 text-white" />
+                                  </div>
+                                </div>
+                                <div className="mt-5 text-center">
+                                  <div className="text-[11px] font-extrabold uppercase tracking-[0.24em] text-gray-500">Payment successful</div>
+                                  <div className="mt-2 text-2xl font-black tracking-tight text-gray-900">Thank you!</div>
+                                  <div className="mt-2 text-sm text-gray-600 leading-relaxed">
+                                    Your M-Pesa payment for <span className="font-black text-gray-900">{displayAmount}</span> has been confirmed.
+                                  </div>
+                                </div>
+
+                                <div className="mt-6 grid grid-cols-1 gap-3">
+                                  <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
+                                    <div className="flex items-center justify-between">
+                                      <div className="text-[10px] font-black uppercase tracking-widest text-gray-500">Merchant</div>
+                                      <div className="text-sm font-black text-gray-900 truncate max-w-[220px]">{link.title}</div>
+                                    </div>
+                                    <div className="mt-3 flex items-center justify-between">
+                                      <div className="text-[10px] font-black uppercase tracking-widest text-gray-500">Status</div>
+                                      <div className="inline-flex items-center gap-2 text-xs font-black text-emerald-700">
+                                        <span className="h-2 w-2 rounded-full bg-emerald-600" />
+                                        Completed
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="w-full h-12 rounded-2xl bg-white border-gray-200 text-gray-900 hover:bg-gray-50"
+                                    onClick={() => (window.location.href = "/")}
+                                  >
+                                    Back to SwiftPay
+                                  </Button>
+                                </div>
+                              </motion.div>
                             ) : (
                               <div className="space-y-4 pb-10">
                                 <motion.div
@@ -377,7 +458,15 @@ export default function Pay() {
                                     animate={{ opacity: 1, y: 0 }}
                                     className="p-5 bg-emerald-50 rounded-3xl border border-emerald-100"
                                   >
-                                    <div className="text-sm font-black text-emerald-700">Prompt sent to your phone.</div>
+                                    <div className="flex items-center justify-between gap-3">
+                                      <div className="text-sm font-black text-emerald-700">Prompt sent to your phone.</div>
+                                      {checkingPayment ? (
+                                        <div className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-emerald-700/70">
+                                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                          Waiting…
+                                        </div>
+                                      ) : null}
+                                    </div>
                                     <div className="text-xs text-emerald-700/80 mt-1">
                                       Open the STK prompt, confirm <span className="font-black">{displayAmount}</span>, then enter your M-Pesa PIN.
                                     </div>
