@@ -1,0 +1,11 @@
+# SwiftPay Developer Integration (LLM/Agent Guidance)
+
+## Primary machine-readable API contract
+OpenAPI (YAML): https://www.swiftpayfinancial.com/openapi.yaml
+
+## Human-friendly interactive reference
+Swagger UI: https://www.swiftpayfinancial.com/api-docs
+
+## Notes
+- The /developers route is a JavaScript app and may not render in non-JS environments.
+- Use the OpenAPI spec above for endpoints, payloads, and schemas.
