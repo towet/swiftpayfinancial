@@ -213,16 +213,20 @@ export default function DashboardAccounts() {
                     {submitting ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        Creating...
+                        {editingId ? "Saving..." : "Creating..."}
                       </>
                     ) : (
-                      "Create Till"
+                      editingId ? "Save Changes" : "Create Till"
                     )}
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => setShowForm(false)}
+                    onClick={() => {
+                      setShowForm(false);
+                      setEditingId(null);
+                      setFormData({ tillName: "", tillNumber: "", description: "" });
+                    }}
                   >
                     Cancel
                   </Button>
