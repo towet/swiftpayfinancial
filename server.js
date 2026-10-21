@@ -4210,13 +4210,37 @@ app.put('/api/tills/:id', verifyToken, async (req, res) => {
       return res.status(403).json({ status: 'error', message: 'Access denied. You do not own this till.' });
     }
 
+    // Build update payload dynamically — only include fields that were sent
+    const updatePayload = {};
+    if (tillName !== undefined) updatePayload.till_name = tillName;
+    if (description !== undefined) updatePayload.description = description || '';
+
+    // Only validate + include till_number if it was actually sent
+    if (tillNumber !== undefined) {
+      // Ensure no OTHER till already owns this number (exclude current record)
+      const { data: conflict } = await supabase
+        .from('tills')
+        .select('id')
+        .eq('till_number', tillNumber)
+        .neq('id', id)
+        .maybeSingle();
+
+      if (conflict) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'This till number is already in use by another till.'
+        });
+      }
+      updatePayload.till_number = tillNumber;
+    }
+
+    if (Object.keys(updatePayload).length === 0) {
+      return res.status(400).json({ status: 'error', message: 'No fields provided to update.' });
+    }
+
     const { data, error } = await supabase
       .from('tills')
-      .update({
-        till_name: tillName,
-        till_number: tillNumber,
-        description: description || ''
-      })
+      .update(updatePayload)
       .eq('id', id)
       .select();
 
@@ -4237,6 +4261,7 @@ app.put('/api/tills/:id', verifyToken, async (req, res) => {
     res.status(500).json({ status: 'error', message: error.message });
   }
 });
+
 
 // Delete Till (with object-level authorization)
 app.delete('/api/tills/:id', verifyToken, async (req, res) => {
