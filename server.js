@@ -4210,18 +4210,34 @@ app.put('/api/tills/:id', verifyToken, async (req, res) => {
       return res.status(403).json({ status: 'error', message: 'Access denied. You do not own this till.' });
     }
 
-    // Build update payload dynamically — only include fields that were sent
-    const updatePayload = {};
-    if (tillName !== undefined) updatePayload.till_name = tillName;
-    if (description !== undefined) updatePayload.description = description || '';
+    // Fetch current till so we can compare values
+    const { data: currentTill, error: fetchError } = await supabase
+      .from('tills')
+      .select('*')
+      .eq('id', id)
+      .single();
 
-    // Only validate + include till_number if it was actually sent
-    if (tillNumber !== undefined) {
-      // Ensure no OTHER till already owns this number (exclude current record)
+    if (fetchError || !currentTill) {
+      return res.status(404).json({ status: 'error', message: 'Till not found' });
+    }
+
+    // Build update payload — use incoming value or fall back to existing value
+    const newName = (tillName !== undefined && String(tillName).trim()) ? String(tillName).trim() : currentTill.till_name;
+    const newDesc = description !== undefined ? String(description || '').trim() : (currentTill.description || '');
+    const incomingNumber = tillNumber !== undefined ? String(tillNumber).trim() : null;
+
+    const updatePayload = {
+      till_name: newName,
+      description: newDesc,
+    };
+
+    // Only update till_number if it actually changed
+    if (incomingNumber && incomingNumber !== currentTill.till_number) {
+      // Ensure no OTHER till already owns this number
       const { data: conflict } = await supabase
         .from('tills')
         .select('id')
-        .eq('till_number', tillNumber)
+        .eq('till_number', incomingNumber)
         .neq('id', id)
         .maybeSingle();
 
@@ -4231,12 +4247,9 @@ app.put('/api/tills/:id', verifyToken, async (req, res) => {
           message: 'This till number is already in use by another till.'
         });
       }
-      updatePayload.till_number = tillNumber;
+      updatePayload.till_number = incomingNumber;
     }
-
-    if (Object.keys(updatePayload).length === 0) {
-      return res.status(400).json({ status: 'error', message: 'No fields provided to update.' });
-    }
+    // else: till_number is unchanged — do NOT include it to avoid unique constraint
 
     const { data, error } = await supabase
       .from('tills')
