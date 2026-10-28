@@ -177,14 +177,14 @@ export const DeveloperSection = () => {
 
               {/* Heading */}
               <div className="space-y-4">
-                <h2 className="text-4xl md:text-5xl font-bold leading-tight">
-                  <span className="text-white">Start Receiving</span>
+                <h2 className="font-display text-4xl md:text-5xl font-bold leading-tight">
+                  <span className="text-foreground">Start Receiving</span>
                   <br />
-                  <span className="bg-gradient-to-r from-safaricom via-emerald-400 to-safaricom bg-clip-text text-transparent">
+                  <span className="gradient-text-safaricom">
                     Business Payments
                   </span>
                   <br />
-                  <span className="text-white">Straight to M-Pesa</span>
+                  <span className="text-foreground">Straight to M-Pesa</span>
                 </h2>
                 <p className="text-lg text-white/60 leading-relaxed max-w-lg">
                   Integrate our SwiftPay API in minutes and start accepting M-Pesa payments instantly. 

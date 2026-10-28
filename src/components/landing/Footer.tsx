@@ -126,8 +126,8 @@ export function Footer() {
               </div>
               <span className="text-2xl font-bold gradient-text">SwiftPay</span>
             </Link>
-            <p className="text-muted-foreground">
-              Modern payment infrastructure for African businesses. Accept M-Pesa payments with enterprise-grade APIs.
+            <p className="text-muted-foreground max-w-xs">
+              Payments, escrow and working capital — one platform built in Nairobi for businesses that move money every day.
             </p>
             <div className="space-y-3">
               <p className="text-sm font-medium text-foreground">Subscribe to our newsletter</p>
