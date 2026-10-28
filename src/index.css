@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Manrope:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,66 +6,70 @@
 
 @layer base {
   :root {
-    --background: 222 47% 6%;
+    /* SwiftPay — "Navy Hustle" identity
+       Deep royal navy base, warm orange energy, Kenyan green prosperity */
+    --background: 228 55% 8%;
     --foreground: 210 40% 98%;
 
-    --card: 222 47% 8%;
+    --card: 228 48% 11%;
     --card-foreground: 210 40% 98%;
 
-    --popover: 222 47% 8%;
+    --popover: 228 48% 11%;
     --popover-foreground: 210 40% 98%;
 
-    --primary: 239 84% 67%;
-    --primary-foreground: 210 40% 98%;
+    /* Warm orange — the energy accent */
+    --primary: 32 96% 56%;
+    --primary-foreground: 228 55% 9%;
 
-    --secondary: 217 33% 17%;
+    --secondary: 228 40% 17%;
     --secondary-foreground: 210 40% 98%;
 
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
+    --muted: 228 38% 16%;
+    --muted-foreground: 222 25% 68%;
 
-    --accent: 192 91% 43%;
+    /* Kenyan green — growth, money, success */
+    --accent: 146 62% 42%;
     --accent-foreground: 210 40% 98%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
 
-    --success: 160 84% 39%;
+    --success: 146 62% 42%;
     --success-foreground: 210 40% 98%;
 
     --warning: 38 92% 50%;
-    --warning-foreground: 222 47% 6%;
+    --warning-foreground: 228 55% 9%;
 
-    /* Safaricom brand green */
-    --safaricom: 145 63% 42%;
-    --safaricom-light: 145 63% 52%;
-    --safaricom-dark: 145 63% 32%;
+    /* Green token kept for existing surfaces */
+    --safaricom: 146 62% 42%;
+    --safaricom-light: 146 62% 52%;
+    --safaricom-dark: 146 62% 30%;
     --safaricom-foreground: 210 40% 98%;
 
-    --border: 217 33% 17%;
-    --input: 217 33% 17%;
-    --ring: 239 84% 67%;
+    --border: 228 35% 19%;
+    --input: 228 35% 19%;
+    --ring: 32 96% 56%;
 
     --radius: 0.75rem;
 
-    --sidebar-background: 222 47% 7%;
+    --sidebar-background: 228 50% 10%;
     --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 239 84% 67%;
-    --sidebar-primary-foreground: 210 40% 98%;
-    --sidebar-accent: 217 33% 17%;
+    --sidebar-primary: 32 96% 56%;
+    --sidebar-primary-foreground: 228 55% 9%;
+    --sidebar-accent: 228 40% 17%;
     --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 217 33% 17%;
-    --sidebar-ring: 239 84% 67%;
+    --sidebar-border: 228 35% 19%;
+    --sidebar-ring: 32 96% 56%;
 
-    /* Custom gradient colors */
-    --gradient-start: 239 84% 67%;
-    --gradient-end: 217 91% 60%;
-    --gradient-accent: 145 63% 42%;
-    
+    /* Custom gradient colors — sunrise over navy */
+    --gradient-start: 32 96% 56%;
+    --gradient-end: 44 98% 62%;
+    --gradient-accent: 146 62% 42%;
+
     /* Glow effects */
-    --glow-primary: 239 84% 67%;
-    --glow-accent: 145 63% 42%;
-    --glow-safaricom: 145 63% 42%;
+    --glow-primary: 32 96% 56%;
+    --glow-accent: 146 62% 42%;
+    --glow-safaricom: 146 62% 42%;
   }
 }
 
@@ -76,10 +80,11 @@
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: 'Manrope', system-ui, sans-serif;
   }
 
   h1, h2, h3, h4, h5, h6 {
+    font-family: 'Sora', 'Manrope', system-ui, sans-serif;
     @apply font-semibold tracking-tight;
   }
 
@@ -102,7 +107,7 @@
   }
 
   .gradient-text {
-    background: linear-gradient(135deg, hsl(var(--gradient-start)) 0%, hsl(var(--gradient-end)) 50%, hsl(var(--gradient-accent)) 100%);
+    background: linear-gradient(120deg, hsl(var(--gradient-start)) 0%, hsl(var(--gradient-end)) 55%, hsl(var(--gradient-accent)) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -149,11 +154,11 @@
   }
 
   .gradient-safaricom {
-    background: linear-gradient(135deg, hsl(var(--safaricom)) 0%, hsl(var(--safaricom-light)) 50%, hsl(var(--gradient-end)) 100%);
+    background: linear-gradient(135deg, hsl(var(--gradient-start)) 0%, hsl(var(--gradient-end)) 50%, hsl(var(--safaricom)) 100%);
   }
 
   .gradient-text-safaricom {
-    background: linear-gradient(135deg, hsl(var(--safaricom-light)) 0%, hsl(var(--safaricom)) 50%, hsl(var(--gradient-end)) 100%);
+    background: linear-gradient(120deg, hsl(var(--gradient-end)) 0%, hsl(var(--gradient-start)) 50%, hsl(var(--safaricom)) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -187,13 +192,13 @@
   }
 
   .mesh-gradient {
-    background: 
-      radial-gradient(at 40% 20%, hsl(239 84% 67% / 0.3) 0px, transparent 50%),
-      radial-gradient(at 80% 0%, hsl(145 63% 42% / 0.25) 0px, transparent 50%),
-      radial-gradient(at 0% 50%, hsl(145 63% 52% / 0.2) 0px, transparent 50%),
-      radial-gradient(at 80% 50%, hsl(239 84% 67% / 0.15) 0px, transparent 50%),
-      radial-gradient(at 0% 100%, hsl(217 91% 60% / 0.2) 0px, transparent 50%),
-      radial-gradient(at 80% 100%, hsl(145 63% 42% / 0.15) 0px, transparent 50%);
+    background:
+      radial-gradient(at 15% 20%, hsl(32 96% 56% / 0.22) 0px, transparent 50%),
+      radial-gradient(at 85% 0%, hsl(146 62% 42% / 0.18) 0px, transparent 50%),
+      radial-gradient(at 0% 60%, hsl(44 98% 62% / 0.12) 0px, transparent 50%),
+      radial-gradient(at 80% 45%, hsl(228 80% 45% / 0.35) 0px, transparent 55%),
+      radial-gradient(at 30% 100%, hsl(146 62% 42% / 0.14) 0px, transparent 50%),
+      radial-gradient(at 90% 100%, hsl(32 96% 56% / 0.12) 0px, transparent 50%);
   }
 }
 
@@ -202,7 +207,7 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
-  
+
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
