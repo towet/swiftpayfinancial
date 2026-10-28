@@ -255,7 +255,7 @@ export function FeaturesSection() {
             <span className="text-sm text-safaricom font-medium">Powerful Features</span>
           </motion.div>
           
-          <h2 className="text-3xl md:text-5xl font-bold mb-4">
+          <h2 className="font-display text-3xl md:text-5xl font-bold mb-4">
             Everything You Need to
             <span className="gradient-text-safaricom"> Accept Payments</span>
           </h2>

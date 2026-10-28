@@ -44,7 +44,9 @@ export function Navbar() {
                 className="h-full w-full object-contain scale-[1.8]"
               />
             </div>
-            <span className="text-xl font-bold gradient-text">SwiftPay</span>
+            <span className="font-display text-xl font-bold tracking-tight text-foreground">
+              Swift<span className="gradient-text">Pay</span>
+            </span>
           </Link>
 
           {/* Desktop Navigation */}

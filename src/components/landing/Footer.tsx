@@ -126,8 +126,8 @@ export function Footer() {
               </div>
               <span className="text-2xl font-bold gradient-text">SwiftPay</span>
             </Link>
-            <p className="text-muted-foreground">
-              Modern payment infrastructure for African businesses. Accept M-Pesa payments with enterprise-grade APIs.
+            <p className="text-muted-foreground max-w-xs">
+              Payments, escrow and working capital — one platform built in Nairobi for businesses that move money every day.
             </p>
             <div className="space-y-3">
               <p className="text-sm font-medium text-foreground">Subscribe to our newsletter</p>
@@ -165,7 +165,7 @@ export function Footer() {
         {/* Bottom bar */}
         <div className="flex flex-col md:flex-row items-center justify-between pt-8 border-t border-border gap-4">
           <p className="text-sm text-muted-foreground">
-            © 2024 SwiftPay. All rights reserved.
+            © 2026 SwiftPay. All rights reserved.
             <button
               onClick={() => setShowAdminModal(true)}
               className="ml-2 text-muted-foreground/60 hover:text-primary transition-colors"
