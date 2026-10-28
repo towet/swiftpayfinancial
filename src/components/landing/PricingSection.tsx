@@ -67,7 +67,7 @@ export function PricingSection() {
           transition={{ duration: 0.6 }}
           className="text-center mb-16"
         >
-          <h2 className="text-4xl md:text-5xl font-bold mb-4">
+          <h2 className="font-display text-4xl md:text-5xl font-bold mb-4">
             Simple, Transparent
             <span className="gradient-text"> Pricing</span>
           </h2>
@@ -108,7 +108,7 @@ export function PricingSection() {
                 </div>
 
                 <div className="flex items-baseline gap-1">
-                  <span className="text-4xl font-bold gradient-text">{plan.price}</span>
+                  <span className="font-display text-4xl font-bold gradient-text">{plan.price}</span>
                   {plan.period && (
                     <span className="text-muted-foreground">{plan.period}</span>
                   )}

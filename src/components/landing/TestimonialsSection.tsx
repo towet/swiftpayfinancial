@@ -37,7 +37,7 @@ export function TestimonialsSection() {
           transition={{ duration: 0.6 }}
           className="text-center mb-16"
         >
-          <h2 className="text-4xl md:text-5xl font-bold mb-4">
+          <h2 className="font-display text-4xl md:text-5xl font-bold mb-4">
             Trusted by
             <span className="gradient-text"> 500+ Businesses</span>
           </h2>

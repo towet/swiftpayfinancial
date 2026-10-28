@@ -258,7 +258,7 @@ export function HowItWorksSection() {
             <span className="text-sm text-safaricom font-medium">Quick Setup</span>
           </motion.div>
 
-          <h2 className="text-3xl md:text-5xl font-bold mb-4">
+          <h2 className="font-display text-3xl md:text-5xl font-bold mb-4">
             Start Accepting Payments in
             <span className="gradient-text-safaricom"> 3 Simple Steps</span>
           </h2>

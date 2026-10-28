@@ -67,7 +67,7 @@ export const DeveloperSection = () => {
                 
                 {/* Code content */}
                 <div className="p-6 font-mono text-sm leading-relaxed overflow-x-auto">
-                  <pre className="text-white/90">
+                  <pre className="text-foreground/90">
                     <code>
                       <span className="text-purple-400">const</span>{" "}
                       <span className="text-blue-300">swiftpay</span>{" "}
@@ -241,7 +241,7 @@ export const DeveloperSection = () => {
                 <Button 
                   size="lg" 
                   variant="outline" 
-                  className="border-border text-white hover:bg-secondary font-semibold px-6"
+                  className="border-border text-foreground hover:bg-secondary font-semibold px-6"
                 >
                   Get API Keys
                 </Button>
