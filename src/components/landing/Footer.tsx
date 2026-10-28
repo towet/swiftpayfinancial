@@ -165,7 +165,7 @@ export function Footer() {
         {/* Bottom bar */}
         <div className="flex flex-col md:flex-row items-center justify-between pt-8 border-t border-border gap-4">
           <p className="text-sm text-muted-foreground">
-            © 2024 SwiftPay. All rights reserved.
+            © 2026 SwiftPay. All rights reserved.
             <button
               onClick={() => setShowAdminModal(true)}
               className="ml-2 text-muted-foreground/60 hover:text-primary transition-colors"
