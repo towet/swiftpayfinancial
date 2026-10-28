@@ -269,7 +269,7 @@ const Analytics: React.FC = () => {
             </PieChart>
           </ResponsiveContainer>
           <div className="flex justify-center gap-4 mt-4">
-            {Object.entries(analytics.statusDistribution).map(([key, value], index) => (
+            {(Object.entries(analytics.statusDistribution) as [string, any][]).map(([key, value], index) => (
               <div key={key} className="flex items-center gap-2">
                 <div className={`w-3 h-3 rounded-full`} style={{ backgroundColor: COLORS[index] }} />
                 <span className="text-white/70 text-sm capitalize">{key}: {value.count}</span>

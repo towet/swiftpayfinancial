@@ -13,7 +13,7 @@ const DashboardEscrow = () => {
     <div className="min-h-screen bg-background">
       <DashboardSidebar />
       <div className="lg:pl-64 flex flex-col min-h-screen">
-        <DashboardHeader />
+        <DashboardHeader title="Trust-Shield Escrow" breadcrumbs={["Dashboard", "Escrow"]} />
         <main className="flex-1 p-6">
           <div className="max-w-7xl mx-auto space-y-6">
             <motion.div
