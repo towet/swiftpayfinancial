@@ -1,0 +1,241 @@
+openapi: 3.0.3
+info:
+  title: SwiftPay API
+  version: 1.0.0
+  description: |
+    SwiftPay API for M-Pesa STK Push payments and transaction verification.
+
+    Notes:
+    - Keep API keys on the server side. Do not expose credentials in client-side code.
+servers:
+  - url: https://swiftpay-backend-uvv9.onrender.com
+    description: Production (Render)
+  - url: /api
+    description: Vercel proxy (/api -> backend)
+
+tags:
+  - name: Auth
+  - name: M-Pesa
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: error
+        message:
+          type: string
+          example: Unauthorized
+
+    RegisterRequest:
+      type: object
+      required: [email, password, fullName]
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        password:
+          type: string
+          example: securepassword
+        fullName:
+          type: string
+          example: John Doe
+        companyName:
+          type: string
+          example: Acme Corp
+
+    AuthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        token:
+          type: string
+          description: JWT token
+        user:
+          type: object
+          additionalProperties: true
+
+    StkPushRequest:
+      type: object
+      required: [phone_number, amount, till_id]
+      properties:
+        phone_number:
+          type: string
+          example: "254712345678"
+        amount:
+          type: number
+          example: 100
+        till_id:
+          type: string
+          example: "dbdedaea-11d8-4bbe-b94f-84bbe4206d3c"
+        reference:
+          type: string
+          example: "ORDER-123"
+        description:
+          type: string
+          example: "Order payment"
+
+    StkPushResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          example: STK Push sent successfully
+        checkoutRequestId:
+          type: string
+          example: ws_CO_13012021095000000001
+        responseCode:
+          type: string
+          example: "0"
+        responseDescription:
+          type: string
+          example: Success
+
+    VerificationProxyRequest:
+      type: object
+      required: [checkoutRequestId]
+      properties:
+        checkoutRequestId:
+          type: string
+          example: ws_CO_12012026200817609724808814
+
+    VerificationProxyResponse:
+      type: object
+      additionalProperties: true
+
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /mpesa/stk-push-api:
+    post:
+      tags: [M-Pesa]
+      summary: Initiate an M-Pesa STK Push
+      description: |
+        Initiates a payment request to the customer phone.
+
+        Authorization:
+        - Use `Authorization: Bearer <API_KEY>` (generated for the till)
+        - Keep the API key on your server; do not call this from a browser.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StkPushRequest'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StkPushResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /mpesa-verification-proxy:
+    post:
+      tags: [M-Pesa]
+      summary: Verify an STK Push by checkoutRequestId
+      description: |
+        Checks payment status with M-Pesa and updates SwiftPay transaction state when possible.
+
+        Security:
+        - Use from your server only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerificationProxyRequest'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerificationProxyResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
