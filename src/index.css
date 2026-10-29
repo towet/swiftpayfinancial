@@ -6,70 +6,70 @@
 
 @layer base {
   :root {
-    /* SwiftPay — "Navy Hustle" identity
-       Deep royal navy base, warm orange energy, Kenyan green prosperity */
-    --background: 228 55% 8%;
-    --foreground: 210 40% 98%;
+    /* SwiftPay — light professional identity
+       White canvas, deep navy ink, warm orange energy, Kenyan green prosperity */
+    --background: 210 45% 98%;
+    --foreground: 222 58% 14%;
 
-    --card: 228 48% 11%;
-    --card-foreground: 210 40% 98%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 58% 14%;
 
-    --popover: 228 48% 11%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 58% 14%;
 
     /* Warm orange — the energy accent */
-    --primary: 32 96% 56%;
-    --primary-foreground: 228 55% 9%;
+    --primary: 32 92% 52%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 228 40% 17%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 214 40% 94%;
+    --secondary-foreground: 222 58% 18%;
 
-    --muted: 228 38% 16%;
-    --muted-foreground: 222 25% 68%;
+    --muted: 214 40% 95%;
+    --muted-foreground: 218 20% 42%;
 
     /* Kenyan green — growth, money, success */
-    --accent: 146 62% 42%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 145 58% 40%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 78% 52%;
+    --destructive-foreground: 0 0% 100%;
 
-    --success: 146 62% 42%;
-    --success-foreground: 210 40% 98%;
+    --success: 145 58% 40%;
+    --success-foreground: 0 0% 100%;
 
-    --warning: 38 92% 50%;
-    --warning-foreground: 228 55% 9%;
+    --warning: 36 92% 48%;
+    --warning-foreground: 222 58% 14%;
 
     /* Green token kept for existing surfaces */
-    --safaricom: 146 62% 42%;
-    --safaricom-light: 146 62% 52%;
-    --safaricom-dark: 146 62% 30%;
-    --safaricom-foreground: 210 40% 98%;
+    --safaricom: 145 58% 40%;
+    --safaricom-light: 145 58% 48%;
+    --safaricom-dark: 145 58% 30%;
+    --safaricom-foreground: 0 0% 100%;
 
-    --border: 228 35% 19%;
-    --input: 228 35% 19%;
-    --ring: 32 96% 56%;
+    --border: 215 30% 88%;
+    --input: 215 30% 88%;
+    --ring: 32 92% 52%;
 
     --radius: 0.75rem;
 
-    --sidebar-background: 228 50% 10%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 32 96% 56%;
-    --sidebar-primary-foreground: 228 55% 9%;
-    --sidebar-accent: 228 40% 17%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 228 35% 19%;
-    --sidebar-ring: 32 96% 56%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 222 58% 14%;
+    --sidebar-primary: 32 92% 52%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 214 40% 94%;
+    --sidebar-accent-foreground: 222 58% 18%;
+    --sidebar-border: 215 30% 88%;
+    --sidebar-ring: 32 92% 52%;
 
-    /* Custom gradient colors — sunrise over navy */
-    --gradient-start: 32 96% 56%;
-    --gradient-end: 44 98% 62%;
-    --gradient-accent: 146 62% 42%;
+    /* Solid accent colors — no gradients by design preference.
+       Kept as variables so legacy utility classes resolve to solids. */
+    --gradient-start: 32 92% 52%;
+    --gradient-end: 32 92% 52%;
+    --gradient-accent: 145 58% 40%;
 
-    /* Glow effects */
-    --glow-primary: 32 96% 56%;
-    --glow-accent: 146 62% 42%;
-    --glow-safaricom: 146 62% 42%;
+    /* Soft elevation shadows instead of glows */
+    --shadow-card: 0 1px 2px hsl(222 58% 14% / 0.05), 0 8px 24px -8px hsl(222 58% 14% / 0.12);
+    --shadow-lift: 0 2px 4px hsl(222 58% 14% / 0.06), 0 16px 40px -12px hsl(222 58% 14% / 0.18);
   }
 }
 
@@ -95,22 +95,22 @@
 
 @layer components {
   .glass {
-    @apply bg-card/40 backdrop-blur-xl border border-border/50;
+    @apply bg-card/80 backdrop-blur-xl border border-border/70;
   }
 
   .glass-strong {
-    @apply bg-card/60 backdrop-blur-2xl border border-border/60;
+    @apply bg-card/90 backdrop-blur-xl border border-border/80;
   }
 
+  /* Solid accent fills — the "gradient" utility names now render flat */
   .gradient-primary {
-    background: linear-gradient(135deg, hsl(var(--gradient-start)) 0%, hsl(var(--gradient-end)) 100%);
+    background: hsl(var(--primary));
   }
 
   .gradient-text {
-    background: linear-gradient(120deg, hsl(var(--gradient-start)) 0%, hsl(var(--gradient-end)) 55%, hsl(var(--gradient-accent)) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: hsl(var(--primary));
+    background: none;
+    -webkit-text-fill-color: currentColor;
   }
 
   .gradient-border {
@@ -125,7 +125,7 @@
     inset: 0;
     padding: 1px;
     border-radius: inherit;
-    background: linear-gradient(135deg, hsl(var(--gradient-start)) 0%, hsl(var(--gradient-end)) 50%, hsl(var(--gradient-accent)) 100%);
+    background: hsl(var(--border));
     -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
@@ -134,19 +134,19 @@
   }
 
   .glow {
-    box-shadow: 0 0 40px -10px hsl(var(--glow-primary) / 0.5);
+    box-shadow: var(--shadow-card);
   }
 
   .glow-accent {
-    box-shadow: 0 0 40px -10px hsl(var(--glow-accent) / 0.5);
+    box-shadow: 0 8px 24px -8px hsl(var(--accent) / 0.35);
   }
 
   .glow-sm {
-    box-shadow: 0 0 20px -5px hsl(var(--glow-primary) / 0.4);
+    box-shadow: var(--shadow-card);
   }
 
   .glow-safaricom {
-    box-shadow: 0 0 40px -10px hsl(var(--glow-safaricom) / 0.6);
+    box-shadow: 0 8px 24px -8px hsl(var(--safaricom) / 0.35);
   }
 
   .text-gradient {
@@ -154,14 +154,13 @@
   }
 
   .gradient-safaricom {
-    background: linear-gradient(135deg, hsl(var(--gradient-start)) 0%, hsl(var(--gradient-end)) 50%, hsl(var(--safaricom)) 100%);
+    background: hsl(var(--safaricom));
   }
 
   .gradient-text-safaricom {
-    background: linear-gradient(120deg, hsl(var(--gradient-end)) 0%, hsl(var(--gradient-start)) 50%, hsl(var(--safaricom)) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: hsl(var(--safaricom));
+    background: none;
+    -webkit-text-fill-color: currentColor;
   }
 
   .animate-float {
@@ -191,14 +190,12 @@
     background-size: 200% 200%;
   }
 
+  /* Whisper-soft ambient tint for section backgrounds */
   .mesh-gradient {
     background:
-      radial-gradient(at 15% 20%, hsl(32 96% 56% / 0.22) 0px, transparent 50%),
-      radial-gradient(at 85% 0%, hsl(146 62% 42% / 0.18) 0px, transparent 50%),
-      radial-gradient(at 0% 60%, hsl(44 98% 62% / 0.12) 0px, transparent 50%),
-      radial-gradient(at 80% 45%, hsl(228 80% 45% / 0.35) 0px, transparent 55%),
-      radial-gradient(at 30% 100%, hsl(146 62% 42% / 0.14) 0px, transparent 50%),
-      radial-gradient(at 90% 100%, hsl(32 96% 56% / 0.12) 0px, transparent 50%);
+      radial-gradient(at 10% 10%, hsl(214 60% 96% / 0.9) 0px, transparent 50%),
+      radial-gradient(at 90% 30%, hsl(145 40% 96% / 0.7) 0px, transparent 45%),
+      radial-gradient(at 50% 100%, hsl(32 60% 97% / 0.8) 0px, transparent 50%);
   }
 }
 
@@ -218,18 +215,16 @@
     transform: translateY(0) rotate(0deg);
   }
   50% {
-    transform: translateY(-20px) rotate(2deg);
+    transform: translateY(-14px) rotate(0deg);
   }
 }
 
 @keyframes pulse-glow {
   0%, 100% {
     opacity: 1;
-    box-shadow: 0 0 20px -5px hsl(var(--glow-primary) / 0.5);
   }
   50% {
-    opacity: 0.8;
-    box-shadow: 0 0 40px -5px hsl(var(--glow-primary) / 0.8);
+    opacity: 0.75;
   }
 }
 
@@ -245,11 +240,9 @@
 @keyframes pulse-safaricom {
   0%, 100% {
     opacity: 1;
-    box-shadow: 0 0 20px -5px hsl(var(--glow-safaricom) / 0.5);
   }
   50% {
-    opacity: 0.9;
-    box-shadow: 0 0 50px -5px hsl(var(--glow-safaricom) / 0.8);
+    opacity: 0.85;
   }
 }
 
