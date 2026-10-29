@@ -121,10 +121,10 @@ export function Footer() {
           {/* Brand & Newsletter */}
           <div className="lg:col-span-2 space-y-6">
             <Link to="/" className="flex items-center gap-2">
-              <div className="h-12 w-12 overflow-hidden rounded-lg">
-                <img src={logo} alt="SwiftPay" className="h-full w-full object-contain scale-[1.8]" />
+              <div className="h-11 w-11 rounded-xl bg-primary flex items-center justify-center shadow-sm">
+                <Zap className="h-6 w-6 text-white" fill="currentColor" />
               </div>
-              <span className="text-2xl font-bold gradient-text">SwiftPay</span>
+              <span className="font-display text-2xl font-bold tracking-tight text-foreground">Swift<span className="text-primary">Pay</span></span>
             </Link>
             <p className="text-muted-foreground max-w-xs">
               Payments, escrow and working capital — one platform built in Nairobi for businesses that move money every day.

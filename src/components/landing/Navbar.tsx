@@ -37,12 +37,8 @@ export function Navbar() {
         <div className="container px-4 flex items-center justify-between">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 group">
-            <div className="h-10 w-10 overflow-hidden rounded-lg group-hover:glow-sm transition-shadow">
-              <img
-                src={logo}
-                alt="SwiftPay"
-                className="h-full w-full object-contain scale-[1.8]"
-              />
+            <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
+              <Zap className="h-5 w-5 text-white" fill="currentColor" />
             </div>
             <span className="font-display text-xl font-bold tracking-tight text-foreground">
               Swift<span className="gradient-text">Pay</span>
