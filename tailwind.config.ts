@@ -16,6 +16,7 @@ export default {
       fontFamily: {
         sans: ['Manrope', 'system-ui', 'sans-serif'],
         display: ['Sora', 'Manrope', 'system-ui', 'sans-serif'],
+        script: ['Caveat', 'cursive'],
         mono: ['JetBrains Mono', 'monospace'],
       },
       colors: {

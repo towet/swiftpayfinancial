@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Manrope:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Manrope:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Caveat:wght@600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,66 +6,66 @@
 
 @layer base {
   :root {
-    /* SwiftPay — light professional identity
-       White canvas, deep navy ink, warm orange energy, Kenyan green prosperity */
-    --background: 210 45% 98%;
-    --foreground: 222 58% 14%;
+    /* SwiftPay — poster identity: exact shades from the reference art
+       Navy ink #042258 · Orange #FD971C · Green #1C9F42 · Light blue #E9F2FB */
+    --background: 48 60% 98%;
+    --foreground: 219 93% 18%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222 58% 14%;
+    --card-foreground: 219 93% 18%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 58% 14%;
+    --popover-foreground: 219 93% 18%;
 
-    /* Warm orange — the energy accent */
-    --primary: 32 92% 52%;
+    /* Warm orange — the energy accent (#FD971C) */
+    --primary: 33 98% 55%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 214 40% 94%;
-    --secondary-foreground: 222 58% 18%;
+    --secondary: 210 64% 95%;
+    --secondary-foreground: 219 93% 18%;
 
-    --muted: 214 40% 95%;
-    --muted-foreground: 218 20% 42%;
+    --muted: 214 35% 95%;
+    --muted-foreground: 219 25% 42%;
 
-    /* Kenyan green — growth, money, success */
-    --accent: 145 58% 40%;
+    /* Kenyan green — growth, money, success (#1C9F42) */
+    --accent: 137 70% 37%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 78% 52%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 145 58% 40%;
+    --success: 137 70% 37%;
     --success-foreground: 0 0% 100%;
 
     --warning: 36 92% 48%;
-    --warning-foreground: 222 58% 14%;
+    --warning-foreground: 219 93% 18%;
 
     /* Green token kept for existing surfaces */
-    --safaricom: 145 58% 40%;
-    --safaricom-light: 145 58% 48%;
-    --safaricom-dark: 145 58% 30%;
+    --safaricom: 137 70% 37%;
+    --safaricom-light: 137 60% 45%;
+    --safaricom-dark: 137 70% 26%;
     --safaricom-foreground: 0 0% 100%;
 
-    --border: 215 30% 88%;
-    --input: 215 30% 88%;
-    --ring: 32 92% 52%;
+    --border: 216 30% 87%;
+    --input: 216 30% 87%;
+    --ring: 33 98% 55%;
 
     --radius: 0.75rem;
 
     --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 222 58% 14%;
-    --sidebar-primary: 32 92% 52%;
+    --sidebar-foreground: 219 93% 18%;
+    --sidebar-primary: 33 98% 55%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 214 40% 94%;
-    --sidebar-accent-foreground: 222 58% 18%;
-    --sidebar-border: 215 30% 88%;
-    --sidebar-ring: 32 92% 52%;
+    --sidebar-accent: 210 64% 95%;
+    --sidebar-accent-foreground: 219 93% 18%;
+    --sidebar-border: 216 30% 87%;
+    --sidebar-ring: 33 98% 55%;
 
     /* Solid accent colors — no gradients by design preference.
        Kept as variables so legacy utility classes resolve to solids. */
-    --gradient-start: 32 92% 52%;
-    --gradient-end: 32 92% 52%;
-    --gradient-accent: 145 58% 40%;
+    --gradient-start: 33 98% 55%;
+    --gradient-end: 33 98% 55%;
+    --gradient-accent: 137 70% 37%;
 
     /* Soft elevation shadows instead of glows */
     --shadow-card: 0 1px 2px hsl(222 58% 14% / 0.05), 0 8px 24px -8px hsl(222 58% 14% / 0.12);
