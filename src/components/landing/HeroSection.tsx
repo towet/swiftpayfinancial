@@ -136,8 +136,8 @@ export function HeroSection() {
         Has Value!
       </motion.p>
 
-      {/* Bottom strip on the navy wave */}
-      <div className="relative z-10 px-4 pb-7 sm:pb-9">
+      {/* Bottom strip pinned on the navy wave */}
+      <div className="absolute inset-x-0 bottom-0 z-10 px-4 pb-7 sm:pb-9">
         <div className="container">
           <div className="flex flex-wrap items-center gap-x-8 gap-y-4">
             <Link to="/dashboard">
