@@ -15,7 +15,7 @@
     --card-foreground: 219 93% 18%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 58% 14%;
+    --popover-foreground: 219 93% 18%;
 
     /* Warm orange — the energy accent (#FD971C) */
     --primary: 33 98% 55%;
@@ -63,9 +63,9 @@
 
     /* Solid accent colors — no gradients by design preference.
        Kept as variables so legacy utility classes resolve to solids. */
-    --gradient-start: 32 92% 52%;
-    --gradient-end: 32 92% 52%;
-    --gradient-accent: 145 58% 40%;
+    --gradient-start: 33 98% 55%;
+    --gradient-end: 33 98% 55%;
+    --gradient-accent: 137 70% 37%;
 
     /* Soft elevation shadows instead of glows */
     --shadow-card: 0 1px 2px hsl(222 58% 14% / 0.05), 0 8px 24px -8px hsl(222 58% 14% / 0.12);
