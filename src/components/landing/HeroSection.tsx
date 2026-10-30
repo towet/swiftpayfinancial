@@ -37,17 +37,18 @@ export function HeroSection() {
       {/* Cream veil keeps the copy crisp on small screens */}
       <div className="absolute inset-0 bg-background/60 sm:bg-background/25 lg:bg-transparent" />
 
-      <div className="container relative z-10 flex-1 flex flex-col justify-center px-4 pt-32 pb-44 sm:pb-40">
-        <div className="max-w-2xl space-y-7">
+      <div className="container relative z-10 flex-1 flex flex-col justify-center px-4 pt-28 pb-40 sm:pb-36">
+        <div className="max-w-2xl space-y-6">
           <motion.h1
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-            className="font-display text-[2.6rem] leading-[1.04] sm:text-6xl lg:text-7xl font-extrabold tracking-tight text-foreground"
+            className="font-display text-[2.6rem] leading-[1.06] sm:text-5xl lg:text-6xl xl:text-7xl font-extrabold tracking-tight text-foreground"
           >
             Turn Every
             <br />
-            <span className="text-primary">Payment</span>{" "}
+            <span className="text-primary">Payment</span>
+            <br />
             <span className="text-accent">Into Growth</span>
             <br />
             In Seconds!
