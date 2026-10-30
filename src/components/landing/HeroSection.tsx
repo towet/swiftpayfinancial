@@ -1,169 +1,172 @@
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Shield, Zap, TrendingUp, PlayCircle, CheckCircle2, Banknote } from "lucide-react";
+import { Zap, ShieldCheck, Banknote, ArrowRight, Smartphone, Landmark, CreditCard } from "lucide-react";
 import { Link } from "react-router-dom";
-import heroImage from "@/assets/hero-kenyan.jpg";
-import heroBg from "@/assets/hero-bg-light.jpg";
+import heroPoster from "@/assets/hero-poster.jpg";
 
-const trustBadges = [
-  { icon: Shield, label: "Bank-grade Security" },
-  { icon: Zap, label: "Instant Settlement" },
-  { icon: TrendingUp, label: "KES 2B+ Processed" },
+const featureChips = [
+  { icon: Zap, label: "Instant", strong: "Settlement" },
+  { icon: ShieldCheck, label: "Escrow", strong: "Protected" },
+  { icon: Banknote, label: "Working", strong: "Capital" },
+];
+
+const worksWith = [
+  { icon: Smartphone, label: "M-Pesa", tone: "text-accent" },
+  { icon: CreditCard, label: "Visa · Mastercard", tone: "text-foreground" },
+  { icon: Landmark, label: "Banks", tone: "text-primary" },
+];
+
+const bottomItems = [
+  { icon: ArrowRight, title: "Get Paid", sub: "Instantly" },
+  { icon: ShieldCheck, title: "Stay Safe", sub: "Escrow Secured" },
+  { icon: Banknote, title: "Anytime,", sub: "Anywhere" },
 ];
 
 export function HeroSection() {
   return (
-    <section className="relative min-h-[92vh] flex items-center overflow-hidden bg-background">
-      {/* Generated brand background — navy/orange/green ribbon on white */}
+    <section className="relative min-h-[100svh] flex flex-col overflow-hidden bg-background">
+      {/* Poster background — Kenyan moment, navy wave with orange & green ribbons */}
       <img
-        src={heroBg}
+        src={heroPoster}
         alt=""
         aria-hidden
-        className="absolute inset-0 h-full w-full object-cover object-[70%_85%] md:object-center"
+        width={1536}
+        height={864}
+        className="absolute inset-0 h-full w-full object-cover object-[68%_center] sm:object-center"
       />
-      {/* Veil keeps text contrast on narrow screens where the wave sits behind copy */}
-      <div className="absolute inset-0 bg-white/55 md:bg-white/25 lg:bg-transparent lg:bg-gradient-to-r lg:from-white/80 lg:via-white/40 lg:to-transparent" />
+      {/* Cream veil keeps the copy crisp on small screens */}
+      <div className="absolute inset-0 bg-background/60 sm:bg-background/25 lg:bg-transparent" />
 
-      <div className="container relative z-10 px-4 pt-28 pb-20">
-        <div className="grid lg:grid-cols-2 gap-12 lg:gap-10 items-center">
-          {/* ---- Left: story ---- */}
-          <motion.div
-            initial={{ opacity: 0, y: 28 }}
+      <div className="container relative z-10 flex-1 flex flex-col justify-center px-4 pt-32 pb-44 sm:pb-40">
+        <div className="max-w-2xl space-y-7">
+          <motion.h1
+            initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-            className="space-y-7"
+            className="font-display text-[2.6rem] leading-[1.04] sm:text-6xl lg:text-7xl font-extrabold tracking-tight text-foreground"
           >
-            <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-card/90 border border-border shadow-sm">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full rounded-full bg-accent opacity-75 animate-ping" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-accent" />
-              </span>
-              <span className="text-sm font-semibold text-foreground/90">
-                Built in Nairobi. Trusted across Kenya.
-              </span>
-            </div>
+            Turn Every
+            <br />
+            <span className="text-primary">Payment</span>{" "}
+            <span className="text-accent">Into Growth</span>
+            <br />
+            In Seconds!
+          </motion.h1>
 
-            <h1 className="font-display text-4xl sm:text-5xl md:text-6xl xl:text-7xl font-extrabold leading-[1.05] tracking-tight text-foreground">
-              Every Shilling,
-              <br />
-              <span className="text-primary">One Platform.</span>
-            </h1>
+          {/* Fast | Safe | Reliable divider */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.15 }}
+            className="flex items-center gap-3 font-display text-lg sm:text-xl font-bold text-foreground"
+          >
+            <span>Fast</span>
+            <span className="h-5 w-px bg-border" aria-hidden />
+            <span>Safe</span>
+            <span className="h-5 w-px bg-border" aria-hidden />
+            <span>Reliable</span>
+          </motion.div>
 
-            <p className="text-lg md:text-xl text-muted-foreground max-w-xl leading-relaxed">
-              Accept M-Pesa, card and bank payments, hold funds safely in escrow,
-              and unlock working capital — everything your business needs to get
-              paid, grow, and move faster.
+          {/* Light-blue icon chips — poster style */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.25 }}
+            className="flex gap-5 sm:gap-8"
+          >
+            {featureChips.map((chip) => (
+              <div key={chip.label} className="flex flex-col items-center gap-2 text-center">
+                <div className="flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-full bg-secondary shadow-sm ring-1 ring-border/60">
+                  <chip.icon className="h-6 w-6 sm:h-7 sm:w-7 text-foreground" strokeWidth={2.2} />
+                </div>
+                <p className="text-xs sm:text-sm leading-tight font-semibold text-foreground">
+                  {chip.label}
+                  <br />
+                  <span className="text-muted-foreground">{chip.strong}</span>
+                </p>
+              </div>
+            ))}
+          </motion.div>
+
+          {/* Works with */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.35 }}
+            className="space-y-3"
+          >
+            <p className="text-[11px] sm:text-xs font-bold tracking-[0.28em] text-muted-foreground">
+              WORKS WITH
             </p>
-
-            {/* CTAs */}
-            <div className="flex flex-wrap gap-4 pt-1">
-              <Link to="/dashboard">
-                <Button variant="glow" size="xl" className="font-bold rounded-xl shadow-lg shadow-primary/25">
-                  Start Accepting Payments
-                  <ArrowRight className="ml-2 h-5 w-5" />
-                </Button>
-              </Link>
-              <Link to="/pay">
-                <Button variant="outline" size="xl" className="rounded-xl gap-2 bg-card/90">
-                  <PlayCircle className="h-5 w-5 text-primary" />
-                  See a Live Payment
-                </Button>
-              </Link>
-            </div>
-
-            {/* Trust badges */}
-            <div className="flex flex-wrap gap-x-8 gap-y-3 pt-6 border-t border-border/80">
-              {trustBadges.map((badge, index) => (
-                <motion.div
-                  key={badge.label}
-                  initial={{ opacity: 0, y: 14 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 + index * 0.12 }}
-                  className="flex items-center gap-2.5 text-muted-foreground"
+            <div className="flex flex-wrap gap-3">
+              {worksWith.map((w) => (
+                <div
+                  key={w.label}
+                  className="flex items-center gap-2 rounded-lg bg-card px-3.5 py-2 shadow-sm ring-1 ring-border/70"
                 >
-                  <badge.icon className="h-5 w-5 text-primary" />
-                  <span className="text-sm font-semibold">{badge.label}</span>
-                </motion.div>
+                  <w.icon className={`h-4 w-4 ${w.tone}`} />
+                  <span className={`text-sm font-extrabold ${w.tone}`}>{w.label}</span>
+                </div>
               ))}
             </div>
           </motion.div>
+        </div>
+      </div>
 
-          {/* ---- Right: real Kenya, real money ---- */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.9, delay: 0.25, ease: [0.22, 1, 0.36, 1] }}
-            className="relative mx-auto w-full max-w-xl mt-4 lg:mt-0"
-          >
-            <motion.div
-              className="relative rounded-[2rem] overflow-hidden bg-card border border-border/60 shadow-[var(--shadow-lift)] p-2"
-              whileHover={{ y: -6 }}
-              transition={{ type: "spring", stiffness: 200 }}
-            >
-              <img
-                src={heroImage}
-                alt="Kenyan shop owner receiving a payment notification on her phone"
-                className="w-full h-[380px] sm:h-[440px] md:h-[520px] object-cover rounded-[1.6rem]"
-                width={1024}
-                height={1280}
-              />
-            </motion.div>
+      {/* Script accents — poster energy */}
+      <motion.p
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.6, duration: 0.8 }}
+        className="hidden lg:block absolute right-8 top-24 z-10 font-script text-3xl font-bold leading-tight text-accent text-right rotate-[-2deg]"
+      >
+        Same Hustle,
+        <br />
+        Bigger Opportunities
+      </motion.p>
+      <motion.p
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.75, duration: 0.8 }}
+        className="hidden md:block absolute right-10 sm:right-16 bottom-[16%] z-10 font-script text-3xl lg:text-4xl font-bold leading-tight text-card text-right rotate-[-3deg] drop-shadow-md"
+      >
+        Your <span className="text-primary">Money</span>
+        <br />
+        Has Value!
+      </motion.p>
 
-            {/* Floating: payment received */}
-            <motion.div
-              initial={{ opacity: 0, x: -24 }}
-              animate={{ opacity: 1, x: 0, y: [0, -10, 0] }}
-              transition={{
-                opacity: { delay: 0.8, duration: 0.5 },
-                x: { delay: 0.8, duration: 0.5 },
-                y: { duration: 4.5, repeat: Infinity, ease: "easeInOut" },
-              }}
-              className="hidden sm:block absolute -left-4 md:-left-10 top-14 bg-card rounded-2xl px-4 py-3 border border-border shadow-[var(--shadow-card)]"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-accent/15 flex items-center justify-center">
-                  <CheckCircle2 className="h-5 w-5 text-accent" />
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-foreground">KES 12,500</p>
-                  <p className="text-xs text-muted-foreground">Payment received · M-Pesa</p>
-                </div>
-              </div>
-            </motion.div>
+      {/* Bottom strip on the navy wave */}
+      <div className="relative z-10 px-4 pb-7 sm:pb-9">
+        <div className="container">
+          <div className="flex flex-wrap items-center gap-x-8 gap-y-4">
+            <Link to="/dashboard">
+              <Button
+                variant="glow"
+                size="xl"
+                className="font-bold rounded-xl shadow-lg shadow-primary/30"
+              >
+                Start Accepting Payments
+                <ArrowRight className="ml-2 h-5 w-5" />
+              </Button>
+            </Link>
 
-            {/* Floating: escrow released */}
-            <motion.div
-              initial={{ opacity: 0, x: 24 }}
-              animate={{ opacity: 1, x: 0, y: [0, 10, 0] }}
-              transition={{
-                opacity: { delay: 1.05, duration: 0.5 },
-                x: { delay: 1.05, duration: 0.5 },
-                y: { duration: 5, repeat: Infinity, ease: "easeInOut", delay: 1 },
-              }}
-              className="hidden sm:block absolute -right-3 md:-right-8 bottom-24 bg-card rounded-2xl px-4 py-3 border border-border shadow-[var(--shadow-card)]"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center">
-                  <Banknote className="h-5 w-5 text-primary" />
+            <div className="flex flex-wrap items-center gap-x-7 gap-y-3 text-card">
+              {bottomItems.map((item) => (
+                <div key={item.title} className="flex items-center gap-2.5">
+                  <item.icon className="h-5 w-5 text-primary" strokeWidth={2.2} />
+                  <p className="text-sm font-bold leading-tight">
+                    {item.title}
+                    <br />
+                    <span className="font-medium text-card/85">{item.sub}</span>
+                  </p>
                 </div>
-                <div>
-                  <p className="text-sm font-bold text-foreground">Escrow released</p>
-                  <p className="text-xs text-muted-foreground">Order #2841 · Both sides safe</p>
-                </div>
-              </div>
-            </motion.div>
+              ))}
+            </div>
 
-            {/* Floating: capital */}
-            <motion.div
-              initial={{ opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 1.3, duration: 0.5 }}
-              className="hidden md:block absolute left-10 -bottom-4 bg-card rounded-2xl px-4 py-2.5 border border-border shadow-[var(--shadow-card)]"
-            >
-              <p className="text-xs text-muted-foreground">Working capital unlocked</p>
-              <p className="text-sm font-bold text-safaricom">KES 150,000 offer</p>
-            </motion.div>
-          </motion.div>
+            <p className="ml-auto hidden lg:block text-[11px] font-bold tracking-[0.3em] text-card/90">
+              SIMPLE. SMART. FOR YOU.
+            </p>
+          </div>
         </div>
       </div>
     </section>
