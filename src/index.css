@@ -6,13 +6,13 @@
 
 @layer base {
   :root {
-    /* SwiftPay — light professional identity
-       White canvas, deep navy ink, warm orange energy, Kenyan green prosperity */
-    --background: 210 45% 98%;
-    --foreground: 222 58% 14%;
+    /* SwiftPay — poster identity: exact shades from the reference art
+       Navy ink #042258 · Orange #FD971C · Green #1C9F42 · Light blue #E9F2FB */
+    --background: 48 60% 98%;
+    --foreground: 219 93% 18%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222 58% 14%;
+    --card-foreground: 219 93% 18%;
 
     --popover: 0 0% 100%;
     --popover-foreground: 222 58% 14%;
