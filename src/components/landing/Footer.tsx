@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Github, Twitter, Linkedin, ArrowUp, Lock, Zap } from "lucide-react";
+import { Github, Twitter, Linkedin, ArrowUp, Lock } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import axios from "axios";
@@ -120,10 +120,12 @@ export function Footer() {
         <div className="grid lg:grid-cols-6 gap-12 mb-16">
           {/* Brand & Newsletter */}
           <div className="lg:col-span-2 space-y-6">
-            <Link to="/" className="flex items-center gap-2">
-              <div className="h-11 w-11 rounded-xl bg-primary flex items-center justify-center shadow-sm">
-                <Zap className="h-6 w-6 text-white" fill="currentColor" />
-              </div>
+            <Link to="/" className="flex items-center gap-2.5">
+              <img
+                src={logo}
+                alt="SwiftPay"
+                className="h-11 w-11 rounded-xl object-contain shadow-sm ring-1 ring-border/60 bg-card"
+              />
               <span className="font-display text-2xl font-bold tracking-tight text-foreground">Swift<span className="text-primary">Pay</span></span>
             </Link>
             <p className="text-muted-foreground max-w-xs">
