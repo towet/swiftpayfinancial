@@ -54,6 +54,7 @@ const features = [
     description: "PCI-DSS compliant infrastructure with end-to-end encryption.",
     size: "large",
     tone: "accent",
+    image: bankSecurityImg,
   },
   {
     icon: Headphones,
