@@ -46,7 +46,7 @@ export function StatsSection() {
     <section className="py-20 relative overflow-hidden">
       {/* Poster-style navy band with orange & green ribbon edges */}
       <div className="container relative z-10 px-4">
-        <div className="relative rounded-3xl bg-[hsl(219_93%_18%)] overflow-hidden shadow-[0_24px_60px_-24px_hsl(219_93%_18%/0.5)]">
+        <div className="relative rounded-3xl bg-ink overflow-hidden shadow-[0_24px_60px_-24px_hsl(var(--ink)/0.5)]">
           {/* Ribbon accents along the top edge — solid, no gradients */}
           <div className="absolute top-0 inset-x-0 h-1.5 bg-primary" />
           <div className="absolute top-1.5 inset-x-0 h-1 bg-accent" />

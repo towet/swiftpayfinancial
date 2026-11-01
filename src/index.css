@@ -8,6 +8,7 @@
   :root {
     /* SwiftPay — poster identity: exact shades from the reference art
        Navy ink #042258 · Orange #FD971C · Green #1C9F42 · Light blue #E9F2FB */
+    --ink: 219 93% 18%;
     --background: 48 60% 98%;
     --foreground: 219 93% 18%;
 
