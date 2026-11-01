@@ -11,6 +11,10 @@ import {
   RefreshCw,
   ArrowRight,
 } from "lucide-react";
+import instantPaymentsImg from "@/assets/features/instant-payments.webp";
+import realtimeDashboardImg from "@/assets/features/realtime-dashboard.webp";
+import bankSecurityImg from "@/assets/features/bank-security.webp";
+import autoReconciliationImg from "@/assets/features/auto-reconciliation.webp";
 
 const features = [
   {
@@ -19,6 +23,7 @@ const features = [
     description: "Process M-Pesa STK push payments in under 3 seconds with real-time confirmation.",
     size: "large",
     tone: "primary",
+    image: instantPaymentsImg,
   },
   {
     icon: BarChart3,
@@ -26,6 +31,7 @@ const features = [
     description: "Monitor transactions, revenue, and performance metrics in a beautiful interface.",
     size: "large",
     tone: "accent",
+    image: realtimeDashboardImg,
   },
   {
     icon: Code2,
