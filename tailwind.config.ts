@@ -20,6 +20,7 @@ export default {
         mono: ['JetBrains Mono', 'monospace'],
       },
       colors: {
+        ink: "hsl(var(--ink))",
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",

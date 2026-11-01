@@ -44,57 +44,44 @@ function AnimatedNumber({ value, prefix = "", suffix = "" }: { value: number; pr
 export function StatsSection() {
   return (
     <section className="py-20 relative overflow-hidden">
-      {/* Background gradient with Safaricom green */}
-      <div className="absolute inset-0 gradient-safaricom opacity-10" />
-      <div className="absolute inset-0 bg-gradient-to-r from-background via-transparent to-background" />
-      
-      {/* Animated background orbs */}
-      <motion.div
-        className="absolute top-1/2 left-1/4 w-64 h-64 rounded-full bg-safaricom/10 blur-3xl"
-        animate={{ scale: [1, 1.2, 1], opacity: [0.1, 0.2, 0.1] }}
-        transition={{ duration: 5, repeat: Infinity }}
-      />
-      <motion.div
-        className="absolute top-1/2 right-1/4 w-48 h-48 rounded-full bg-primary/10 blur-3xl"
-        animate={{ scale: [1.2, 1, 1.2], opacity: [0.1, 0.2, 0.1] }}
-        transition={{ duration: 5, repeat: Infinity, delay: 1 }}
-      />
-      
+      {/* Poster-style navy band with orange & green ribbon edges */}
       <div className="container relative z-10 px-4">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-          className="glass-strong rounded-2xl p-8 md:p-12 border border-safaricom/20 glow-safaricom"
-        >
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            {stats.map((stat, index) => (
-              <motion.div
-                key={stat.label}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: index * 0.1 }}
-                whileHover={{ scale: 1.05 }}
-                className="text-center group cursor-pointer"
-              >
-                <motion.p 
-                  className="text-4xl md:text-5xl font-bold gradient-text-safaricom mb-2"
-                  animate={{ opacity: [1, 0.8, 1] }}
-                  transition={{ duration: 3, repeat: Infinity, delay: index * 0.2 }}
+        <div className="relative rounded-3xl bg-ink overflow-hidden shadow-[0_24px_60px_-24px_hsl(var(--ink)/0.5)]">
+          {/* Ribbon accents along the top edge — solid, no gradients */}
+          <div className="absolute top-0 inset-x-0 h-1.5 bg-primary" />
+          <div className="absolute top-1.5 inset-x-0 h-1 bg-accent" />
+
+          {/* Subtle corner accents */}
+          <div className="absolute -top-16 -right-16 h-56 w-56 rounded-full bg-primary/10" />
+          <div className="absolute -bottom-20 -left-16 h-64 w-64 rounded-full bg-accent/10" />
+
+          <div className="relative px-6 py-12 md:px-12 md:py-16">
+            <p className="text-center text-[11px] font-bold tracking-[0.3em] text-primary mb-10">
+              SIMPLE. SMART. FOR YOU.
+            </p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+              {stats.map((stat, index) => (
+                <motion.div
+                  key={stat.label}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.5, delay: index * 0.1 }}
+                  className="text-center group"
                 >
-                  <AnimatedNumber 
-                    value={stat.value} 
-                    prefix={stat.prefix} 
-                    suffix={stat.suffix} 
-                  />
-                </motion.p>
-                <p className="text-muted-foreground font-medium group-hover:text-safaricom transition-colors">{stat.label}</p>
-              </motion.div>
-            ))}
+                  <p className="text-4xl md:text-5xl font-display font-bold text-white mb-2 group-hover:text-primary transition-colors">
+                    <AnimatedNumber
+                      value={stat.value}
+                      prefix={stat.prefix}
+                      suffix={stat.suffix}
+                    />
+                  </p>
+                  <p className="text-white/70 font-medium group-hover:text-white transition-colors">{stat.label}</p>
+                </motion.div>
+              ))}
+            </div>
           </div>
-        </motion.div>
+        </div>
       </div>
     </section>
   );

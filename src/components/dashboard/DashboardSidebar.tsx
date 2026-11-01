@@ -87,7 +87,7 @@ export function DashboardSidebar() {
       animate={{ x: 0, opacity: 1 }}
       transition={{ duration: 0.5 }}
       className={cn(
-        "fixed left-0 top-0 bottom-0 z-40 flex flex-col glass-strong border-r border-border transition-all duration-300",
+        "fixed left-0 top-0 bottom-0 z-40 flex flex-col bg-card border-r border-border transition-all duration-300",
         collapsed ? "w-20" : "w-64"
       )}
     >
@@ -101,9 +101,9 @@ export function DashboardSidebar() {
             <motion.span
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="text-xl font-bold gradient-text"
+              className="text-xl font-bold text-foreground"
             >
-              SwiftPay
+              Swift<span className="text-primary">Pay</span>
             </motion.span>
           )}
         </Link>

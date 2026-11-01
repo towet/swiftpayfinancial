@@ -11,6 +11,10 @@ import {
   RefreshCw,
   ArrowRight,
 } from "lucide-react";
+import instantPaymentsImg from "@/assets/features/instant-payments.webp";
+import realtimeDashboardImg from "@/assets/features/realtime-dashboard.webp";
+import bankSecurityImg from "@/assets/features/bank-security.webp";
+import autoReconciliationImg from "@/assets/features/auto-reconciliation.webp";
 
 const features = [
   {
@@ -19,6 +23,7 @@ const features = [
     description: "Process M-Pesa STK push payments in under 3 seconds with real-time confirmation.",
     size: "large",
     tone: "primary",
+    image: instantPaymentsImg,
   },
   {
     icon: BarChart3,
@@ -26,6 +31,7 @@ const features = [
     description: "Monitor transactions, revenue, and performance metrics in a beautiful interface.",
     size: "large",
     tone: "accent",
+    image: realtimeDashboardImg,
   },
   {
     icon: Code2,
@@ -54,6 +60,7 @@ const features = [
     description: "PCI-DSS compliant infrastructure with end-to-end encryption.",
     size: "large",
     tone: "accent",
+    image: bankSecurityImg,
   },
   {
     icon: Headphones,
@@ -75,8 +82,11 @@ const features = [
     description: "Automatic matching of transactions with your accounting system.",
     size: "wide",
     tone: "primary",
+    image: autoReconciliationImg,
   },
 ];
+
+type FeatureItem = (typeof features)[number] & { image?: string };
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -108,7 +118,7 @@ const toneStyles: Record<string, { chip: string; title: string; hoverBorder: str
   },
 };
 
-function FeatureCard({ feature }: { feature: (typeof features)[0] }) {
+function FeatureCard({ feature }: { feature: FeatureItem }) {
   const tone = toneStyles[feature.tone];
   const isWide = feature.size === "wide";
 
@@ -122,7 +132,19 @@ function FeatureCard({ feature }: { feature: (typeof features)[0] }) {
       }`}
     >
       <div className={`flex ${isWide ? "flex-row items-center gap-6" : "flex-col gap-4"} `}>
-        <div className={`inline-flex p-3 rounded-xl ${tone.chip} shrink-0 transition-transform duration-300 group-hover:scale-105`}>
+        {feature.image && (
+          <img
+            src={feature.image}
+            alt={feature.title}
+            loading="lazy"
+            className={
+              isWide
+                ? "h-24 w-28 md:h-32 md:w-48 shrink-0 rounded-xl object-cover ring-1 ring-border/60"
+                : "h-40 w-full rounded-xl object-cover ring-1 ring-border/60 transition-transform duration-500 group-hover:scale-[1.04]"
+            }
+          />
+        )}
+        <div className={`inline-flex self-start p-3 rounded-xl ${tone.chip} shrink-0 transition-transform duration-300 group-hover:scale-105`}>
           <feature.icon className="h-6 w-6" />
         </div>
         <div className={isWide ? "flex-1" : ""}>

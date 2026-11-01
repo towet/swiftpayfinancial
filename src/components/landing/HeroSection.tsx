@@ -1,8 +1,11 @@
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Zap, ShieldCheck, Banknote, ArrowRight, Smartphone, Landmark, CreditCard } from "lucide-react";
+import { Zap, ShieldCheck, Banknote, ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import heroPoster from "@/assets/hero-poster.jpg";
+import mpesaLogo from "@/assets/payments/mpesa.jpg.asset.json";
+import cardLogo from "@/assets/payments/visa-mastercard.jpg.asset.json";
+import banksLogo from "@/assets/payments/banks-kenya.png.asset.json";
 
 const featureChips = [
   { icon: Zap, label: "Instant", strong: "Settlement" },
@@ -11,9 +14,9 @@ const featureChips = [
 ];
 
 const worksWith = [
-  { icon: Smartphone, label: "M-Pesa", tone: "text-accent" },
-  { icon: CreditCard, label: "Visa · Mastercard", tone: "text-foreground" },
-  { icon: Landmark, label: "Banks", tone: "text-primary" },
+  { logo: mpesaLogo, label: "M-Pesa", alt: "M-Pesa" },
+  { logo: cardLogo, label: "Visa · Mastercard", alt: "Visa and Mastercard" },
+  { logo: banksLogo, label: "KCB · Equity", alt: "KCB and Equity bank" },
 ];
 
 const bottomItems = [
@@ -103,10 +106,17 @@ export function HeroSection() {
               {worksWith.map((w) => (
                 <div
                   key={w.label}
-                  className="flex items-center gap-2 rounded-lg bg-card px-3.5 py-2 shadow-sm ring-1 ring-border/70"
+                  className="flex items-center gap-2.5 rounded-lg bg-card px-3.5 py-2 shadow-sm ring-1 ring-border/70"
                 >
-                  <w.icon className={`h-4 w-4 ${w.tone}`} />
-                  <span className={`text-sm font-extrabold ${w.tone}`}>{w.label}</span>
+                  <span className="flex h-6 w-11 items-center justify-center overflow-hidden rounded-md bg-white ring-1 ring-border/60">
+                    <img
+                      src={w.logo}
+                      alt={w.alt}
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                    />
+                  </span>
+                  <span className="text-sm font-extrabold text-foreground">{w.label}</span>
                 </div>
               ))}
             </div>

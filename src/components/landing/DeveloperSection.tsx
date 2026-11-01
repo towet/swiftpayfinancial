@@ -27,11 +27,9 @@ const features = [
 
 export const DeveloperSection = () => {
   return (
-    <section className="relative py-24 overflow-hidden">
-      {/* Background */}
-      <div className="absolute inset-0 bg-gradient-to-b from-background via-background/95 to-background" />
-      
+    <section className="relative py-24 overflow-hidden bg-secondary/30">
       {/* Subtle grid pattern */}
+
       <div className="absolute inset-0 opacity-[0.02]" style={{
         backgroundImage: `linear-gradient(hsl(var(--foreground)) 1px, transparent 1px),
                           linear-gradient(90deg, hsl(var(--foreground)) 1px, transparent 1px)`,
@@ -50,11 +48,9 @@ export const DeveloperSection = () => {
             className="order-2 lg:order-1"
           >
             <div className="relative group">
-              {/* Glow effect */}
-              <div className="absolute -inset-1 bg-gradient-to-r from-safaricom/20 via-primary/20 to-safaricom/20 rounded-2xl blur-xl opacity-50 group-hover:opacity-75 transition-opacity duration-500" />
-              
               {/* Code window */}
-              <div className="relative bg-[#0d1117] rounded-2xl border border-border overflow-hidden shadow-2xl">
+              <div className="relative bg-[#0d1117] rounded-2xl border border-border overflow-hidden shadow-[0_24px_60px_-24px_hsl(222_58%_14%/0.4)]">
+
                 {/* Window header */}
                 <div className="flex items-center gap-3 px-4 py-3 bg-[#161b22] border-b border-border/50">
                   <div className="flex gap-2">
@@ -180,7 +176,7 @@ export const DeveloperSection = () => {
                 <h2 className="font-display text-4xl md:text-5xl font-bold leading-tight">
                   <span className="text-foreground">Start Receiving</span>
                   <br />
-                  <span className="gradient-text-safaricom">
+                  <span className="text-accent">
                     Business Payments
                   </span>
                   <br />
