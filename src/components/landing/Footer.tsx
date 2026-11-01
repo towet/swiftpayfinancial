@@ -113,8 +113,8 @@ export function Footer() {
   };
 
   return (
-    <footer className="relative pt-24 pb-12 border-t border-border">
-      <div className="absolute inset-0 bg-gradient-to-t from-card/50 to-transparent" />
+    <footer className="relative pt-24 pb-12 bg-secondary/30 border-t border-border">
+
       
       <div className="container relative z-10 px-4">
         <div className="grid lg:grid-cols-6 gap-12 mb-16">
