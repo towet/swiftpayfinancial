@@ -1,11 +1,15 @@
 import { motion } from "framer-motion";
 import { useState } from "react";
 import { UserPlus, Code, CheckCircle2, ArrowRight, Sparkles, Zap } from "lucide-react";
+import stepSignupImg from "@/assets/steps/step-signup.webp";
+import stepIntegrateImg from "@/assets/steps/step-integrate.webp";
+import stepGetpaidImg from "@/assets/steps/step-getpaid.webp";
 
 const steps = [
   {
     number: "01",
     icon: UserPlus,
+    image: stepSignupImg,
     title: "Sign Up",
     subtitle: "Create Account",
     description: "Create your free account in under 2 minutes. No credit card required.",
@@ -19,6 +23,7 @@ const steps = [
     subtitle: "Add Code",
     description: "Add a few lines of code to start accepting payments.",
     tone: "accent",
+    image: stepIntegrateImg,
     code: `const swiftpay = new SwiftPay({
   apiKey: 'your_api_key'
 });
@@ -37,6 +42,7 @@ const payment = await swiftpay.stkPush({
     subtitle: "Start Earning",
     description: "Receive payments instantly to your M-Pesa account with real-time notifications.",
     tone: "primary",
+    image: stepGetpaidImg,
     features: ["Instant settlement", "Real-time alerts", "Auto reconcile"],
   },
 ];
