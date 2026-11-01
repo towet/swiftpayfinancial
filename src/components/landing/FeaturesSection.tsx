@@ -82,8 +82,11 @@ const features = [
     description: "Automatic matching of transactions with your accounting system.",
     size: "wide",
     tone: "primary",
+    image: autoReconciliationImg,
   },
 ];
+
+type FeatureItem = (typeof features)[number] & { image?: string };
 
 const containerVariants = {
   hidden: { opacity: 0 },
