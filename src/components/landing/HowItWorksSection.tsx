@@ -74,10 +74,24 @@ function StepCard({ step, index, isActive, onClick }: { step: (typeof steps)[0];
       whileHover={{ y: -6 }}
     >
       <motion.div
-        className={`relative overflow-hidden rounded-3xl bg-card border border-border p-6 md:p-8 min-h-[340px] flex flex-col transition-all duration-500 ${
+        className={`relative overflow-hidden rounded-3xl bg-card border border-border p-6 md:p-8 min-h-[430px] flex flex-col transition-all duration-500 ${
           isActive ? `ring-2 ${tone.ring}` : "ring-1 ring-border/60"
         }`}
       >
+        {/* Step visual — original SwiftPay imagery */}
+        <motion.div
+          className="relative mb-6 overflow-hidden rounded-2xl ring-1 ring-border/60"
+          animate={{ opacity: isActive ? 1 : 0.55 }}
+          transition={{ duration: 0.4 }}
+        >
+          <img
+            src={step.image}
+            alt={step.title}
+            loading="lazy"
+            className="h-36 w-full object-cover transition-transform duration-500 group-hover:scale-105"
+          />
+        </motion.div>
+
         {/* Step Number Badge */}
         <div className="flex items-center gap-3 mb-6">
           <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-lg text-white ${tone.chip}`}>
