@@ -82,7 +82,7 @@ export function RevenueChart() {
     if (active && payload && payload.length) {
       return (
         <div 
-          className="glass-strong rounded-lg p-3 border border-border"
+          className="rounded-lg p-3 border border-border shadow-[var(--shadow-card)]"
           style={{ 
             backgroundColor: "hsl(var(--background))", 
             border: "1px solid hsl(var(--border))",
@@ -90,7 +90,7 @@ export function RevenueChart() {
           }}
         >
           <p className="text-sm font-medium text-foreground">{label}</p>
-          <p className="text-lg font-bold gradient-text">
+          <p className="text-lg font-bold text-primary">
             KES {payload[0].value.toLocaleString()}
           </p>
           <p className="text-xs text-muted-foreground">
@@ -122,7 +122,7 @@ export function RevenueChart() {
               className={cn(
                 "px-3 py-1.5 text-sm font-medium rounded-md transition-all",
                 activeRange === range
-                  ? "gradient-primary text-primary-foreground"
+                  ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
