@@ -77,7 +77,7 @@ export default function TillAnalytics() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <RefreshCw className="w-12 h-12 animate-spin text-primary mx-auto mb-4" />
           <p className="text-muted-foreground">Loading analytics...</p>
@@ -88,7 +88,7 @@ export default function TillAnalytics() {
 
   if (!analytics) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <p className="text-muted-foreground">No analytics data available</p>
       </div>
     );
@@ -363,7 +363,7 @@ export default function TillAnalytics() {
   const formatKES = (value: number) => `KES ${Number(value || 0).toLocaleString()}`;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+    <div className="min-h-screen bg-background">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
