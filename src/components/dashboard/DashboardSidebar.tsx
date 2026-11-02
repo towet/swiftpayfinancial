@@ -94,7 +94,7 @@ export function DashboardSidebar() {
       {/* Logo */}
       <div className="p-6 flex items-center justify-between">
         <Link to="/dashboard" className="flex items-center gap-2">
-          <div className="h-10 w-10 overflow-hidden rounded-lg">
+          <div className="h-10 w-10 overflow-hidden rounded-lg bg-ink">
             <img src={logo} alt="SwiftPay" className="h-full w-full object-contain scale-[1.8]" />
           </div>
           {!collapsed && (
