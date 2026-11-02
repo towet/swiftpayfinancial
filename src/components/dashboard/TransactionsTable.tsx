@@ -80,7 +80,7 @@ export function TransactionsTable({ limit, showViewAll = true }: TransactionsTab
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="glass rounded-xl overflow-hidden"
+      className="bg-card border border-border rounded-xl overflow-hidden shadow-[var(--shadow-card)]"
     >
       <div className="p-6 border-b border-border flex items-center justify-between">
         <h3 className="text-lg font-semibold text-foreground">Recent Transactions</h3>

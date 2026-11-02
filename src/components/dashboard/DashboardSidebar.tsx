@@ -94,7 +94,7 @@ export function DashboardSidebar() {
       {/* Logo */}
       <div className="p-6 flex items-center justify-between">
         <Link to="/dashboard" className="flex items-center gap-2">
-          <div className="h-10 w-10 overflow-hidden rounded-lg">
+          <div className="h-10 w-10 overflow-hidden rounded-lg bg-ink">
             <img src={logo} alt="SwiftPay" className="h-full w-full object-contain scale-[1.8]" />
           </div>
           {!collapsed && (
@@ -121,7 +121,7 @@ export function DashboardSidebar() {
               className={cn(
                 "flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 group",
                 isActive
-                  ? "gradient-primary text-primary-foreground glow-sm"
+                  ? "bg-primary text-primary-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground hover:bg-secondary"
               )}
             >
@@ -164,7 +164,7 @@ export function DashboardSidebar() {
               className={cn(
                 "flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 group",
                 isActive
-                  ? "gradient-primary text-primary-foreground glow-sm"
+                  ? "bg-primary text-primary-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground hover:bg-secondary"
               )}
             >

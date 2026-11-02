@@ -121,11 +121,13 @@ export function Footer() {
           {/* Brand & Newsletter */}
           <div className="lg:col-span-2 space-y-6">
             <Link to="/" className="flex items-center gap-2.5">
-              <img
-                src={logo}
-                alt="SwiftPay"
-                className="h-11 w-11 rounded-xl object-contain shadow-sm ring-1 ring-border/60 bg-card"
-              />
+              <div className="h-11 w-11 overflow-hidden rounded-lg bg-ink shadow-sm ring-1 ring-border/60">
+                <img
+                  src={logo}
+                  alt="SwiftPay"
+                  className="h-full w-full object-contain scale-[1.8]"
+                />
+              </div>
               <span className="font-display text-2xl font-bold tracking-tight text-foreground">Swift<span className="text-primary">Pay</span></span>
             </Link>
             <p className="text-muted-foreground max-w-xs">

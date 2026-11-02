@@ -37,11 +37,13 @@ export function Navbar() {
         <div className="container px-4 flex items-center justify-between">
           {/* Logo — original SwiftPay mark */}
           <Link to="/" className="flex items-center gap-2.5 group">
-            <img
-              src={logo}
-              alt="SwiftPay"
-              className="h-10 w-10 rounded-xl object-contain shadow-sm ring-1 ring-border/60 bg-card transition-transform duration-300 group-hover:scale-105"
-            />
+            <div className="h-10 w-10 overflow-hidden rounded-lg bg-ink shadow-sm ring-1 ring-border/60 transition-transform duration-300 group-hover:scale-105">
+              <img
+                src={logo}
+                alt="SwiftPay"
+                className="h-full w-full object-contain scale-[1.8]"
+              />
+            </div>
             <span className="font-display text-xl font-bold tracking-tight text-foreground">
               Swift<span className="text-primary">Pay</span>
             </span>

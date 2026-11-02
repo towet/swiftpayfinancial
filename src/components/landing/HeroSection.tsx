@@ -3,9 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Zap, ShieldCheck, Banknote, ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import heroPoster from "@/assets/hero-poster.jpg";
-import mpesaLogo from "@/assets/payments/mpesa.jpg.asset.json";
-import cardLogo from "@/assets/payments/visa-mastercard.jpg.asset.json";
-import banksLogo from "@/assets/payments/banks-kenya.png.asset.json";
+import mpesaLogo from "@/assets/payments/mpesa.jpg";
+import cardLogo from "@/assets/payments/visa-mastercard.jpg";
+import banksLogo from "@/assets/payments/banks-kenya.png";
 
 const featureChips = [
   { icon: Zap, label: "Instant", strong: "Settlement" },

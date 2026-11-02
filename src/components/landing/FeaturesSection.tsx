@@ -16,7 +16,16 @@ import realtimeDashboardImg from "@/assets/features/realtime-dashboard.webp";
 import bankSecurityImg from "@/assets/features/bank-security.webp";
 import autoReconciliationImg from "@/assets/features/auto-reconciliation.webp";
 
-const features = [
+type FeatureItem = {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+  size: "large" | "medium" | "wide";
+  tone: "primary" | "accent";
+  image?: string;
+};
+
+const features: FeatureItem[] = [
   {
     icon: Zap,
     title: "Instant Payments",
@@ -85,8 +94,6 @@ const features = [
     image: autoReconciliationImg,
   },
 ];
-
-type FeatureItem = (typeof features)[number] & { image?: string };
 
 const containerVariants = {
   hidden: { opacity: 0 },

@@ -268,7 +268,7 @@ const DashboardMiniApps = () => {
                       <div className="space-y-4">
                         {/* Header */}
                         <div className="flex items-start justify-between">
-                          <div className="w-12 h-12 bg-gradient-to-br from-primary to-primary/60 rounded-xl flex items-center justify-center">
+                          <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
                             <Store className="h-6 w-6 text-white" />
                           </div>
                           <div className="flex gap-1">
