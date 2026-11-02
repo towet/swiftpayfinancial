@@ -88,7 +88,7 @@ export function ActivityTimeline() {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: 0.2 }}
-      className="glass rounded-xl p-6"
+      className="bg-card border border-border rounded-xl p-6 shadow-[var(--shadow-card)]"
     >
       <h3 className="text-lg font-semibold text-foreground mb-6">Recent Activity</h3>
 

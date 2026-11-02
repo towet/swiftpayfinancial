@@ -47,11 +47,11 @@ export function QuickActions() {
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.3, delay: index * 0.1 }}
-          className="w-full glass rounded-xl p-4 hover:bg-card/60 hover:border-primary/30 transition-all duration-300 cursor-pointer group text-left"
+          className="w-full bg-card border border-border rounded-xl p-4 hover:border-primary/40 hover:shadow-[var(--shadow-lift)] transition-all duration-300 cursor-pointer group text-left"
         >
           <div className="flex items-center gap-4">
-            <div className="p-3 rounded-lg gradient-primary group-hover:scale-110 transition-transform">
-              <action.icon className="h-5 w-5 text-primary-foreground" />
+            <div className="p-3 rounded-lg bg-ink group-hover:bg-primary transition-colors">
+              <action.icon className="h-5 w-5 text-primary group-hover:text-primary-foreground transition-colors" />
             </div>
             <div className="flex-1">
               <p className="font-medium text-foreground group-hover:text-primary transition-colors">
