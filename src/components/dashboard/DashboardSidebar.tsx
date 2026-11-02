@@ -121,7 +121,7 @@ export function DashboardSidebar() {
               className={cn(
                 "flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 group",
                 isActive
-                  ? "gradient-primary text-primary-foreground glow-sm"
+                  ? "bg-primary text-primary-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground hover:bg-secondary"
               )}
             >
@@ -164,7 +164,7 @@ export function DashboardSidebar() {
               className={cn(
                 "flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 group",
                 isActive
-                  ? "gradient-primary text-primary-foreground glow-sm"
+                  ? "bg-primary text-primary-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground hover:bg-secondary"
               )}
             >

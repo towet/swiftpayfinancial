@@ -203,7 +203,7 @@ export function DashboardHeader({ title, breadcrumbs = [] }: DashboardHeaderProp
           <div className="relative">
             <button
               onClick={() => setShowNotifications(!showNotifications)}
-              className="relative p-2 rounded-lg glass hover:bg-secondary transition-colors"
+              className="relative p-2 rounded-lg bg-secondary hover:bg-secondary/70 transition-colors"
             >
               <Bell className="h-5 w-5 text-muted-foreground" />
               <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-primary animate-pulse" />
@@ -213,7 +213,7 @@ export function DashboardHeader({ title, breadcrumbs = [] }: DashboardHeaderProp
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="absolute right-0 top-12 w-80 glass-strong rounded-xl p-4 space-y-3"
+                className="absolute right-0 top-12 w-80 bg-card border border-border shadow-[0_16px_40px_-16px_hsl(222_58%_14%/0.25)] rounded-xl p-4 space-y-3"
               >
                 <h3 className="font-semibold text-foreground">Notifications</h3>
                 {notifications.map((notif) => (
@@ -233,9 +233,9 @@ export function DashboardHeader({ title, breadcrumbs = [] }: DashboardHeaderProp
           <div className="relative">
             <button
               onClick={() => setShowProfile(!showProfile)}
-              className="flex items-center gap-3 p-2 rounded-lg glass hover:bg-secondary transition-colors"
+              className="flex items-center gap-3 p-2 rounded-lg bg-secondary hover:bg-secondary/70 transition-colors"
             >
-              <div className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center text-sm font-semibold text-primary-foreground">
+              <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-sm font-semibold text-primary-foreground">
                 {getInitials(user?.fullName || "User")}
               </div>
               <div className="hidden md:block text-left">
@@ -249,7 +249,7 @@ export function DashboardHeader({ title, breadcrumbs = [] }: DashboardHeaderProp
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="absolute right-0 top-14 w-56 glass-strong rounded-xl p-2 space-y-1"
+                className="absolute right-0 top-14 w-56 bg-card border border-border shadow-[0_16px_40px_-16px_hsl(222_58%_14%/0.25)] rounded-xl p-2 space-y-1"
               >
                 {profileMenuItems.map((item) => (
                   <button
