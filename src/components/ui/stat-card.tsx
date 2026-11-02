@@ -60,7 +60,7 @@ export function StatCard({
       transition={{ duration: 0.5, delay }}
       whileHover={{ scale: 1.02, y: -3 }}
       className={cn(
-        "glass rounded-xl p-6 group hover:bg-card/60 transition-all duration-300 hover:border-safaricom/40 hover:glow-safaricom",
+        "bg-card border border-border rounded-xl p-6 group transition-all duration-300 shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-lift)] hover:border-primary/40",
         className
       )}
     >
@@ -73,7 +73,7 @@ export function StatCard({
           {trend && (
             <div className={cn(
               "flex items-center gap-1 text-sm font-medium",
-              trend.isPositive ? "text-safaricom" : "text-destructive"
+              trend.isPositive ? "text-accent" : "text-destructive"
             )}>
               <motion.span
                 animate={trend.isPositive ? { y: [0, -2, 0] } : { y: [0, 2, 0] }}
@@ -87,11 +87,11 @@ export function StatCard({
           )}
         </div>
         <motion.div 
-          className="p-3 rounded-lg gradient-safaricom opacity-80 group-hover:opacity-100 transition-all duration-300"
+          className="p-3 rounded-lg bg-ink group-hover:bg-primary transition-colors duration-300"
           whileHover={{ rotate: [0, -10, 10, 0], scale: 1.1 }}
           transition={{ duration: 0.5 }}
         >
-          <Icon className="h-5 w-5 text-safaricom-foreground" />
+          <Icon className="h-5 w-5 text-primary transition-colors duration-300 group-hover:text-primary-foreground" />
         </motion.div>
       </div>
     </motion.div>
