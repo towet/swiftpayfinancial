@@ -170,7 +170,7 @@ export function MiniAppBuilder() {
           <Button 
             onClick={handleSave} 
             disabled={isSaving}
-            className="rounded-full px-6 bg-gradient-to-r from-indigo-600 to-rose-500 hover:scale-105 transition-transform shadow-lg"
+            className="rounded-full px-6 bg-primary hover:bg-primary/90 transition-colors shadow-sm"
           >
             {isSaving ? <Zap className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
             {isSaving ? 'Publishing...' : 'Go Live'}

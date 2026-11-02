@@ -155,27 +155,34 @@ export default function Dashboard() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="glass rounded-xl p-6"
+            className="relative rounded-2xl bg-ink overflow-hidden shadow-[0_20px_50px_-22px_hsl(var(--ink)/0.55)] p-6"
           >
-            <div className="flex items-start justify-between gap-4 flex-wrap">
+            {/* Poster ribbon edges */}
+            <div className="absolute top-0 inset-x-0 h-1.5 bg-primary" />
+            <div className="absolute top-1.5 inset-x-0 h-1 bg-accent" />
+            <div className="absolute -top-14 -right-14 h-44 w-44 rounded-full bg-primary/10" />
+            <div className="absolute -bottom-16 -left-16 h-48 w-48 rounded-full bg-accent/10" />
+
+            <div className="relative flex items-start justify-between gap-4 flex-wrap">
               <div>
-                <h2 className="text-xl font-semibold text-foreground">Wallet</h2>
-                <p className="text-sm text-muted-foreground mt-1">Available balance updates immediately when withdrawals are approved (reserved).</p>
+                <p className="text-[11px] font-bold tracking-[0.28em] text-primary mb-1">YOUR MONEY</p>
+                <h2 className="text-xl font-semibold text-white">Wallet</h2>
+                <p className="text-sm text-white/70 mt-1 max-w-md">Available balance updates immediately when withdrawals are approved (reserved).</p>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-              <div className="bg-secondary/40 rounded-lg p-4 border border-border">
-                <p className="text-xs text-muted-foreground">Ledger</p>
-                <p className="text-lg font-semibold text-foreground mt-1">KES {Number(walletBalance || 0).toLocaleString()}</p>
+            <div className="relative grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+              <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                <p className="text-xs text-white/60">Ledger</p>
+                <p className="text-lg font-semibold text-white mt-1">KES {Number(walletBalance || 0).toLocaleString()}</p>
               </div>
-              <div className="bg-secondary/40 rounded-lg p-4 border border-border">
-                <p className="text-xs text-muted-foreground">Reserved</p>
-                <p className="text-lg font-semibold text-foreground mt-1">KES {Number(walletReserved || 0).toLocaleString()}</p>
+              <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                <p className="text-xs text-white/60">Reserved</p>
+                <p className="text-lg font-semibold text-white mt-1">KES {Number(walletReserved || 0).toLocaleString()}</p>
               </div>
-              <div className="bg-secondary/40 rounded-lg p-4 border border-border">
-                <p className="text-xs text-muted-foreground">Available</p>
-                <p className="text-lg font-semibold text-foreground mt-1">KES {Number(walletAvailable || 0).toLocaleString()}</p>
+              <div className="bg-primary rounded-xl p-4 shadow-sm">
+                <p className="text-xs text-white/80">Available</p>
+                <p className="text-lg font-semibold text-white mt-1">KES {Number(walletAvailable || 0).toLocaleString()}</p>
               </div>
             </div>
           </motion.div>
