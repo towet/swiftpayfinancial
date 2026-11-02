@@ -110,7 +110,7 @@ export function HeroSection() {
                 >
                   <span className="flex h-6 w-11 items-center justify-center overflow-hidden rounded-md bg-white ring-1 ring-border/60">
                     <img
-                      src={w.logo}
+                      src={w.logo.url}
                       alt={w.alt}
                       className="h-full w-full object-cover"
                       loading="lazy"
