@@ -127,7 +127,7 @@ export default function Login() {
         >
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 mb-8 group">
-            <div className="h-10 w-10 overflow-hidden rounded-lg group-hover:glow-sm transition-shadow">
+            <div className="h-10 w-10 overflow-hidden rounded-lg bg-ink group-hover:glow-sm transition-shadow">
               <img
                 src={logo}
                 alt="SwiftPay"
