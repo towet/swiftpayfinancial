@@ -63,7 +63,7 @@ export default function DeveloperPortal() {
         return;
       }
 
-      const response = await fetch('https://swiftpay-backend-uvv9.onrender.com/api/mpesa/stk-push-api', {
+      const response = await fetch('/api/mpesa/stk-push-api', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -104,7 +104,7 @@ export default function DeveloperPortal() {
         return;
       }
 
-      const response = await fetch('https://swiftpay-backend-uvv9.onrender.com/api/mpesa/stk-push-api', {
+      const response = await fetch('/api/mpesa/stk-push-api', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
