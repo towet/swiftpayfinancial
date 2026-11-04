@@ -11,10 +11,10 @@ import {
   RefreshCw,
   ArrowRight,
 } from "lucide-react";
-import instantPaymentsImg from "@/assets/features/instant-payments.webp";
-import realtimeDashboardImg from "@/assets/features/realtime-dashboard.webp";
-import bankSecurityImg from "@/assets/features/bank-security.webp";
-import autoReconciliationImg from "@/assets/features/auto-reconciliation.webp";
+import instantPaymentsImg from "@/assets/features/instant-payments.jpg";
+import realtimeDashboardImg from "@/assets/features/realtime-dashboard.jpg";
+import bankSecurityImg from "@/assets/features/bank-security.jpg";
+import autoReconciliationImg from "@/assets/features/auto-reconciliation.jpg";
 
 type FeatureItem = {
   icon: React.ComponentType<{ className?: string }>;

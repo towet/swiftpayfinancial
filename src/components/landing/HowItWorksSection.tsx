@@ -1,9 +1,9 @@
 import { motion } from "framer-motion";
 import { useState } from "react";
 import { UserPlus, Code, CheckCircle2, ArrowRight, Sparkles, Zap } from "lucide-react";
-import stepSignupImg from "@/assets/steps/step-signup.webp";
-import stepIntegrateImg from "@/assets/steps/step-integrate.webp";
-import stepGetpaidImg from "@/assets/steps/step-getpaid.webp";
+import stepSignupImg from "@/assets/steps/step-signup.jpg";
+import stepIntegrateImg from "@/assets/steps/step-integrate.jpg";
+import stepGetpaidImg from "@/assets/steps/step-getpaid.jpg";
 
 const steps = [
   {

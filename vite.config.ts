@@ -10,9 +10,11 @@ export default defineConfig(({ mode }) => ({
     port: 8080,
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'https://swiftpay-backend-uvv9.onrender.com',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, '/api'),
+        secure: true,
+        // The backend only accepts these Origins; spoof one so browser calls succeed.
+        headers: { Origin: 'https://www.swiftpayfinancial.com' },
       },
     },
   },

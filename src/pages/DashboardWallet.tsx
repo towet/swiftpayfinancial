@@ -81,11 +81,10 @@ export default function DashboardWallet() {
 
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
+  // Display-only: the URL shown in developer code samples (real calls go through /api).
   const apiBaseUrl =
     (import.meta as any)?.env?.VITE_API_BASE_URL ||
-    (import.meta.env?.MODE === "development"
-      ? "http://localhost:5000"
-      : "https://swiftpay-backend-uvv9.onrender.com");
+    "https://swiftpay-backend-uvv9.onrender.com";
 
   const formatAmount = (value: number) => {
     return new Intl.NumberFormat("en-KE", {
