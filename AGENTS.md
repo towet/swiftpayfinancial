@@ -1,0 +1,4 @@
+# SwiftPay — Project Rules
+
+- Backend API is the live Render service `https://swiftpay-backend-uvv9.onrender.com` (used by `src/lib/api.ts`, `vercel.json`, developer portal docs). All frontend API calls go through relative `/api/...` paths, never hardcoded backend URLs — in dev/preview the Vite proxy forwards `/api` to the backend; in production Vercel rewrites `/api` to it. Why: the backend only accepts requests whose `Origin` is `www.swiftpayfinancial.com` or `swiftpayfinancial.com` (any other Origin gets HTTP 500), so direct browser calls fail — `vite.config.ts` spoofs the whitelisted Origin on the proxy.
+- Login flow: `POST /api/auth/login` may return `otp_required` with a `challengeToken`; OTP is verified at `POST /api/auth/login/verify-otp` and resent at `/api/auth/login/resend-otp`. JWT token + user object are stored in localStorage under `token` / `user`.
