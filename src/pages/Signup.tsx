@@ -25,36 +25,52 @@ export default function Signup() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    setIsLoading(true);
 
-    if (password !== confirmPassword) {
-      setError("Passwords do not match");
-      setIsLoading(false);
+    const normalizedName = fullName.trim();
+    const normalizedEmail = email.trim();
+    const normalizedCompany = companyName.trim();
+
+    if (!normalizedName) {
+      setError("Enter your full name to continue.");
       return;
     }
 
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+
+    setIsLoading(true);
     try {
       const response = await axios.post("/api/auth/register", {
-        email,
+        email: normalizedEmail,
         password,
-        fullName,
-        companyName,
+        fullName: normalizedName,
+        companyName: normalizedCompany,
       });
 
-      if (response.data.status === "success") {
-        localStorage.setItem("token", response.data.token);
-        localStorage.setItem("user", JSON.stringify(response.data.user));
-        localStorage.setItem("lastActivityAt", String(Date.now()));
-
-        toast({
-          title: "Account created!",
-          description: "Welcome to SwiftPay. You can now start accepting payments.",
-        });
-
-        navigate("/dashboard");
+      if (response.data?.status !== "success" || !response.data?.token || !response.data?.user) {
+        throw new Error(response.data?.message || "We couldn't finish creating your account. Please try again.");
       }
-    } catch (err: any) {
-      const errorMessage = err.response?.data?.message || "Registration failed. Please try again.";
+
+      localStorage.setItem("token", response.data.token);
+      localStorage.setItem("user", JSON.stringify(response.data.user));
+      localStorage.setItem("lastActivityAt", String(Date.now()));
+
+      toast({
+        title: "Account created!",
+        description: "Welcome to SwiftPay. You can now start accepting payments.",
+      });
+
+      navigate("/dashboard");
+    } catch (err: unknown) {
+      const errorMessage = axios.isAxiosError(err)
+        ? err.response?.data?.message || (err.response
+          ? "We couldn't create your account with those details. Check them and try again."
+          : "We couldn't reach SwiftPay. Check your connection and try again.")
+        : err instanceof Error
+          ? err.message
+          : "Registration failed. Please try again.";
       setError(errorMessage);
       toast({
         title: "Registration failed",
