@@ -14,7 +14,7 @@ const signupSchema = z.object({
   fullName: z.string().trim().min(1, "Enter your full name to continue.").max(120, "Full name is too long."),
   companyName: z.string().trim().max(160, "Company name is too long."),
   email: z.string().trim().email("Enter a valid email address.").max(255, "Email address is too long."),
-  password: z.string().min(8, "Use a password with at least 8 characters.").max(128, "Password is too long."),
+  password: z.string().min(1, "Enter a password to continue."),
 });
 
 export default function Signup() {
@@ -65,7 +65,14 @@ export default function Signup() {
 
       const { status, token, user, message } = response.data ?? {};
       if (status !== "success" || typeof token !== "string" || !user || typeof user !== "object") {
-        throw new Error(message || "SwiftPay didn't confirm your account. Please try again or contact support.");
+        const serverMessage = typeof message === "string"
+          ? message
+          : typeof response.data?.error === "string"
+            ? response.data.error
+            : null;
+        throw new Error(serverMessage || (status === "success"
+          ? "SwiftPay may have received your signup but didn't return sign-in details. Try signing in before registering again."
+          : "SwiftPay couldn't confirm your signup. Please check your details and try again."));
       }
 
       localStorage.setItem("token", response.data.token);
@@ -80,7 +87,8 @@ export default function Signup() {
       navigate("/dashboard");
     } catch (err: unknown) {
       const errorMessage = axios.isAxiosError(err)
-        ? (typeof err.response?.data?.message === "string" && err.response.data.message.trim()) || (err.response
+        ? (typeof err.response?.data?.message === "string" && err.response.data.message.trim()) ||
+          (typeof err.response?.data?.error === "string" && err.response.data.error.trim()) || (err.response
           ? `We couldn't create your account (${err.response.status}). Check your details and try again.`
           : "We couldn't reach SwiftPay. Check your connection and try again.")
         : err instanceof Error
