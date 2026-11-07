@@ -63,14 +63,15 @@ export default function Signup() {
         companyName: normalizedCompany,
       });
 
-      const { status, token, user, message } = response.data ?? {};
-      if (status !== "success" || typeof token !== "string" || !user || typeof user !== "object") {
+      const { status, success, token, user, message } = response.data ?? {};
+      const registrationSucceeded = status === "success" || success === true;
+      if (!registrationSucceeded || typeof token !== "string" || !user || typeof user !== "object") {
         const serverMessage = typeof message === "string"
           ? message
           : typeof response.data?.error === "string"
             ? response.data.error
             : null;
-        throw new Error(serverMessage || (status === "success"
+        throw new Error(serverMessage || (registrationSucceeded
           ? "SwiftPay may have received your signup but didn't return sign-in details. Try signing in before registering again."
           : "SwiftPay couldn't confirm your signup. Please check your details and try again."));
       }
