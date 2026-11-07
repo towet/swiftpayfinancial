@@ -7,7 +7,15 @@ import { Eye, EyeOff, Mail, Lock, Loader2, Building2 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import axios from "axios";
+import { z } from "zod";
 import logo from "@/assets/swiftlogosss-Photoroom.png";
+
+const signupSchema = z.object({
+  fullName: z.string().trim().min(1, "Enter your full name to continue.").max(120, "Full name is too long."),
+  companyName: z.string().trim().max(160, "Company name is too long."),
+  email: z.string().trim().email("Enter a valid email address.").max(255, "Email address is too long."),
+  password: z.string().min(1, "Enter a password to continue."),
+});
 
 export default function Signup() {
   const [fullName, setFullName] = useState("");
@@ -30,13 +38,19 @@ export default function Signup() {
     const normalizedEmail = email.trim();
     const normalizedCompany = companyName.trim();
 
-    if (!normalizedName) {
-      setError("Enter your full name to continue.");
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
       return;
     }
 
-    if (password !== confirmPassword) {
-      setError("Passwords do not match");
+    const validation = signupSchema.safeParse({
+      fullName: normalizedName,
+      companyName: normalizedCompany,
+      email: normalizedEmail,
+      password,
+    });
+    if (!validation.success) {
+      setError(validation.error.issues[0]?.message ?? "Check your details and try again.");
       return;
     }
 
@@ -49,8 +63,17 @@ export default function Signup() {
         companyName: normalizedCompany,
       });
 
-      if (response.data?.status !== "success" || !response.data?.token || !response.data?.user) {
-        throw new Error(response.data?.message || "We couldn't finish creating your account. Please try again.");
+      const { status, success, token, user, message } = response.data ?? {};
+      const registrationSucceeded = status === "success" || success === true;
+      if (!registrationSucceeded || typeof token !== "string" || !user || typeof user !== "object") {
+        const serverMessage = typeof message === "string"
+          ? message
+          : typeof response.data?.error === "string"
+            ? response.data.error
+            : null;
+        throw new Error(serverMessage || (registrationSucceeded
+          ? "SwiftPay may have received your signup but didn't return sign-in details. Try signing in before registering again."
+          : "SwiftPay couldn't confirm your signup. Please check your details and try again."));
       }
 
       localStorage.setItem("token", response.data.token);
@@ -65,8 +88,9 @@ export default function Signup() {
       navigate("/dashboard");
     } catch (err: unknown) {
       const errorMessage = axios.isAxiosError(err)
-        ? err.response?.data?.message || (err.response
-          ? "We couldn't create your account with those details. Check them and try again."
+        ? (typeof err.response?.data?.message === "string" && err.response.data.message.trim()) ||
+          (typeof err.response?.data?.error === "string" && err.response.data.error.trim()) || (err.response
+          ? `We couldn't create your account (${err.response.status}). Check your details and try again.`
           : "We couldn't reach SwiftPay. Check your connection and try again.")
         : err instanceof Error
           ? err.message
