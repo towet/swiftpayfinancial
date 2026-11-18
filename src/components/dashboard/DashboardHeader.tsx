@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { NotificationBell } from "@/components/dashboard/NotificationBell";
+import { GlobalSearch } from "@/components/dashboard/GlobalSearch";
 import { Search, Bell, ChevronDown, LogOut, Settings, HelpCircle, User, Zap, AlertTriangle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
@@ -194,15 +195,8 @@ export function DashboardHeader({ title, breadcrumbs = [] }: DashboardHeaderProp
 
         {/* Right side - Search, Notifications, Profile */}
         <div className="flex items-center gap-4">
-          {/* Search */}
-          <div className="relative hidden md:block">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="text"
-              placeholder="Search..."
-              className="w-64 pl-9 bg-secondary border-border focus:border-primary/50"
-            />
-          </div>
+          {/* Global Search */}
+          <GlobalSearch />
 
           {/* KYC Status Chip */}
           {(() => {

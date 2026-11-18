@@ -5485,6 +5485,16 @@ const processMpesaCallback = async (req, res) => {
             timestamp: new Date().toISOString()
           });
 
+          // In-app notification for merchant
+          try {
+            await createNotification(till.user_id, {
+              type: 'payment_received',
+              title: `💰 Payment Received — KES ${Number(amount).toLocaleString()}`,
+              body: `KES ${Number(amount).toLocaleString()} from ${phone || 'customer'}.${mpesaReceiptNumber ? ' Receipt: ' + mpesaReceiptNumber : ''}`,
+              metadata: { amount, phone, receipt: mpesaReceiptNumber, transaction_id: txn.id }
+            });
+          } catch (_) {}
+
           await sendPaymentNotificationEmails({
             userId: till.user_id,
             event: 'payment.success',
@@ -8116,6 +8126,20 @@ const deductPlatformFee = async (userId, transactionId, transactionAmount) => {
     })
     .eq('id', transactionId);
 
+  // Fire low-balance notification if balance dropped below 100
+  if (newBalance < 100 && newBalance >= -500) {
+    try {
+      await createNotification(userId, {
+        type: 'token_low',
+        title: newBalance <= 0 ? '🚨 Tokens Exhausted' : '⚠️ Low Token Balance',
+        body: newBalance <= 0
+          ? `Your token balance is KES ${newBalance.toLocaleString()}. Top up now to avoid payment interruptions.`
+          : `Your token balance is running low at KES ${newBalance.toLocaleString()}. Top up soon to keep payments flowing.`,
+        metadata: { balance: newBalance, fee }
+      });
+    } catch (_) {} // low_balance_notif
+  }
+
   return { fee, deducted: true, newBalance, ledgerRow };
 };
 
@@ -8364,6 +8388,15 @@ app.post('/api/callbacks/token-topup', async (req, res) => {
         `M-Pesa top-up receipt: ${mpesaReceiptNumber || 'N/A'} — Phone: ${phone || topup.phone_number}`,
       );
 
+      // Notify user tokens were loaded
+      try {
+        await createNotification(topup.user_id, {
+          type: 'token_topup',
+          title: '⚡ Tokens Loaded Successfully',
+          body: `KES ${Number(amount || topup.amount).toLocaleString()} worth of tokens have been added to your account.${mpesaReceiptNumber ? ' Receipt: ' + mpesaReceiptNumber : ''}`,
+          metadata: { amount: amount || topup.amount, receipt: mpesaReceiptNumber }
+        });
+      } catch (_) {} // token_topup_notif
       console.log(`[TokenTopup] Credited KES ${amount || topup.amount} tokens to user ${topup.user_id}`);
     } else {
       await supabase
@@ -9060,6 +9093,41 @@ app.get('/api/transactions/export', verifyToken, async (req, res) => {
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename="swiftpay-transactions-${Date.now()}.csv"`);
     res.send(csv);
+  } catch (e) {
+    res.status(500).json({ status: 'error', message: e.message });
+  }
+});
+
+// GET /api/search?q=term — global search across transactions, tills, payment links
+app.get('/api/search', verifyToken, async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim();
+    if (!q || q.length < 2) return res.json({ status: 'success', results: [] });
+
+    const [txns, tills, links] = await Promise.all([
+      supabase.from('transactions')
+        .select('id, amount, phone_number, status, mpesa_receipt, created_at, till_id')
+        .eq('user_id', req.userId)
+        .or(`phone_number.ilike.%${q}%,mpesa_receipt.ilike.%${q}%,reference.ilike.%${q}%`)
+        .order('created_at', { ascending: false }).limit(5),
+      supabase.from('tills')
+        .select('id, till_name, till_number, status')
+        .eq('user_id', req.userId)
+        .or(`till_name.ilike.%${q}%,till_number.ilike.%${q}%`)
+        .limit(5),
+      supabase.from('payment_links')
+        .select('id, title, slug, amount')
+        .eq('user_id', req.userId)
+        .or(`title.ilike.%${q}%,slug.ilike.%${q}%`)
+        .limit(5),
+    ]);
+
+    const results = [
+      ...(txns.data || []).map(r => ({ type: 'transaction', label: `KES ${r.amount} — ${r.phone_number || r.mpesa_receipt || r.id.slice(0,8)}`, sub: r.status, url: '/dashboard/transactions', id: r.id })),
+      ...(tills.data || []).map(r => ({ type: 'till', label: r.till_name, sub: r.till_number, url: '/dashboard/accounts', id: r.id })),
+      ...(links.data || []).map(r => ({ type: 'link', label: r.title, sub: `KES ${r.amount}`, url: '/dashboard/payment-links', id: r.id })),
+    ];
+    res.json({ status: 'success', results });
   } catch (e) {
     res.status(500).json({ status: 'error', message: e.message });
   }
