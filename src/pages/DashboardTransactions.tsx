@@ -5,7 +5,7 @@ import { KYCBanner } from "@/components/dashboard/KYCBanner";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Download, Filter, Loader2 } from "lucide-react";
+import { Search, Download, Filter, Loader2, Copy, Check } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn, formatTimeInAppTz } from "@/lib/utils";
 import axios from "axios";
@@ -20,6 +20,7 @@ interface Transaction {
   phone_number: string;
   status: "success" | "pending" | "failed";
   platform_fee?: number | null;
+  mpesa_receipt?: string | null;
   created_at: string;
 }
 
@@ -35,7 +36,30 @@ export default function DashboardTransactions() {
   const [activeFilter, setActiveFilter] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  const [copiedReceipt, setCopiedReceipt] = useState<string | null>(null);
   const { toast } = useToast();
+
+  const handleExportCSV = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const params = new URLSearchParams();
+      if (searchQuery) params.set('search', searchQuery);
+      if (activeFilter && activeFilter !== 'All') params.set('status', activeFilter.toLowerCase());
+      const resp = await fetch(`/api/transactions/export?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!resp.ok) throw new Error('Export failed');
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `swiftpay-transactions-${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      toast({ title: 'Export failed', description: 'Could not download transactions', variant: 'destructive' });
+    }
+  };
 
   useEffect(() => {
     fetchTransactions();
@@ -64,25 +88,6 @@ export default function DashboardTransactions() {
     try {
       const token = localStorage.getItem("token");
 
-  const handleExportCSV = async () => {
-    try {
-      const params = new URLSearchParams();
-      if (search) params.set('search', search);
-      const resp = await fetch(`/api/transactions/export?${params.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!resp.ok) throw new Error('Export failed');
-      const blob = await resp.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `swiftpay-transactions-${new Date().toISOString().slice(0,10)}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (err: any) {
-      console.error('CSV export error:', err);
-    }
-  };
       const response = await axios.get("/api/transactions", {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -262,6 +267,9 @@ export default function DashboardTransactions() {
                         Fee
                       </th>
                       <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-6 py-4">
+                        Receipt
+                      </th>
+                      <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-6 py-4">
                         Time
                       </th>
                     </tr>
@@ -307,6 +315,20 @@ export default function DashboardTransactions() {
                               ? `KES ${tx.platform_fee}`
                               : <span className="text-muted-foreground/50">—</span>}
                           </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          {tx.mpesa_receipt ? (
+                            <button
+                              onClick={() => { navigator.clipboard.writeText(tx.mpesa_receipt!); setCopiedReceipt(tx.id); setTimeout(() => setCopiedReceipt(null), 2000); }}
+                              className="flex items-center gap-1 font-mono text-xs text-muted-foreground hover:text-primary transition-colors group"
+                              title="Copy receipt"
+                            >
+                              {tx.mpesa_receipt}
+                              {copiedReceipt === tx.id ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100" />}
+                            </button>
+                          ) : (
+                            <span className="text-muted-foreground/40 text-xs">—</span>
+                          )}
                         </td>
                         <td className="px-6 py-4">
                           <span className="text-sm text-muted-foreground">

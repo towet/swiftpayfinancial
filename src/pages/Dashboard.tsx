@@ -106,31 +106,32 @@ export default function Dashboard() {
       setWalletAvailable(wAvailable);
 
       // Update stats
+      const trends = dashStats.trends || {};
       setStats([
         {
           title: "Total Revenue",
           value: dashStats.totalAmount || 0,
           icon: DollarSign,
-          trend: { value: 12.5, isPositive: true },
+          trend: { value: Math.abs(trends.revenue?.pct ?? 0), isPositive: trends.revenue?.isPositive ?? true },
           prefix: "KES ",
         },
         {
           title: "Total Transactions",
           value: totalTransactions,
           icon: Receipt,
-          trend: { value: 8.2, isPositive: true },
+          trend: { value: Math.abs(trends.transactions?.pct ?? 0), isPositive: trends.transactions?.isPositive ?? true },
         },
         {
           title: "Active Tills",
           value: activeTills,
           icon: CreditCard,
-          trend: { value: 2, isPositive: true },
+          trend: { value: 0, isPositive: true },
         },
         {
           title: "Success Rate",
           value: parseFloat(successRate as string),
           icon: TrendingUp,
-          trend: { value: 0.5, isPositive: true },
+          trend: { value: Math.abs(trends.successRate?.pct ?? 0), isPositive: trends.successRate?.isPositive ?? true },
           suffix: "%",
         },
       ]);

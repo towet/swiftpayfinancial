@@ -6738,14 +6738,48 @@ app.get('/api/dashboard/stats', verifyToken, async (req, res) => {
     });
     const successfulTransactions = txs.filter(t => isPaidStatus(t.status));
 
-    // ...
+    // Real trend: compare today vs yesterday
+    const now = new Date();
+    const todayStart = new Date(now); todayStart.setHours(0,0,0,0);
+    const yesterdayStart = new Date(todayStart); yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+    const yesterdayEnd = new Date(todayStart);
+
+    const todayTxs = txs.filter(t => new Date(t.created_at) >= todayStart);
+    const yesterdayTxs = txs.filter(t => {
+      const d = new Date(t.created_at);
+      return d >= yesterdayStart && d < yesterdayEnd;
+    });
+
+    const todaySuccessful = todayTxs.filter(t => isPaidStatus(t.status));
+    const yesterdaySuccessful = yesterdayTxs.filter(t => isPaidStatus(t.status));
+
+    const todayRevenue = todaySuccessful.reduce((s, t) => s + Number(t.amount || 0), 0);
+    const yesterdayRevenue = yesterdaySuccessful.reduce((s, t) => s + Number(t.amount || 0), 0);
+
+    const pct = (today, yesterday) => {
+      if (yesterday === 0) return today > 0 ? 100 : 0;
+      return Math.round(((today - yesterday) / yesterday) * 100 * 10) / 10;
+    };
+
+    const revenuePct = pct(todayRevenue, yesterdayRevenue);
+    const txPct     = pct(todayTxs.length, yesterdayTxs.length);
+
+    const todaySuccessRate = todayTxs.length > 0 ? (todaySuccessful.length / todayTxs.length) * 100 : 0;
+    const ystdSuccessRate  = yesterdayTxs.length > 0 ? (yesterdaySuccessful.length / yesterdayTxs.length) * 100 : 0;
+    const ratePct = pct(todaySuccessRate, ystdSuccessRate);
 
     const stats = {
       totalTransactions: txs.length,
       totalAmount: successfulTransactions.reduce((sum, t) => sum + Number(t.amount || 0), 0),
       successfulTransactions: successfulTransactions.length,
       failedTransactions: txs.filter(t => String(t.status || '').toLowerCase() === 'failed').length,
-      pendingTransactions: txs.filter(t => String(t.status || '').toLowerCase() === 'pending').length
+      pendingTransactions: txs.filter(t => String(t.status || '').toLowerCase() === 'pending').length,
+      // Real trend data (today vs yesterday)
+      trends: {
+        revenue:      { pct: revenuePct,  isPositive: revenuePct  >= 0, todayValue: todayRevenue,        label: 'vs yesterday' },
+        transactions: { pct: txPct,       isPositive: txPct       >= 0, todayValue: todayTxs.length,     label: 'vs yesterday' },
+        successRate:  { pct: ratePct,     isPositive: ratePct     >= 0, todayValue: Math.round(todaySuccessRate * 10) / 10, label: 'vs yesterday' },
+      }
     };
 
     res.json({ status: 'success', stats });

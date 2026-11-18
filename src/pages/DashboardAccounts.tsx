@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Wallet, CreditCard, Plus, Loader2, CheckCircle2, AlertCircle, Copy, Check, Edit2, Trash2 } from "lucide-react";
+import { Wallet, CreditCard, Plus, Loader2, CheckCircle2, AlertCircle, Copy, Check, Edit2, Trash2, Zap } from "lucide-react";
 import axios from "axios";
 import { useToast } from "@/hooks/use-toast";
 
@@ -31,6 +31,11 @@ export default function DashboardAccounts() {
     description: "",
   });
   const { toast } = useToast();
+
+  const [chargingTill, setChargingTill] = useState<string | null>(null);
+  const [chargePhone, setChargePhone] = useState('');
+  const [chargeAmount, setChargeAmount] = useState('');
+  const [chargingLoading, setChargingLoading] = useState(false);
 
   useEffect(() => {
     fetchTills();
@@ -153,6 +158,19 @@ export default function DashboardAccounts() {
     navigator.clipboard.writeText(text);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleCharge = async (tillId: string) => {
+    if (!chargePhone || !chargeAmount) return toast({ title: 'Missing fields', description: 'Phone and amount are required', variant: 'destructive' });
+    setChargingLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post('/api/mpesa/stk-push', { phone_number: chargePhone, amount: Number(chargeAmount), till_id: tillId }, { headers: { Authorization: `Bearer ${token}` } });
+      toast({ title: '✅ Payment Request Sent', description: `STK push sent to ${chargePhone}. Ask customer to check their phone.` });
+      setChargingTill(null); setChargePhone(''); setChargeAmount('');
+    } catch (err: any) {
+      toast({ title: 'STK Push Failed', description: err?.response?.data?.message || 'Could not send payment request', variant: 'destructive' });
+    } finally { setChargingLoading(false); }
   };
 
   return (
@@ -312,6 +330,43 @@ export default function DashboardAccounts() {
                           )}
                         </button>
                       </div>
+                    </div>
+
+                    {/* Quick Charge */}
+                    <div className="pt-3 border-t border-border">
+                      <button
+                        onClick={() => { setChargingTill(chargingTill === till.id ? null : till.id); setChargePhone(''); setChargeAmount(''); }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground transition-all w-full justify-center"
+                      >
+                        <Zap className="w-3.5 h-3.5" />
+                        {chargingTill === till.id ? 'Cancel' : '⚡ Request Payment'}
+                      </button>
+                      {chargingTill === till.id && (
+                        <div className="mt-3 space-y-2">
+                          <Input
+                            placeholder="Customer phone (e.g. 0712345678)"
+                            value={chargePhone}
+                            onChange={e => setChargePhone(e.target.value)}
+                            className="text-sm h-9"
+                          />
+                          <Input
+                            placeholder="Amount (KES)"
+                            type="number"
+                            min="1"
+                            value={chargeAmount}
+                            onChange={e => setChargeAmount(e.target.value)}
+                            className="text-sm h-9"
+                          />
+                          <button
+                            disabled={chargingLoading}
+                            onClick={() => handleCharge(till.id)}
+                            className="w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition disabled:opacity-60"
+                          >
+                            {chargingLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                            Send STK Push
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </motion.div>
