@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
+import { TokenWarningBanner } from "@/components/dashboard/TokenWarningBanner";
 import { StatCard } from "@/components/ui/stat-card";
 import { RevenueChart } from "@/components/dashboard/RevenueChart";
 import { TransactionsTable } from "@/components/dashboard/TransactionsTable";
@@ -150,6 +151,7 @@ export default function Dashboard() {
 
       <main className="ml-20 lg:ml-64 transition-all duration-300">
         <DashboardHeader title="Dashboard" breadcrumbs={["Home", "Overview"]} />
+        <TokenWarningBanner />
 
         <div className="p-6 space-y-6">
           <motion.div

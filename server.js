@@ -4750,6 +4750,19 @@ app.post('/api/payment-links/:id/pay', async (req, res) => {
     const accountReference = `PAY${String(linkRow.id || '').replace(/-/g, '').slice(0, 8)}`;
 
     if (selectedTill?.id && selectedTill?.till_number) {
+      // ── Token balance gate (payment link) ──
+      if (linkRow?.user_id) {
+        const gate3 = await checkTokenBalanceGate(linkRow.user_id, amount);
+        if (!gate3.allowed) {
+          return res.status(402).json({
+            status: 'error',
+            code: 'INSUFFICIENT_TOKENS',
+            message: 'Payment unavailable: the merchant has insufficient platform credits. Please contact the merchant.',
+            fee_required: gate3.fee,
+          });
+        }
+      }
+
       const token = await getMpesaAccessToken();
       const timestamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14);
       const password = Buffer.from(`${MPESA_BUSINESS_SHORT_CODE}${MPESA_PASSKEY}${timestamp}`).toString('base64');
@@ -4935,6 +4948,19 @@ app.post('/api/mpesa/stk-push', verifyToken, async (req, res) => {
 
     if (!till) {
       return res.status(404).json({ status: 'error', message: 'Till not found' });
+    }
+
+    // ── Token balance gate ──
+    const gate1 = await checkTokenBalanceGate(req.userId, amount);
+    if (!gate1.allowed) {
+      return res.status(402).json({
+        status: 'error',
+        code: 'INSUFFICIENT_TOKENS',
+        message: `Insufficient token balance. This transaction requires KES ${gate1.fee} in platform fees. Your balance is KES ${gate1.balance}. Please top up your tokens at /dashboard/tokens.`,
+        fee_required: gate1.fee,
+        balance: gate1.balance,
+        shortfall: gate1.shortfall,
+      });
     }
 
     const token = await getMpesaAccessToken();
@@ -5620,6 +5646,21 @@ app.post('/api/mpesa/stk-push-api', verifyApiKey, async (req, res) => {
 
       till = newTill;
       console.log('Till created successfully:', till);
+    }
+
+    // ── Token balance gate (API key endpoint) ──
+    if (req.userId) {
+      const gate2 = await checkTokenBalanceGate(req.userId, amount);
+      if (!gate2.allowed) {
+        return res.status(402).json({
+          status: 'error',
+          code: 'INSUFFICIENT_TOKENS',
+          message: `Insufficient token balance. This transaction requires KES ${gate2.fee} in platform fees. Current balance: KES ${gate2.balance}. Please top up tokens.`,
+          fee_required: gate2.fee,
+          balance: gate2.balance,
+          shortfall: gate2.shortfall,
+        });
+      }
     }
 
     const token = await getMpesaAccessToken();
@@ -8010,6 +8051,24 @@ const deductPlatformFee = async (userId, transactionId, transactionAmount) => {
   return { fee, deducted: true, newBalance, ledgerRow };
 };
 
+
+// ── Token Balance Gate ────────────────────────────────────────────────────────
+// Returns { allowed: true } or { allowed: false, fee, balance, shortfall }
+const checkTokenBalanceGate = async (userId, transactionAmount) => {
+  const fee = computePlatformFee(transactionAmount);
+  if (fee <= 0) return { allowed: true, fee: 0 };          // free tier — always allow
+  try {
+    const account = await ensureTokenAccountForUser(userId);
+    const balance = Number(account.balance || 0);
+    if (balance >= fee) return { allowed: true, fee, balance };
+    return { allowed: false, fee, balance, shortfall: fee - balance };
+  } catch (err) {
+    console.error('[TokenGate] Error checking balance:', err?.message);
+    return { allowed: true, fee };                          // fail-open: don't block on DB error
+  }
+};
+// ─────────────────────────────────────────────────────────────────────────────
+
 // ----------------------------------------------------------------
 // GET /api/tokens - Get current user's token balance + summary
 // ----------------------------------------------------------------
@@ -8346,6 +8405,201 @@ app.post('/api/super-admin/tokens/adjust', verifyToken, verifySuperAdmin, async 
     await supabase.from('token_accounts').update(updatePayload).eq('user_id', user_id);
 
     res.json({ status: 'success', ledgerRow, newBalance });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+
+
+// ================================================================
+// SUPER ADMIN — USERS MANAGEMENT ROUTES
+// ================================================================
+
+// GET /api/super-admin/users-overview
+// Full list of all users + their till count, transaction count, revenue, token balance
+app.get('/api/super-admin/users-overview', verifyToken, verifySuperAdmin, async (req, res) => {
+  try {
+    const search = req.query.search || '';
+    const page   = Math.max(1, parseInt(req.query.page  || '1', 10));
+    const limit  = Math.min(100, parseInt(req.query.limit || '50', 10));
+    const offset = (page - 1) * limit;
+
+    // 1. Fetch all users
+    let userQuery = supabase
+      .from('users')
+      .select('id, email, full_name, company_name, phone_number, role, created_at, is_active', { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (search) {
+      userQuery = userQuery.or(`email.ilike.%${search}%,full_name.ilike.%${search}%,company_name.ilike.%${search}%`);
+    }
+
+    const { data: users, error: usersError, count: totalCount } = await userQuery;
+    if (usersError) return res.status(400).json({ status: 'error', message: usersError.message });
+
+    // 2. For each user batch-fetch tills, transaction stats, token balance
+    const userIds = (users || []).map(u => u.id);
+
+    const [tillsRes, txStatsRes, tokenRes] = await Promise.all([
+      supabase
+        .from('tills')
+        .select('id, user_id, till_name, till_number, status, is_suspended, created_at')
+        .in('user_id', userIds),
+      supabase
+        .from('transactions')
+        .select('id, user_id:till_id(user_id), amount, status, created_at')
+        .in('till_id',
+          // Get all till IDs for these users — subquery via RPC not available, so we do it in JS below
+          // We'll get this after fetching tills
+        ),
+      supabase
+        .from('token_accounts')
+        .select('user_id, balance, total_topped_up, total_fees_charged')
+        .in('user_id', userIds),
+    ]);
+
+    // Build lookup maps
+    const tillsByUser  = {};
+    const tokenByUser  = {};
+
+    for (const till of (tillsRes.data || [])) {
+      if (!tillsByUser[till.user_id]) tillsByUser[till.user_id] = [];
+      tillsByUser[till.user_id].push(till);
+    }
+    for (const tok of (tokenRes.data || [])) {
+      tokenByUser[tok.user_id] = tok;
+    }
+
+    // Fetch transaction stats per user via their tills
+    const allTillIds = (tillsRes.data || []).map(t => t.id);
+    let txByUser = {};
+    if (allTillIds.length > 0) {
+      const { data: txns } = await supabase
+        .from('transactions')
+        .select('till_id, amount, status')
+        .in('till_id', allTillIds);
+
+      // Map till_id -> user_id
+      const tillToUser = {};
+      for (const t of (tillsRes.data || [])) tillToUser[t.id] = t.user_id;
+
+      for (const tx of (txns || [])) {
+        const uid = tillToUser[tx.till_id];
+        if (!uid) continue;
+        if (!txByUser[uid]) txByUser[uid] = { total: 0, success: 0, failed: 0, revenue: 0 };
+        txByUser[uid].total++;
+        if (tx.status === 'success') { txByUser[uid].success++; txByUser[uid].revenue += Number(tx.amount || 0); }
+        if (tx.status === 'failed')  txByUser[uid].failed++;
+      }
+    }
+
+    // 3. Compose response
+    const enriched = (users || []).map(u => ({
+      ...u,
+      tills:             tillsByUser[u.id] || [],
+      till_count:        (tillsByUser[u.id] || []).length,
+      active_till_count: (tillsByUser[u.id] || []).filter(t => !t.is_suspended).length,
+      transactions:      txByUser[u.id] || { total: 0, success: 0, failed: 0, revenue: 0 },
+      token_balance:     Number(tokenByUser[u.id]?.balance || 0),
+      token_total_topup: Number(tokenByUser[u.id]?.total_topped_up || 0),
+      token_fees_paid:   Number(tokenByUser[u.id]?.total_fees_charged || 0),
+    }));
+
+    res.json({
+      status:  'success',
+      users:   enriched,
+      total:   totalCount || 0,
+      page,
+      limit,
+      pages:   Math.ceil((totalCount || 0) / limit),
+    });
+  } catch (error) {
+    console.error('[Admin Users Overview]', error.message);
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+// GET /api/super-admin/users/:id
+// Full drill-down for a single user: profile, tills, recent transactions, token ledger, wallet
+app.get('/api/super-admin/users/:id', verifyToken, verifySuperAdmin, async (req, res) => {
+  try {
+    const userId = req.params.id;
+
+    const [userRes, tillsRes, tokenAccRes, tokenLedgerRes, walletRes] = await Promise.all([
+      supabase.from('users').select('*').eq('id', userId).single(),
+      supabase.from('tills').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
+      supabase.from('token_accounts').select('*').eq('user_id', userId).single(),
+      supabase.from('token_ledger').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(50),
+      supabase.from('wallets').select('*').eq('user_id', userId).single(),
+    ]);
+
+    if (userRes.error || !userRes.data) {
+      return res.status(404).json({ status: 'error', message: 'User not found' });
+    }
+
+    // Get till IDs
+    const tillIds = (tillsRes.data || []).map(t => t.id);
+
+    // Fetch last 100 transactions across all tills
+    let transactions = [];
+    if (tillIds.length > 0) {
+      const { data: txns } = await supabase
+        .from('transactions')
+        .select('*')
+        .in('till_id', tillIds)
+        .order('created_at', { ascending: false })
+        .limit(100);
+      transactions = txns || [];
+    }
+
+    // Compute tx stats
+    const txStats = {
+      total:   transactions.length,
+      success: transactions.filter(t => t.status === 'success').length,
+      pending: transactions.filter(t => t.status === 'pending').length,
+      failed:  transactions.filter(t => t.status === 'failed').length,
+      revenue: transactions.filter(t => t.status === 'success').reduce((s, t) => s + Number(t.amount || 0), 0),
+    };
+
+    // Wallet ledger
+    let walletLedger = [];
+    if (walletRes.data?.id) {
+      const { data: wl } = await supabase
+        .from('wallet_ledger')
+        .select('*')
+        .eq('wallet_id', walletRes.data.id)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      walletLedger = wl || [];
+    }
+
+    res.json({
+      status: 'success',
+      user:         userRes.data,
+      tills:        tillsRes.data || [],
+      transactions,
+      tx_stats:     txStats,
+      token_account: tokenAccRes.data || null,
+      token_ledger:  tokenLedgerRes.data || [],
+      wallet:        walletRes.data || null,
+      wallet_ledger: walletLedger,
+    });
+  } catch (error) {
+    console.error('[Admin User Detail]', error.message);
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+// POST /api/super-admin/users/:id/suspend  — toggle user active status
+app.post('/api/super-admin/users/:id/toggle-status', verifyToken, verifySuperAdmin, async (req, res) => {
+  try {
+    const { data: user } = await supabase.from('users').select('is_active').eq('id', req.params.id).single();
+    if (!user) return res.status(404).json({ status: 'error', message: 'User not found' });
+    const newStatus = !user.is_active;
+    await supabase.from('users').update({ is_active: newStatus }).eq('id', req.params.id);
+    res.json({ status: 'success', is_active: newStatus });
   } catch (error) {
     res.status(500).json({ status: 'error', message: error.message });
   }

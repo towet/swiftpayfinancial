@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
-import { Search, Bell, ChevronDown, LogOut, Settings, HelpCircle, User } from "lucide-react";
+import { Search, Bell, ChevronDown, LogOut, Settings, HelpCircle, User, Zap, AlertTriangle } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
@@ -26,6 +27,7 @@ export function DashboardHeader({ title, breadcrumbs = [] }: DashboardHeaderProp
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [tokenBalance, setTokenBalance] = useState<number | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -78,6 +80,7 @@ export function DashboardHeader({ title, breadcrumbs = [] }: DashboardHeaderProp
 
   useEffect(() => {
     fetchUserProfile();
+    fetchTokenBalance();
   }, []);
 
   const fetchUserProfile = async () => {
@@ -100,6 +103,13 @@ export function DashboardHeader({ title, breadcrumbs = [] }: DashboardHeaderProp
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchTokenBalance = async () => {
+    try {
+      const { data } = await axios.get('/api/tokens');
+      if (data.status === 'success') setTokenBalance(Number(data.account?.balance ?? 0));
+    } catch { /* silent */ }
   };
 
   const handleLogout = () => {
@@ -198,6 +208,27 @@ export function DashboardHeader({ title, breadcrumbs = [] }: DashboardHeaderProp
               className="w-64 pl-9 bg-secondary border-border focus:border-primary/50"
             />
           </div>
+
+          {/* Token Balance Chip */}
+          {tokenBalance !== null && (
+            <Link
+              to="/dashboard/tokens"
+              className={[
+                "hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all hover:scale-105",
+                tokenBalance <= 0
+                  ? "bg-destructive/15 text-destructive border-destructive/40 animate-pulse"
+                  : tokenBalance < 50
+                  ? "bg-warning/15 text-warning border-warning/40"
+                  : "bg-safaricom/10 text-safaricom border-safaricom/30",
+              ].join(" ")}
+              title="Platform token balance — click to top up"
+            >
+              {tokenBalance <= 0
+                ? <AlertTriangle className="w-3 h-3" />
+                : <Zap className="w-3 h-3" />}
+              {tokenBalance <= 0 ? "Top Up Tokens!" : `KES ${tokenBalance.toLocaleString()}`}
+            </Link>
+          )}
 
           {/* Notifications */}
           <div className="relative">

@@ -235,7 +235,7 @@ interface WithdrawalRequest {
 
 export default function SuperAdmin() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<"overview" | "tills" | "transactions" | "wallets" | "withdrawals" | "activity" | "audit" | "anomalies" | "health">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "tills" | "transactions" | "wallets" | "withdrawals" | "activity" | "audit" | "anomalies" | "health" | "users">("overview");
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [tills, setTills] = useState<Till[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -271,6 +271,15 @@ export default function SuperAdmin() {
   const [loadingAdminRecipients, setLoadingAdminRecipients] = useState(false);
   const [savingAdminRecipients, setSavingAdminRecipients] = useState(false);
   const [testingAdminRecipients, setTestingAdminRecipients] = useState(false);
+  const [adminUsers, setAdminUsers] = useState<any[]>([]);
+  const [adminUsersTotal, setAdminUsersTotal] = useState(0);
+  const [adminUsersPage, setAdminUsersPage] = useState(1);
+  const [adminUsersSearch, setAdminUsersSearch] = useState('');
+  const [loadingAdminUsers, setLoadingAdminUsers] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<any | null>(null);
+  const [userDetail, setUserDetail] = useState<any | null>(null);
+  const [loadingUserDetail, setLoadingUserDetail] = useState(false);
+  const [userDetailTab, setUserDetailTab] = useState<'overview'|'tills'|'transactions'|'tokens'|'wallet'>('overview');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -287,7 +296,46 @@ export default function SuperAdmin() {
     if (activeTab === "transactions") fetchTransactions();
     if (activeTab === "wallets") fetchWallets();
     if (activeTab === "withdrawals") fetchWithdrawalRequests();
+    if (activeTab === "users") fetchAdminUsers();
   }, [activeTab, page, withdrawalsStatus, walletSearch]);
+
+  useEffect(() => {
+    if (activeTab === "users") fetchAdminUsers();
+  }, [adminUsersPage, adminUsersSearch]);
+
+  const fetchAdminUsers = async () => {
+    setLoadingAdminUsers(true);
+    try {
+      const token = localStorage.getItem('token');
+      const { data } = await axios.get(
+        '/api/super-admin/users-overview?page=' + adminUsersPage + '&limit=50&search=' + encodeURIComponent(adminUsersSearch),
+        { headers: { Authorization: 'Bearer ' + token } }
+      );
+      if (data.status === 'success') { setAdminUsers(data.users || []); setAdminUsersTotal(data.total || 0); }
+    } catch (err: any) {
+      toast({ title: 'Error', description: err?.response?.data?.message || 'Failed to load users', variant: 'destructive' });
+    } finally { setLoadingAdminUsers(false); }
+  };
+
+  const fetchUserDetail = async (userId: string) => {
+    setLoadingUserDetail(true); setUserDetail(null);
+    try {
+      const token = localStorage.getItem('token');
+      const { data } = await axios.get('/api/super-admin/users/' + userId, { headers: { Authorization: 'Bearer ' + token } });
+      if (data.status === 'success') setUserDetail(data);
+    } catch { toast({ title: 'Error', description: 'Failed to load user details', variant: 'destructive' }); }
+    finally { setLoadingUserDetail(false); }
+  };
+
+  const toggleUserStatus = async (userId: string, currentStatus: boolean) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post('/api/super-admin/users/' + userId + '/toggle-status', {}, { headers: { Authorization: 'Bearer ' + token } });
+      toast({ title: currentStatus ? 'User suspended' : 'User activated' });
+      fetchAdminUsers();
+      if (userDetail?.user?.id === userId) fetchUserDetail(userId);
+    } catch { toast({ title: 'Error', description: 'Failed to update user status', variant: 'destructive' }); }
+  };
 
   const fetchWallets = async () => {
     setLoadingWallets(true);
@@ -1571,7 +1619,8 @@ export default function SuperAdmin() {
   { id: "activity", label: "Activity", icon: Zap },
   { id: "audit", label: "Audit Trail", icon: History },
   { id: "anomalies", label: "Anomalies", icon: Brain },
-  { id: "health", label: "System Health", icon: Server }
+  { id: "health", label: "System Health", icon: Server },
+  { id: "users", label: "Users", icon: Users }
 ].map((tab) => (
                 <Button
                   key={tab.id}
