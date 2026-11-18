@@ -24,6 +24,7 @@ import {
   ChevronUp,
   ArrowUpCircle,
   ArrowDownCircle,
+  Sparkles,
 } from "lucide-react";
 import { normalizeKenyanPhoneNumber } from "@/lib/utils";
 
@@ -69,6 +70,56 @@ interface FeeScheduleTier {
   fee: number;
 }
 
+// ─── Success Modal Component ──────────────────────────────────────────────
+function TopUpSuccessModal({ amount, newBalance, onClose }: { amount: number; newBalance: number; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)' }}>
+      <motion.div
+        initial={{ scale: 0.7, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.7, opacity: 0 }}
+        transition={{ type: 'spring', duration: 0.5 }}
+        className="bg-white rounded-3xl shadow-2xl p-8 max-w-sm w-full text-center"
+      >
+        {/* Animated checkmark */}
+        <motion.div
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
+          className="mx-auto w-20 h-20 rounded-full flex items-center justify-center mb-5"
+          style={{ background: 'linear-gradient(135deg, #00a651, #00c853)' }}
+        >
+          <CheckCircle2 className="h-10 w-10 text-white" />
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+          <h2 className="text-2xl font-bold text-gray-900 mb-1">Top Up Successful! 🎉</h2>
+          <p className="text-gray-500 text-sm mb-5">Your tokens have been credited</p>
+
+          <div className="bg-green-50 border border-green-200 rounded-2xl p-4 mb-5">
+            <p className="text-xs font-bold uppercase tracking-widest text-green-600 mb-1">Amount Added</p>
+            <p className="text-3xl font-black text-green-700">KES {Number(amount).toLocaleString()}</p>
+          </div>
+
+          <div className="bg-muted rounded-xl p-3 mb-6">
+            <p className="text-xs text-muted-foreground">New Token Balance</p>
+            <p className="text-xl font-bold text-foreground">KES {Number(newBalance).toLocaleString()}</p>
+          </div>
+
+          <button
+            onClick={onClose}
+            className="w-full py-3 rounded-xl font-bold text-white text-base transition-all hover:scale-105"
+            style={{ background: 'linear-gradient(135deg, #00a651, #00c853)' }}
+          >
+            Awesome, Let's Go! 🚀
+          </button>
+        </motion.div>
+      </motion.div>
+    </div>
+  );
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const fmt = (n: number) =>
@@ -107,6 +158,7 @@ const MAX_POLL_ATTEMPTS = 20;
 
 export default function DashboardTokens() {
   const { toast } = useToast();
+  const [successModal, setSuccessModal] = useState<{ amount: number; newBalance: number } | null>(null);
 
   // Account state
   const [account, setAccount] = useState<TokenAccount | null>(null);
@@ -210,7 +262,7 @@ export default function DashboardTokens() {
   }, []);
 
   const startPolling = useCallback(
-    (topupId: string) => {
+    (topupId: string, attemptedAmount?: number) => {
       setPendingTopupId(topupId);
       setPolling(true);
       pollAttemptsRef.current = 0;
@@ -228,7 +280,10 @@ export default function DashboardTokens() {
           if (data.topup?.status === "success") {
             stopPolling();
             setPendingTopupId(null);
-            toast({ title: "✅ Top-up successful!", description: `KES ${data.topup.amount} tokens added to your balance.` });
+            const credited = Number(data.topup?.amount || attemptedAmount || 0);
+            const newBal = Number(data.account?.balance ?? 0);
+            setSuccessModal({ amount: credited, newBalance: newBal });
+            toast({ title: "✅ Top-up successful!", description: `KES ${credited} tokens added to your balance.` });
             refreshAll();
           } else if (data.topup?.status === "failed") {
             stopPolling();
@@ -275,7 +330,7 @@ export default function DashboardTokens() {
       if (data.status === "success" && data.topup_id) {
         toast({ title: "STK Push sent! 📲", description: "Enter your M-Pesa PIN to complete the top-up." });
         setAmount("");
-        startPolling(data.topup_id);
+        startPolling(data.topup_id, amt);
       } else {
         toast({ title: "Failed to initiate", description: data.message || "Please try again.", variant: "destructive" });
       }
@@ -320,6 +375,15 @@ export default function DashboardTokens() {
 
   return (
     <div className="min-h-screen bg-background">
+      <AnimatePresence>
+        {successModal && (
+          <TopUpSuccessModal
+            amount={successModal.amount}
+            newBalance={successModal.newBalance}
+            onClose={() => setSuccessModal(null)}
+          />
+        )}
+      </AnimatePresence>
       <DashboardSidebar />
       <main className="ml-0 md:ml-0 md:ml-20 lg:ml-64 pb-20 md:pb-0 transition-all duration-300 pb-20 md:pb-0">
         <DashboardHeader />
@@ -411,6 +475,39 @@ export default function DashboardTokens() {
 
             {/* Left col: Top-up + Fee Calculator */}
             <div className="space-y-6">
+
+              {/* New Merchant Notice / How It Works */}
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="rounded-2xl border border-primary/20 bg-primary/5 p-5 space-y-3"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-primary/10 text-primary">
+                    <Sparkles className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm text-foreground">How SwiftPay STK Tokens Work</h3>
+                    <p className="text-xs text-muted-foreground">Essential guide for new & active merchants</p>
+                  </div>
+                </div>
+
+                <div className="space-y-2 text-xs text-muted-foreground leading-relaxed pt-1">
+                  <div className="flex items-start gap-2">
+                    <span className="font-bold text-primary shrink-0">1.</span>
+                    <p><strong className="text-foreground">Initial Test STK is Free:</strong> Your initial test STK push requests are completely complimentary so you can test integrations risk-free.</p>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="font-bold text-primary shrink-0">2.</span>
+                    <p><strong className="text-foreground">Prepaid Processing:</strong> Live M-Pesa STK push payments deduct small platform fees (starting from KES 3) directly from this token balance.</p>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="font-bold text-primary shrink-0">3.</span>
+                    <p><strong className="text-foreground">Instant Top-Up:</strong> Fund your balance anytime below with M-Pesa (minimum KES 10). Tokens never expire.</p>
+                  </div>
+                </div>
+              </motion.div>
 
               {/* Top-Up Card */}
               <motion.div

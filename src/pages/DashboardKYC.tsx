@@ -44,6 +44,38 @@ function timeLeft(deadline: string | null): string {
   return h > 0 ? `${h}h ${m}m left` : `${m}m left`;
 }
 
+const compressImage = (file: File, maxWidth = 1280, quality = 0.82): Promise<string> => {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const src = e.target?.result as string;
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return resolve(src);
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.onerror = () => resolve(src);
+      img.src = src;
+    };
+    reader.onerror = () => {
+      const fallbackReader = new FileReader();
+      fallbackReader.onload = (ev) => resolve(ev.target?.result as string);
+      fallbackReader.readAsDataURL(file);
+    };
+    reader.readAsDataURL(file);
+  });
+};
+
 function ImageUploader({
   label, hint, onChange, preview, required = false,
 }: {
@@ -52,15 +84,19 @@ function ImageUploader({
 }) {
   const ref = useRef<HTMLInputElement>(null);
 
-  const handleFile = (file: File) => {
-    if (!file.type.startsWith("image/")) return;
-    if (file.size > 5 * 1024 * 1024) {
-      alert("Image must be under 5 MB");
+  const handleFile = async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      alert("Please upload a valid image file (JPG or PNG)");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = e => onChange(e.target?.result as string);
-    reader.readAsDataURL(file);
+    try {
+      const compressed = await compressImage(file);
+      onChange(compressed);
+    } catch {
+      const reader = new FileReader();
+      reader.onload = e => onChange(e.target?.result as string);
+      reader.readAsDataURL(file);
+    }
   };
 
   return (

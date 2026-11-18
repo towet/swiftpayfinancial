@@ -9,7 +9,8 @@ import { RevenueChart } from "@/components/dashboard/RevenueChart";
 import { TransactionsTable } from "@/components/dashboard/TransactionsTable";
 import { ActivityTimeline } from "@/components/dashboard/ActivityTimeline";
 import { QuickActions } from "@/components/dashboard/QuickActions";
-import { DollarSign, Receipt, CreditCard, TrendingUp } from "lucide-react";
+import { DollarSign, Receipt, CreditCard, TrendingUp, Zap, ArrowRight } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import axios from "axios";
 import { useToast } from "@/hooks/use-toast";
@@ -47,7 +48,10 @@ export default function Dashboard() {
   const [walletBalance, setWalletBalance] = useState(0);
   const [walletReserved, setWalletReserved] = useState(0);
   const [walletAvailable, setWalletAvailable] = useState(0);
+  const [tokenBalance, setTokenBalance] = useState<number>(0);
+  const [tokenLoading, setTokenLoading] = useState(false);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchDashboardStats();
@@ -72,7 +76,8 @@ export default function Dashboard() {
     try {
       const token = localStorage.getItem("token");
 
-      const [statsResponse, tillsResponse, walletResponse] = await Promise.all([
+      setTokenLoading(true);
+      const [statsResponse, tillsResponse, walletResponse, tokenResponse] = await Promise.all([
         axios.get("/api/dashboard/stats", {
           headers: { Authorization: `Bearer ${token}` },
         }),
@@ -82,7 +87,12 @@ export default function Dashboard() {
         axios.get("/api/wallet", {
           headers: { Authorization: `Bearer ${token}` },
         }),
+        axios.get("/api/tokens", {
+          headers: { Authorization: `Bearer ${token}` },
+        }).catch(() => ({ data: { account: { balance: 0 } } })),
       ]);
+      setTokenBalance(Number(tokenResponse?.data?.account?.balance || 0));
+      setTokenLoading(false);
 
       const dashStats = statsResponse.data.stats;
 
@@ -190,6 +200,65 @@ export default function Dashboard() {
                 <p className="text-xs text-white/80">Available</p>
                 <p className="text-lg font-semibold text-white mt-1">KES {Number(walletAvailable || 0).toLocaleString()}</p>
               </div>
+            </div>
+          </motion.div>
+
+          {/* Token Balance Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.1 }}
+            className="rounded-2xl border border-border bg-card shadow-[var(--shadow-card)] overflow-hidden"
+          >
+            <div className="flex items-center justify-between p-5">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-orange-50 border border-orange-200">
+                  <Zap className="h-5 w-5 text-orange-500" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Processing Tokens</p>
+                  <p className="text-2xl font-bold text-foreground">
+                    {tokenLoading
+                      ? <span className="text-muted-foreground text-base">Loading...</span>
+                      : <><span className="text-sm font-semibold text-muted-foreground mr-0.5">KES</span>{tokenBalance.toLocaleString()}</>
+                    }
+                  </p>
+                  {tokenBalance === 0 ? (
+                    <p className="text-xs text-muted-foreground mt-0.5 flex flex-wrap items-center gap-1">
+                      <span className="text-emerald-600 font-semibold">💡 First test STKs are free</span>
+                      <span>· Top up wallet for live payments</span>
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground mt-0.5">Used to pay M-Pesa STK processing fees</p>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {tokenBalance <= 20 && !tokenLoading && (
+                  <span className="animate-pulse text-[10px] font-bold bg-red-50 text-red-600 border border-red-200 px-2 py-0.5 rounded-full">
+                    ⚠️ LOW BALANCE
+                  </span>
+                )}
+                <button
+                  onClick={() => navigate('/dashboard/tokens')}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-sm text-white transition-all duration-200 hover:scale-105 hover:shadow-lg"
+                  style={{ background: 'linear-gradient(135deg, #f59e0b, #f97316)' }}
+                >
+                  <Zap size={14} />
+                  Top Up
+                  <ArrowRight size={12} />
+                </button>
+              </div>
+            </div>
+            {/* Progress bar */}
+            <div className="h-1 bg-muted">
+              <div
+                className="h-1 transition-all duration-700"
+                style={{
+                  width: `${Math.min((tokenBalance / 1000) * 100, 100)}%`,
+                  background: tokenBalance <= 20 ? '#ef4444' : tokenBalance < 100 ? '#f59e0b' : '#00a651'
+                }}
+              />
             </div>
           </motion.div>
 

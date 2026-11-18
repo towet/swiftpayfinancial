@@ -2556,14 +2556,31 @@ app.get('/api/super-admin/tills/:id/analytics', verifyToken, verifySuperAdmin, a
     }
 
     // Get till details
-    const { data: till, error: tillError } = await supabase
+    let { data: till, error: tillError } = await supabase
       .from('tills')
-      .select('*, users!inner(email, full_name, company_name)')
+      .select('*, users:user_id (email, full_name, company_name)')
       .eq('id', id)
-      .single();
+      .maybeSingle();
 
-    if (tillError || !till) {
-      return res.status(404).json({ status: 'error', message: 'Till not found' });
+    if (!till) {
+      const fallback = await supabase
+        .from('tills')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (!fallback.data) {
+        return res.status(404).json({ status: 'error', message: 'Till not found' });
+      }
+      till = fallback.data;
+      if (till.user_id) {
+        const { data: u } = await supabase
+          .from('users')
+          .select('email, full_name, company_name')
+          .eq('id', till.user_id)
+          .maybeSingle();
+        till.users = u || null;
+      }
     }
 
     // Get all transactions for this till
@@ -2580,15 +2597,16 @@ app.get('/api/super-admin/tills/:id/analytics', verifyToken, verifySuperAdmin, a
     }
 
     // Calculate analytics
-    const totalRevenue = transactions.reduce((sum, tx) => sum + (isPaidStatus(tx.status) ? (tx.amount || 0) : 0), 0);
-    const successfulTransactions = transactions.filter(tx => isPaidStatus(tx.status));
-    const failedTransactions = transactions.filter(tx => String(tx.status || '').toLowerCase() === 'failed');
-    const pendingTransactions = transactions.filter(tx => String(tx.status || '').toLowerCase() === 'pending');
-    const successRate = transactions.length > 0 ? (successfulTransactions.length / transactions.length) * 100 : 0;
+    const txList = transactions || [];
+    const totalRevenue = txList.reduce((sum, tx) => sum + (isPaidStatus(tx.status) ? (tx.amount || 0) : 0), 0);
+    const successfulTransactions = txList.filter(tx => isPaidStatus(tx.status));
+    const failedTransactions = txList.filter(tx => String(tx.status || '').toLowerCase() === 'failed');
+    const pendingTransactions = txList.filter(tx => String(tx.status || '').toLowerCase() === 'pending');
+    const successRate = txList.length > 0 ? (successfulTransactions.length / txList.length) * 100 : 0;
 
     // Daily revenue
     const dailyRevenue = {};
-    transactions.forEach(tx => {
+    txList.forEach(tx => {
       const date = new Date(tx.created_at).toISOString().split('T')[0];
       if (isPaidStatus(tx.status)) {
         dailyRevenue[date] = (dailyRevenue[date] || 0) + (tx.amount || 0);
@@ -2597,7 +2615,7 @@ app.get('/api/super-admin/tills/:id/analytics', verifyToken, verifySuperAdmin, a
 
     // Weekly revenue
     const weeklyRevenue = {};
-    transactions.forEach(tx => {
+    txList.forEach(tx => {
       const date = new Date(tx.created_at);
       const weekStart = new Date(date);
       weekStart.setDate(date.getDate() - date.getDay());
@@ -2609,7 +2627,7 @@ app.get('/api/super-admin/tills/:id/analytics', verifyToken, verifySuperAdmin, a
 
     // Monthly revenue
     const monthlyRevenue = {};
-    transactions.forEach(tx => {
+    txList.forEach(tx => {
       const date = new Date(tx.created_at);
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       if (isPaidStatus(tx.status)) {
@@ -2620,7 +2638,7 @@ app.get('/api/super-admin/tills/:id/analytics', verifyToken, verifySuperAdmin, a
     // Payment patterns by hour
     const hourlyTransactions = Array(24).fill(0);
     const hourlyRevenue = Array(24).fill(0);
-    transactions.forEach(tx => {
+    txList.forEach(tx => {
       const hour = new Date(tx.created_at).getHours();
       hourlyTransactions[hour]++;
       if (isPaidStatus(tx.status)) {
@@ -2636,7 +2654,7 @@ app.get('/api/super-admin/tills/:id/analytics', verifyToken, verifySuperAdmin, a
 
     // Common transaction amounts
     const amountFrequency = {};
-    transactions.forEach(tx => {
+    txList.forEach(tx => {
       const amount = tx.amount || 0;
       const roundedAmount = Math.round(amount);
       amountFrequency[roundedAmount] = (amountFrequency[roundedAmount] || 0) + 1;
@@ -2648,17 +2666,17 @@ app.get('/api/super-admin/tills/:id/analytics', verifyToken, verifySuperAdmin, a
 
     // Customer type breakdown (based on transaction patterns)
     const customerTypes = {
-      new: transactions.filter(tx => {
+      new: txList.filter(tx => {
         const txDate = new Date(tx.created_at);
-        const firstTx = transactions.find(t => t.phone_number === tx.phone_number);
+        const firstTx = txList.find(t => t.phone_number === tx.phone_number);
         return firstTx && new Date(firstTx.created_at).getTime() === txDate.getTime();
       }).length,
-      returning: transactions.filter(tx => {
-        const samePhoneTxs = transactions.filter(t => t.phone_number === tx.phone_number);
+      returning: txList.filter(tx => {
+        const samePhoneTxs = txList.filter(t => t.phone_number === tx.phone_number);
         return samePhoneTxs.length > 1;
       }).length / 2, // Divide by 2 to avoid double counting
-      oneTime: transactions.length - transactions.filter(tx => {
-        const samePhoneTxs = transactions.filter(t => t.phone_number === tx.phone_number);
+      oneTime: txList.length - txList.filter(tx => {
+        const samePhoneTxs = txList.filter(t => t.phone_number === tx.phone_number);
         return samePhoneTxs.length > 1;
       }).length
     };
@@ -2670,7 +2688,7 @@ app.get('/api/super-admin/tills/:id/analytics', verifyToken, verifySuperAdmin, a
 
     // Transaction volume trends
     const dailyVolume = {};
-    transactions.forEach(tx => {
+    txList.forEach(tx => {
       const date = new Date(tx.created_at).toISOString().split('T')[0];
       dailyVolume[date] = (dailyVolume[date] || 0) + 1;
     });
@@ -2681,7 +2699,7 @@ app.get('/api/super-admin/tills/:id/analytics', verifyToken, verifySuperAdmin, a
         till,
         summary: {
           totalRevenue,
-          totalTransactions: transactions.length,
+          totalTransactions: txList.length,
           successfulTransactions: successfulTransactions.length,
           failedTransactions: failedTransactions.length,
           successRate: successRate.toFixed(2),
@@ -2696,7 +2714,7 @@ app.get('/api/super-admin/tills/:id/analytics', verifyToken, verifySuperAdmin, a
         commonAmounts,
         customerTypes,
         dailyVolume: Object.entries(dailyVolume).map(([date, volume]) => ({ date, volume })),
-        transactions: transactions.slice(-100) // Last 100 transactions
+        transactions: txList.slice(-100) // Last 100 transactions
       }
     });
   } catch (error) {
@@ -2987,12 +3005,12 @@ app.post('/api/super-admin/detect-anomalies', verifyToken, verifySuperAdmin, asy
         .gte('created_at', startDate.toISOString())
         .order('amount', { ascending: false });
 
-      if (transactions && transactions.length > 0) {
+      if (transactions && txList.length > 0) {
         const amounts = transactions.map(t => parseFloat(t.amount));
         const mean = amounts.reduce((a, b) => a + b, 0) / amounts.length;
         const stdDev = Math.sqrt(amounts.reduce((sq, n) => sq + Math.pow(n - mean, 2), 0) / amounts.length);
 
-        transactions.forEach(tx => {
+        txList.forEach(tx => {
           const amount = parseFloat(tx.amount);
           const zScore = Math.abs((amount - mean) / stdDev);
           
@@ -3718,7 +3736,7 @@ app.get('/api/dashboard/ai-insights', verifyToken, async (req, res) => {
         return txDate >= startDate && txDate < endDate;
       };
 
-      const rangeTransactions = transactions.filter(tx => filterByWindow(tx, selectedStart, selectedEnd));
+      const rangeTransactions = txList.filter(tx => filterByWindow(tx, selectedStart, selectedEnd));
       const successCount = rangeTransactions.filter(t => isPaidStatus(t.status)).length;
       const failedCount = rangeTransactions.filter(t => String(t.status || '').toLowerCase() === 'failed').length;
       const pendingCount = rangeTransactions.filter(t => String(t.status || '').toLowerCase() === 'pending').length;
@@ -6219,10 +6237,10 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
       selectedEnd = yearEnd;
     }
 
-    const todayTransactions = transactions.filter(tx => filterByWindow(tx, todayStart, todayEnd));
-    const weekTransactions = transactions.filter(tx => filterByWindow(tx, weekStart, weekEnd));
-    const monthTransactions = transactions.filter(tx => filterByWindow(tx, monthStart, monthEnd));
-    const yearTransactions = transactions.filter(tx => filterByWindow(tx, yearStart, yearEnd));
+    const todayTransactions = txList.filter(tx => filterByWindow(tx, todayStart, todayEnd));
+    const weekTransactions = txList.filter(tx => filterByWindow(tx, weekStart, weekEnd));
+    const monthTransactions = txList.filter(tx => filterByWindow(tx, monthStart, monthEnd));
+    const yearTransactions = txList.filter(tx => filterByWindow(tx, yearStart, yearEnd));
 
     const calculateStats = (txs) => {
       const successful = txs.filter(t => isPaidStatus(t.status));
@@ -6254,7 +6272,7 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
         const bucketEnd = new Date(selectedStart);
         bucketEnd.setHours(h + 1, 0, 0, 0);
 
-        const bucketTx = transactions.filter(tx => filterByWindow(tx, bucketStart, bucketEnd));
+        const bucketTx = txList.filter(tx => filterByWindow(tx, bucketStart, bucketEnd));
         const bucketRevenue = bucketTx
           .filter(t => isPaidStatus(t.status))
           .reduce((sum, t) => sum + Number(t.amount || 0), 0);
@@ -6270,7 +6288,7 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
       for (let d = new Date(selectedStart); d < selectedEnd; d.setDate(d.getDate() + 1)) {
         const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate());
         const dayEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
-        const dayTransactions = transactions.filter(tx => filterByWindow(tx, dayStart, dayEnd));
+        const dayTransactions = txList.filter(tx => filterByWindow(tx, dayStart, dayEnd));
 
         const dayRevenue = dayTransactions
           .filter(t => isPaidStatus(t.status))
@@ -6287,7 +6305,7 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
       for (let m = 0; m < 12; m++) {
         const monthBucketStart = new Date(now.getFullYear(), m, 1);
         const monthBucketEnd = new Date(now.getFullYear(), m + 1, 1);
-        const monthTransactions = transactions.filter(tx => filterByWindow(tx, monthBucketStart, monthBucketEnd));
+        const monthTransactions = txList.filter(tx => filterByWindow(tx, monthBucketStart, monthBucketEnd));
 
         const monthRevenue = monthTransactions
           .filter(t => isPaidStatus(t.status))
@@ -6307,7 +6325,7 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
         const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
         const dayEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
 
-        const dayTransactions = transactions.filter(tx => {
+        const dayTransactions = txList.filter(tx => {
           const txDate = getEffectiveTxDate(tx);
           return txDate >= dayStart && txDate < dayEnd;
         });
@@ -6327,7 +6345,7 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
 
     // Calculate peak hours
     const peakHours = {};
-    transactions.forEach(tx => {
+    txList.forEach(tx => {
       const hour = getEffectiveTxDate(tx).getHours();
       if (!peakHours[hour]) {
         peakHours[hour] = { count: 0, revenue: 0, success: 0 };
@@ -6343,23 +6361,23 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
     // Calculate status distribution with amounts
     const statusDistribution = {
       success: {
-        count: transactions.filter(t => isPaidStatus(t.status)).length,
-        amount: transactions.filter(t => isPaidStatus(t.status)).reduce((sum, t) => sum + Number(t.amount || 0), 0)
+        count: txList.filter(t => isPaidStatus(t.status)).length,
+        amount: txList.filter(t => isPaidStatus(t.status)).reduce((sum, t) => sum + Number(t.amount || 0), 0)
       },
       failed: {
-        count: transactions.filter(t => String(t.status || '').toLowerCase() === 'failed').length,
-        amount: transactions.filter(t => String(t.status || '').toLowerCase() === 'failed').reduce((sum, t) => sum + Number(t.amount || 0), 0)
+        count: txList.filter(t => String(t.status || '').toLowerCase() === 'failed').length,
+        amount: txList.filter(t => String(t.status || '').toLowerCase() === 'failed').reduce((sum, t) => sum + Number(t.amount || 0), 0)
       },
       pending: {
-        count: transactions.filter(t => String(t.status || '').toLowerCase() === 'pending').length,
-        amount: transactions.filter(t => String(t.status || '').toLowerCase() === 'pending').reduce((sum, t) => sum + Number(t.amount || 0), 0)
+        count: txList.filter(t => String(t.status || '').toLowerCase() === 'pending').length,
+        amount: txList.filter(t => String(t.status || '').toLowerCase() === 'pending').reduce((sum, t) => sum + Number(t.amount || 0), 0)
       }
     };
 
     // Calculate unique amounts and other advanced metrics
     const uniqueAmounts = [...new Set(transactions.map(t => t.amount || 0))].sort((a, b) => b - a);
     const mostCommonAmounts = {};
-    transactions.forEach(tx => {
+    txList.forEach(tx => {
       const amount = tx.amount || 0;
       mostCommonAmounts[amount] = (mostCommonAmounts[amount] || 0) + 1;
     });
@@ -6369,7 +6387,7 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
       .slice(0, 5)
       .map(([amount, count]) => ({ amount: parseFloat(amount), count }));
 
-    const rangeTransactions = transactions.filter(tx => filterByWindow(tx, selectedStart, selectedEnd));
+    const rangeTransactions = txList.filter(tx => filterByWindow(tx, selectedStart, selectedEnd));
     const amountSummaryMap = {};
     const normalizeStatus = (s) => String(s || '').toLowerCase();
 
@@ -6526,7 +6544,7 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
     });
 
     // Calculate average processing time
-    const completedTransactions = transactions.filter(t => isPaidStatus(t.status) && t.completed_at);
+    const completedTransactions = txList.filter(t => isPaidStatus(t.status) && t.completed_at);
     const avgProcessingTime = completedTransactions.length > 0 
       ? completedTransactions.reduce((sum, t) => {
           const created = new Date(t.created_at);
@@ -6584,7 +6602,7 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
     // Success rate anomalies
     const recentSuccessRate = (revenueOverTime.slice(-3).reduce((sum, day) => sum + day.successful, 0) / 
                                revenueOverTime.slice(-3).reduce((sum, day) => sum + day.transactions, 0)) * 100;
-    const overallSuccessRate = (statusDistribution.success.count / transactions.length) * 100;
+    const overallSuccessRate = (statusDistribution.success.count / txList.length) * 100;
     
     if (recentSuccessRate < overallSuccessRate - 10) {
       insights.push({
@@ -6627,7 +6645,7 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
     
     // Group by customer phone (simplified segmentation)
     const customerData = {};
-    transactions.filter(t => isPaidStatus(t.status) && t.phone_number).forEach(tx => {
+    txList.filter(t => isPaidStatus(t.status) && t.phone_number).forEach(tx => {
       if (!customerData[tx.phone_number]) {
         customerData[tx.phone_number] = { count: 0, totalAmount: 0 };
       }
@@ -6650,7 +6668,7 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
 
     // Fraud detection patterns
     const fraudAlerts = [];
-    const recentTransactions = transactions.filter(t => {
+    const recentTransactions = txList.filter(t => {
       const txDate = new Date(t.created_at);
       const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
       return txDate > oneHourAgo;
@@ -6702,9 +6720,9 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
         topAmounts,
         avgProcessingTime: avgProcessingTime.toFixed(1),
         totalVolume: transactions.reduce((sum, t) => sum + (t.amount || 0), 0),
-        totalPaidVolume: transactions.filter(t => isPaidStatus(t.status)).reduce((sum, t) => sum + (t.amount || 0), 0),
-        conversionRate: transactions.length > 0 
-          ? ((statusDistribution.success.count / transactions.length) * 100).toFixed(1) + '%'
+        totalPaidVolume: txList.filter(t => isPaidStatus(t.status)).reduce((sum, t) => sum + (t.amount || 0), 0),
+        conversionRate: txList.length > 0 
+          ? ((statusDistribution.success.count / txList.length) * 100).toFixed(1) + '%'
           : '0%'
       },
       aiInsights: {
@@ -7135,8 +7153,8 @@ app.get('/api/dashboard/realtime', verifyToken, async (req, res) => {
     const last5Minutes = new Date(now.getTime() - 5 * 60 * 1000);
     const lastHour = new Date(now.getTime() - 60 * 60 * 1000);
     
-    const recentTransactions = transactions.filter(tx => new Date(tx.created_at) > last5Minutes);
-    const hourlyTransactions = transactions.filter(tx => new Date(tx.created_at) > lastHour);
+    const recentTransactions = txList.filter(tx => new Date(tx.created_at) > last5Minutes);
+    const hourlyTransactions = txList.filter(tx => new Date(tx.created_at) > lastHour);
     
     const realtimeMetrics = {
       transactionsLast5Min: recentTransactions.length,
@@ -8691,11 +8709,11 @@ app.get('/api/super-admin/users/:id', verifyToken, verifySuperAdmin, async (req,
 
     // Compute tx stats
     const txStats = {
-      total:   transactions.length,
-      success: transactions.filter(t => t.status === 'success').length,
-      pending: transactions.filter(t => t.status === 'pending').length,
-      failed:  transactions.filter(t => t.status === 'failed').length,
-      revenue: transactions.filter(t => t.status === 'success').reduce((s, t) => s + Number(t.amount || 0), 0),
+      total:   txList.length,
+      success: txList.filter(t => t.status === 'success').length,
+      pending: txList.filter(t => t.status === 'pending').length,
+      failed:  txList.filter(t => t.status === 'failed').length,
+      revenue: txList.filter(t => t.status === 'success').reduce((s, t) => s + Number(t.amount || 0), 0),
     };
 
     // Wallet ledger
@@ -8750,15 +8768,16 @@ app.post('/api/super-admin/users/:id/toggle-status', verifyToken, verifySuperAdm
 const uploadKycImage = async (base64DataUrl, userId, suffix) => {
   if (!base64DataUrl) return null;
   try {
-    // Validate it's a proper base64 data URL
-    if (!base64DataUrl.startsWith('data:')) return null;
-    // Optionally strip to just first 2MB to stay within DB limits
-    if (base64DataUrl.length > 2_000_000) {
-      console.warn('[KYC] Image too large, truncating not supported — rejecting');
+    let normalized = String(base64DataUrl).trim();
+    if (!normalized.startsWith('data:')) {
+      normalized = `data:image/jpeg;base64,${normalized}`;
+    }
+    // Safe guard: reject if exceeds 10MB base64 characters
+    if (normalized.length > 10_000_000) {
+      console.warn('[KYC] Image too large (>10MB) — rejecting');
       return null;
     }
-    // Return the base64 data URL directly — stored as text in the DB column
-    return base64DataUrl;
+    return normalized;
   } catch (err) {
     console.error('[KYC Upload Error]', err.message);
     return null;
@@ -8847,7 +8866,7 @@ app.post('/api/kyc/submit', verifyToken, async (req, res) => {
     ]);
 
     if (!frontUrl) {
-      return res.status(500).json({ status: 'error', message: 'Failed to upload ID front image. Please check Supabase Storage bucket "kyc-documents" exists.' });
+      return res.status(400).json({ status: 'error', message: 'Failed to process ID front image. Please upload a clear photo in JPG or PNG format.' });
     }
 
     // Upsert submission (replace if resubmitting)

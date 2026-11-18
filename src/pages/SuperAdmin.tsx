@@ -338,6 +338,16 @@ export default function SuperAdmin() {
     finally { setProcessingKyc(false); }
   };
 
+  const downloadKycDocument = (dataOrUrl: string, filename: string) => {
+    if (!dataOrUrl) return;
+    const link = document.createElement("a");
+    link.href = dataOrUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const fetchAdminUsers = async () => {
     setLoadingAdminUsers(true);
     try {
@@ -2113,6 +2123,286 @@ export default function SuperAdmin() {
                   </motion.div>
                 </motion.div>
               )}
+
+              {/* KYC Review & Approvals Tab */}
+              {activeTab === "kyc" && (
+                <motion.div
+                  key="kyc"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="space-y-6"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                        <Shield className="w-5 h-5 text-primary" />
+                        KYC Submissions & Identity Verification
+                      </h2>
+                      <p className="text-sm text-muted-foreground mt-0.5">
+                        Review submitted merchant documents, approve verification, or download ID photos
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={fetchKycSubmissions}
+                        disabled={loadingKyc}
+                      >
+                        <RefreshCw className={`w-4 h-4 mr-1.5 ${loadingKyc ? "animate-spin" : ""}`} />
+                        Refresh
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Filter Pills */}
+                  <div className="flex flex-wrap gap-2 border-b border-border pb-3">
+                    {[
+                      { id: "submitted", label: "Pending Review", count: kycCounts.submitted },
+                      { id: "verified", label: "Verified", count: kycCounts.verified },
+                      { id: "rejected", label: "Rejected", count: kycCounts.rejected },
+                      { id: "all", label: "All Submissions", count: kycCounts.all },
+                    ].map((f) => (
+                      <button
+                        key={f.id}
+                        onClick={() => setKycFilter(f.id as any)}
+                        className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                          kycFilter === f.id
+                            ? "bg-primary text-primary-foreground shadow-sm"
+                            : "bg-secondary/50 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                        }`}
+                      >
+                        <span>{f.label}</span>
+                        {typeof f.count === "number" && (
+                          <span
+                            className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                              kycFilter === f.id
+                                ? "bg-white/20 text-white"
+                                : "bg-muted text-muted-foreground"
+                            }`}
+                          >
+                            {f.count}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* KYC Submissions Table */}
+                  <div className="glass rounded-2xl border border-border/50 overflow-hidden shadow-sm">
+                    {loadingKyc ? (
+                      <div className="p-12 text-center text-muted-foreground">
+                        <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-primary" />
+                        Loading KYC submissions...
+                      </div>
+                    ) : kycSubmissions.length === 0 ? (
+                      <div className="p-12 text-center text-muted-foreground">
+                        <Shield className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                        <p className="font-medium text-foreground">No submissions found</p>
+                        <p className="text-xs mt-1">There are no {kycFilter} KYC submissions right now.</p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm">
+                          <thead className="bg-secondary/40 text-xs font-semibold text-muted-foreground uppercase border-b border-border/50">
+                            <tr>
+                              <th className="px-6 py-3.5">Merchant</th>
+                              <th className="px-6 py-3.5">Document Details</th>
+                              <th className="px-6 py-3.5">Submitted</th>
+                              <th className="px-6 py-3.5">Status</th>
+                              <th className="px-6 py-3.5">ID Preview</th>
+                              <th className="px-6 py-3.5 text-right">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border/40">
+                            {kycSubmissions.map((sub: any) => (
+                              <tr key={sub.id} className="hover:bg-secondary/20 transition-colors">
+                                <td className="px-6 py-4">
+                                  <p className="font-semibold text-foreground">{sub.full_name || sub.user?.full_name || "—"}</p>
+                                  <p className="text-xs text-muted-foreground">{sub.user?.email || "—"}</p>
+                                  {sub.user?.company_name && (
+                                    <p className="text-[11px] text-muted-foreground/75 mt-0.5">{sub.user.company_name}</p>
+                                  )}
+                                </td>
+                                <td className="px-6 py-4">
+                                  <span className="inline-block px-2 py-0.5 text-[11px] font-medium rounded bg-secondary text-foreground capitalize mb-1">
+                                    {sub.id_type?.replace("_", " ")}
+                                  </span>
+                                  <p className="font-mono text-xs text-foreground font-semibold">{sub.id_number}</p>
+                                </td>
+                                <td className="px-6 py-4 text-xs text-muted-foreground">
+                                  {sub.submitted_at
+                                    ? new Date(sub.submitted_at).toLocaleDateString("en-KE", {
+                                        day: "numeric",
+                                        month: "short",
+                                        year: "numeric",
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      })
+                                    : "—"}
+                                </td>
+                                <td className="px-6 py-4">
+                                  {sub.status === "verified" ? (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400">
+                                      <CheckCircle className="w-3.5 h-3.5" /> Verified
+                                    </span>
+                                  ) : sub.status === "rejected" ? (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-400">
+                                      <XCircle className="w-3.5 h-3.5" /> Rejected
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 animate-pulse">
+                                      <Clock className="w-3.5 h-3.5" /> Pending Review
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-6 py-4">
+                                  {sub.id_front_url ? (
+                                    <img
+                                      src={sub.id_front_url}
+                                      alt="Front ID"
+                                      className="w-12 h-8 object-cover rounded border border-border cursor-pointer hover:scale-110 transition-transform shadow-xs"
+                                      onClick={() => setSelectedKyc(sub)}
+                                    />
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground">—</span>
+                                  )}
+                                </td>
+                                <td className="px-6 py-4 text-right">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setSelectedKyc(sub)}
+                                    className="font-medium gap-1.5"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                    Review & Approve
+                                  </Button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Users Tab */}
+              {activeTab === "users" && (
+                <motion.div
+                  key="users"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="space-y-6"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                        <Users className="w-5 h-5 text-primary" />
+                        Users Management ({adminUsersTotal})
+                      </h2>
+                      <p className="text-sm text-muted-foreground mt-0.5">
+                        Manage user accounts, suspension states, and view details
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <div className="relative">
+                        <Search className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground" />
+                        <Input
+                          placeholder="Search users..."
+                          value={adminUsersSearch}
+                          onChange={(e) => setAdminUsersSearch(e.target.value)}
+                          className="pl-9 h-9 w-60"
+                        />
+                      </div>
+                      <Button variant="outline" size="sm" onClick={fetchAdminUsers} disabled={loadingAdminUsers}>
+                        <RefreshCw className={`w-4 h-4 ${loadingAdminUsers ? "animate-spin" : ""}`} />
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="glass rounded-2xl border border-border/50 overflow-hidden shadow-sm">
+                    {loadingAdminUsers ? (
+                      <div className="p-12 text-center text-muted-foreground">
+                        <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-primary" />
+                        Loading users...
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm">
+                          <thead className="bg-secondary/40 text-xs font-semibold text-muted-foreground uppercase border-b border-border/50">
+                            <tr>
+                              <th className="px-6 py-3.5">User</th>
+                              <th className="px-6 py-3.5">Company</th>
+                              <th className="px-6 py-3.5">Role</th>
+                              <th className="px-6 py-3.5">KYC Status</th>
+                              <th className="px-6 py-3.5">Status</th>
+                              <th className="px-6 py-3.5 text-right">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border/40">
+                            {adminUsers.map((u: any) => (
+                              <tr key={u.id} className="hover:bg-secondary/20 transition-colors">
+                                <td className="px-6 py-4">
+                                  <p className="font-semibold text-foreground">{u.full_name || "—"}</p>
+                                  <p className="text-xs text-muted-foreground">{u.email}</p>
+                                </td>
+                                <td className="px-6 py-4 text-xs text-foreground">
+                                  {u.company_name || "—"}
+                                </td>
+                                <td className="px-6 py-4">
+                                  <span className="text-xs px-2 py-0.5 rounded bg-secondary capitalize font-medium">
+                                    {u.role || "merchant"}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <span
+                                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                                      u.kyc_status === "verified"
+                                        ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                        : u.kyc_status === "submitted"
+                                        ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                        : "bg-gray-100 text-gray-700 border border-gray-200"
+                                    }`}
+                                  >
+                                    {u.kyc_status || "unverified"}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <span
+                                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                                      u.is_active !== false
+                                        ? "bg-emerald-50 text-emerald-700"
+                                        : "bg-rose-50 text-rose-700"
+                                    }`}
+                                  >
+                                    {u.is_active !== false ? "Active" : "Suspended"}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 text-right">
+                                  <Button
+                                    size="sm"
+                                    variant={u.is_active !== false ? "destructive" : "default"}
+                                    onClick={() => toggleUserStatus(u.id, u.is_active !== false)}
+                                  >
+                                    {u.is_active !== false ? "Suspend" : "Activate"}
+                                  </Button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
             </AnimatePresence>
           </div>
         </div>
@@ -2183,6 +2473,239 @@ export default function SuperAdmin() {
                 >
                   {sendingOnboardingEmails ? "Sending..." : "Send Emails"}
                 </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* KYC Document Review & Approval Modal */}
+      <AnimatePresence>
+        {selectedKyc && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4 overflow-y-auto"
+            onClick={() => setSelectedKyc(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-background rounded-2xl border border-border shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden my-auto"
+            >
+              {/* Header */}
+              <div className="p-6 border-b border-border flex items-center justify-between bg-card">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-primary/10 text-primary">
+                    <Shield className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-foreground">
+                      KYC Document Verification
+                    </h2>
+                    <p className="text-xs text-muted-foreground">
+                      Review submitted merchant documents, verify or reject submission
+                    </p>
+                  </div>
+                </div>
+
+                <Button variant="ghost" size="sm" onClick={() => setSelectedKyc(null)}>
+                  ✕
+                </Button>
+              </div>
+
+              {/* Body */}
+              <div className="p-6 overflow-y-auto space-y-6 flex-1">
+                {/* Merchant Details Card */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-xl bg-secondary/30 border border-border/50 text-xs">
+                  <div>
+                    <span className="text-muted-foreground block mb-0.5">Legal Name</span>
+                    <span className="font-semibold text-foreground text-sm">{selectedKyc.full_name || "—"}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block mb-0.5">Email</span>
+                    <span className="font-medium text-foreground">{selectedKyc.user?.email || "—"}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block mb-0.5">Document Type</span>
+                    <span className="font-semibold text-foreground uppercase">{selectedKyc.id_type?.replace("_", " ") || "—"}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block mb-0.5">ID / Passport Number</span>
+                    <span className="font-mono font-bold text-foreground text-sm">{selectedKyc.id_number || "—"}</span>
+                  </div>
+                </div>
+
+                {/* Document Images Grid */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">
+                      Submitted Documents
+                    </h3>
+                    <div className="flex gap-2">
+                      {selectedKyc.id_front_url && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => downloadKycDocument(selectedKyc.id_front_url, `kyc-${selectedKyc.full_name || 'merchant'}-front.jpg`)}
+                          className="h-8 text-xs gap-1.5"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          Download Front ID
+                        </Button>
+                      )}
+                      {selectedKyc.id_back_url && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => downloadKycDocument(selectedKyc.id_back_url, `kyc-${selectedKyc.full_name || 'merchant'}-back.jpg`)}
+                          className="h-8 text-xs gap-1.5"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          Download Back ID
+                        </Button>
+                      )}
+                      {selectedKyc.selfie_url && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => downloadKycDocument(selectedKyc.selfie_url, `kyc-${selectedKyc.full_name || 'merchant'}-selfie.jpg`)}
+                          className="h-8 text-xs gap-1.5"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          Download Selfie
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {/* ID Front */}
+                    <div className="rounded-xl border border-border p-3 bg-card space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-foreground">ID Front Side</span>
+                        <button
+                          onClick={() => downloadKycDocument(selectedKyc.id_front_url, `kyc-${selectedKyc.full_name || 'merchant'}-front.jpg`)}
+                          className="text-primary hover:text-primary/80 text-xs font-medium flex items-center gap-1"
+                        >
+                          <Download className="w-3 h-3" /> Save
+                        </button>
+                      </div>
+                      {selectedKyc.id_front_url ? (
+                        <div className="relative group rounded-lg overflow-hidden border border-border bg-black/5 aspect-4/3 flex items-center justify-center">
+                          <img
+                            src={selectedKyc.id_front_url}
+                            alt="ID Front"
+                            className="max-h-full max-w-full object-contain"
+                          />
+                        </div>
+                      ) : (
+                        <div className="p-8 text-center text-xs text-muted-foreground border border-dashed rounded-lg">
+                          No front image
+                        </div>
+                      )}
+                    </div>
+
+                    {/* ID Back */}
+                    <div className="rounded-xl border border-border p-3 bg-card space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-foreground">ID Back Side</span>
+                        {selectedKyc.id_back_url && (
+                          <button
+                            onClick={() => downloadKycDocument(selectedKyc.id_back_url, `kyc-${selectedKyc.full_name || 'merchant'}-back.jpg`)}
+                            className="text-primary hover:text-primary/80 text-xs font-medium flex items-center gap-1"
+                          >
+                            <Download className="w-3 h-3" /> Save
+                          </button>
+                        )}
+                      </div>
+                      {selectedKyc.id_back_url ? (
+                        <div className="relative group rounded-lg overflow-hidden border border-border bg-black/5 aspect-4/3 flex items-center justify-center">
+                          <img
+                            src={selectedKyc.id_back_url}
+                            alt="ID Back"
+                            className="max-h-full max-w-full object-contain"
+                          />
+                        </div>
+                      ) : (
+                        <div className="p-8 text-center text-xs text-muted-foreground border border-dashed rounded-lg aspect-4/3 flex items-center justify-center">
+                          Not provided / Passport
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Selfie */}
+                    <div className="rounded-xl border border-border p-3 bg-card space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-foreground">Selfie with ID</span>
+                        {selectedKyc.selfie_url && (
+                          <button
+                            onClick={() => downloadKycDocument(selectedKyc.selfie_url, `kyc-${selectedKyc.full_name || 'merchant'}-selfie.jpg`)}
+                            className="text-primary hover:text-primary/80 text-xs font-medium flex items-center gap-1"
+                          >
+                            <Download className="w-3 h-3" /> Save
+                          </button>
+                        )}
+                      </div>
+                      {selectedKyc.selfie_url ? (
+                        <div className="relative group rounded-lg overflow-hidden border border-border bg-black/5 aspect-4/3 flex items-center justify-center">
+                          <img
+                            src={selectedKyc.selfie_url}
+                            alt="Selfie"
+                            className="max-h-full max-w-full object-contain"
+                          />
+                        </div>
+                      ) : (
+                        <div className="p-8 text-center text-xs text-muted-foreground border border-dashed rounded-lg aspect-4/3 flex items-center justify-center">
+                          Not provided (optional)
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Admin Note Input */}
+                <div className="space-y-1.5 pt-2">
+                  <label className="text-xs font-bold text-foreground uppercase tracking-wider block">
+                    Admin Review Note (Required if rejecting, optional if verifying)
+                  </label>
+                  <textarea
+                    value={kycAdminNote}
+                    onChange={(e) => setKycAdminNote(e.target.value)}
+                    placeholder="e.g. Approved all details match national register, OR ID image is blurry please re-upload in high resolution..."
+                    className="w-full h-20 p-3 rounded-xl border border-border bg-card text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none"
+                  />
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="p-6 border-t border-border flex flex-wrap items-center justify-between gap-3 bg-card">
+                <Button variant="ghost" onClick={() => setSelectedKyc(null)}>
+                  Close
+                </Button>
+
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant="destructive"
+                    onClick={() => handleKycAction(selectedKyc.id, "reject")}
+                    disabled={processingKyc}
+                    className="gap-1.5"
+                  >
+                    <XCircle className="w-4 h-4" />
+                    Reject KYC
+                  </Button>
+                  <Button
+                    onClick={() => handleKycAction(selectedKyc.id, "verify")}
+                    disabled={processingKyc}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 shadow-md"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    Approve & Verify Merchant
+                  </Button>
+                </div>
               </div>
             </motion.div>
           </motion.div>

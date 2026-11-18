@@ -88,8 +88,33 @@ export default function TillAnalytics() {
 
   if (!analytics) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <p className="text-muted-foreground">No analytics data available</p>
+      <div className="min-h-screen bg-background p-6">
+        <div className="max-w-4xl mx-auto space-y-6">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate("/dashboard/super-admin")}
+            className="gap-2"
+          >
+            <ArrowLeft className="w-4 h-4" /> Back to Super Admin
+          </Button>
+
+          <div className="glass rounded-2xl border border-border/50 p-12 text-center space-y-4">
+            <BarChart3 className="w-12 h-12 text-muted-foreground/40 mx-auto" />
+            <h2 className="text-xl font-bold text-foreground">No Analytics Data Available</h2>
+            <p className="text-sm text-muted-foreground max-w-md mx-auto">
+              We couldn't retrieve analytics for till #{id?.slice(0, 8)}. This till may not have processed transactions yet.
+            </p>
+            <div className="flex items-center justify-center gap-3 pt-2">
+              <Button onClick={fetchAnalytics} variant="outline" className="gap-2">
+                <RefreshCw className="w-4 h-4" /> Try Again
+              </Button>
+              <Button onClick={() => navigate("/dashboard/super-admin")} className="gap-2">
+                <ArrowLeft className="w-4 h-4" /> Back to Tills
+              </Button>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
