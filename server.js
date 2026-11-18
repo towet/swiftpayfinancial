@@ -3463,7 +3463,9 @@ app.post('/api/auth/register', async (req, res) => {
           password_hash: hashedPassword,
           full_name: normalizedName,
           company_name: normalizedCompany,
-          role: ROLES.USER
+          role: ROLES.USER,
+          kyc_status: 'unverified',
+          kyc_deadline: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
         }
       ])
       .select();
