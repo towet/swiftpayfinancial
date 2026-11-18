@@ -29,6 +29,7 @@ import DeveloperGuide from "./pages/DeveloperGuide";
 import DashboardWebhooks from "./pages/DashboardWebhooks";
 import DashboardWithdrawals from "./pages/DashboardWithdrawals";
 import DashboardWallet from "./pages/DashboardWallet";
+import DashboardTokens from "./pages/DashboardTokens";
 import Pay from "./pages/Pay.tsx";
 import NotFound from "./pages/NotFound";
 
@@ -61,6 +62,7 @@ const AppContent = () => {
         <Route path="/dashboard/capital" element={<ProtectedRoute element={<DashboardCapital />} />} />
         <Route path="/dashboard/payment-links" element={<ProtectedRoute element={<PaymentLinks />} />} />
         <Route path="/dashboard/wallet" element={<ProtectedRoute element={<DashboardWallet />} />} />
+        <Route path="/dashboard/tokens" element={<ProtectedRoute element={<DashboardTokens />} />} />
         <Route path="/dashboard/withdrawals" element={<ProtectedRoute element={<DashboardWithdrawals />} />} />
         <Route path="/dashboard/profile" element={<ProtectedRoute element={<Profile />} />} />
         <Route path="/dashboard/super-admin" element={<ProtectedRoute element={<SuperAdmin />} />} />

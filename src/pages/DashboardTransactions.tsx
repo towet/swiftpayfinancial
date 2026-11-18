@@ -17,6 +17,7 @@ interface Transaction {
   amount: number;
   phone_number: string;
   status: "success" | "pending" | "failed";
+  platform_fee?: number | null;
   created_at: string;
 }
 
@@ -234,6 +235,9 @@ export default function DashboardTransactions() {
                         Status
                       </th>
                       <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-6 py-4">
+                        Fee
+                      </th>
+                      <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-6 py-4">
                         Time
                       </th>
                     </tr>
@@ -272,6 +276,13 @@ export default function DashboardTransactions() {
                           >
                             {tx.status}
                           </motion.span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="text-xs font-mono text-warning">
+                            {tx.platform_fee != null && tx.platform_fee > 0
+                              ? `KES ${tx.platform_fee}`
+                              : <span className="text-muted-foreground/50">—</span>}
+                          </span>
                         </td>
                         <td className="px-6 py-4">
                           <span className="text-sm text-muted-foreground">
