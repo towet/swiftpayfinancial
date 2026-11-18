@@ -20,7 +20,12 @@ import {
   RefreshCw,
   Zap,
   Target,
-  BarChart3
+  BarChart3,
+  Wallet,
+  CalendarDays,
+  Percent,
+  Sparkles,
+  ChevronDown
 } from "lucide-react";
 import {
   AreaChart,
@@ -47,6 +52,12 @@ export default function TillAnalytics() {
   const [activeRange, setActiveRange] = useState("Week");
   const [transactionFilter, setTransactionFilter] = useState<'all' | 'success' | 'failed' | 'pending'>('all');
   const [amountInsightsRange, setAmountInsightsRange] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
+
+  // Commission earnings state
+  const [commissionRange, setCommissionRange] = useState<'today' | 'week' | 'custom'>('today');
+  const [customFrom, setCustomFrom] = useState<string>('');
+  const [customTo, setCustomTo]     = useState<string>('');
+  const [showCustomPicker, setShowCustomPicker] = useState(false);
 
   useEffect(() => {
     fetchAnalytics();
@@ -198,6 +209,63 @@ export default function TillAnalytics() {
   };
 
   const revenueSeries = buildRevenueSeries(allTransactions, activeRange);
+
+  // ── Commission helpers ───────────────────────────────────────────────────────
+  const COMMISSION_RATE = 0.10; // 10%
+
+  const getCommissionWindow = () => {
+    const now = new Date();
+    if (commissionRange === 'today') {
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const end   = new Date(start); end.setDate(start.getDate() + 1);
+      return { start, end, label: 'Today' };
+    }
+    if (commissionRange === 'week') {
+      const end   = new Date(now); end.setHours(23, 59, 59, 999);
+      const start = new Date(now); start.setDate(now.getDate() - 6); start.setHours(0, 0, 0, 0);
+      return { start, end, label: 'Last 7 days' };
+    }
+    // custom
+    const start = customFrom ? new Date(customFrom + 'T00:00:00') : new Date(now.getFullYear(), now.getMonth(), 1);
+    const end   = customTo   ? new Date(customTo   + 'T23:59:59') : new Date();
+    return { start, end, label: `${customFrom || '—'} → ${customTo || '—'}` };
+  };
+
+  const computeCommission = (txs: any[], window: { start: Date; end: Date }) => {
+    const paid = txs.filter((t: any) => {
+      const s = String(t.status || '').toLowerCase();
+      const ok = s === 'success' || s === 'paid' || s === 'completed';
+      const d = new Date(t.created_at);
+      return ok && d >= window.start && d <= window.end;
+    });
+    const totalRevenue  = paid.reduce((sum: number, t: any) => sum + Number(t.amount || 0), 0);
+    const commission    = totalRevenue * COMMISSION_RATE;
+    const txCount       = paid.length;
+    return { totalRevenue, commission, txCount };
+  };
+
+  const commissionWindow   = getCommissionWindow();
+  const commissionData     = computeCommission(allTransactions, commissionWindow);
+
+  // Mini daily sparkline for commission (last 7 days always)
+  const commissionSparkline = (() => {
+    const days = 7;
+    const now  = new Date();
+    const map  = new Map<string, number>();
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(now); d.setDate(now.getDate() - i); d.setHours(0,0,0,0);
+      map.set(d.toISOString().slice(0, 10), 0);
+    }
+    allTransactions.forEach((t: any) => {
+      const s = String(t.status || '').toLowerCase();
+      if (s !== 'success' && s !== 'paid' && s !== 'completed') return;
+      const key = new Date(t.created_at).toISOString().slice(0, 10);
+      if (map.has(key)) map.set(key, (map.get(key) || 0) + Number(t.amount || 0) * COMMISSION_RATE);
+    });
+    return Array.from(map.entries()).map(([date, val]) => ({ date, val }));
+  })();
+
+  const sparkMax = Math.max(...commissionSparkline.map(d => d.val), 1);
 
   const filterTransactionsByLookbackDays = (txs: any[], days: number) => {
     const end = new Date();
@@ -437,6 +505,138 @@ export default function TillAnalytics() {
       </motion.div>
 
       <div className="container mx-auto px-6 py-8 space-y-6">
+        {/* ── My Commission Earnings Card ─────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-2xl overflow-hidden border border-[#00a651]/30 shadow-lg"
+          style={{ background: 'linear-gradient(135deg, #003d1f 0%, #005c2e 50%, #007a3d 100%)' }}
+        >
+          <div className="p-6">
+            {/* Header row */}
+            <div className="flex items-start justify-between mb-5">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-white/15 flex items-center justify-center backdrop-blur-sm">
+                  <Wallet className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <p className="text-white/70 text-xs font-medium uppercase tracking-widest">My Earnings</p>
+                  <h3 className="text-white font-bold text-lg leading-tight">Commission</h3>
+                </div>
+              </div>
+              {/* Period toggle pills */}
+              <div className="flex gap-1 p-1 rounded-xl bg-black/20 backdrop-blur-sm">
+                {([
+                  { key: 'today', label: 'Today' },
+                  { key: 'week',  label: 'Week'  },
+                  { key: 'custom', label: 'Custom' },
+                ] as const).map((opt) => (
+                  <button
+                    key={opt.key}
+                    onClick={() => { setCommissionRange(opt.key); if (opt.key === 'custom') setShowCustomPicker(true); else setShowCustomPicker(false); }}
+                    className={cn(
+                      'px-3 py-1.5 text-xs font-semibold rounded-lg transition-all',
+                      commissionRange === opt.key
+                        ? 'bg-white text-[#005c2e] shadow'
+                        : 'text-white/70 hover:text-white hover:bg-white/10'
+                    )}
+                  >
+                    {opt.key === 'custom' ? <span className="flex items-center gap-1"><CalendarDays className="w-3 h-3" />{opt.label}</span> : opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Custom date pickers */}
+            {showCustomPicker && (
+              <div className="flex items-center gap-3 mb-5 p-3 rounded-xl bg-black/20 backdrop-blur-sm">
+                <div className="flex-1">
+                  <label className="text-white/60 text-xs mb-1 block">From</label>
+                  <input
+                    type="date"
+                    value={customFrom}
+                    onChange={e => setCustomFrom(e.target.value)}
+                    className="w-full bg-white/10 text-white text-sm rounded-lg px-3 py-2 border border-white/20 focus:outline-none focus:border-white/50 [color-scheme:dark]"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="text-white/60 text-xs mb-1 block">To</label>
+                  <input
+                    type="date"
+                    value={customTo}
+                    onChange={e => setCustomTo(e.target.value)}
+                    className="w-full bg-white/10 text-white text-sm rounded-lg px-3 py-2 border border-white/20 focus:outline-none focus:border-white/50 [color-scheme:dark]"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Big commission figure */}
+            <div className="flex items-end gap-6 mb-6">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Percent className="w-4 h-4 text-[#00ff88]" />
+                  <span className="text-white/60 text-xs">10% of paid revenue</span>
+                </div>
+                <p className="text-4xl font-black text-white tracking-tight">
+                  KES {commissionData.commission.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+                <p className="text-white/50 text-xs mt-1">{commissionWindow.label}</p>
+              </div>
+
+              {/* Sparkline */}
+              <div className="flex-1 flex items-end justify-end">
+                <div className="flex items-end gap-0.5 h-14 pb-0">
+                  {commissionSparkline.map((d, i) => {
+                    const pct = sparkMax > 0 ? (d.val / sparkMax) : 0;
+                    const h   = Math.max(4, Math.round(pct * 48));
+                    const isToday = i === commissionSparkline.length - 1;
+                    return (
+                      <div
+                        key={d.date}
+                        title={`${d.date}: KES ${d.val.toFixed(2)}`}
+                        className="rounded-t-sm transition-all"
+                        style={{
+                          width: '10px',
+                          height: `${h}px`,
+                          background: isToday
+                            ? '#00ff88'
+                            : `rgba(255,255,255,${0.2 + pct * 0.5})`,
+                          marginLeft: i === 0 ? 0 : '3px',
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Stats row */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-xl bg-black/20 p-3 text-center">
+                <p className="text-white/50 text-xs mb-1">Paid Revenue</p>
+                <p className="text-white font-bold text-sm">
+                  KES {commissionData.totalRevenue.toLocaleString('en-KE', { minimumFractionDigits: 0 })}
+                </p>
+              </div>
+              <div className="rounded-xl bg-black/20 p-3 text-center">
+                <p className="text-white/50 text-xs mb-1">Paid Txns</p>
+                <p className="text-white font-bold text-sm">{commissionData.txCount}</p>
+              </div>
+              <div className="rounded-xl bg-[#00ff88]/10 border border-[#00ff88]/30 p-3 text-center">
+                <p className="text-[#00ff88]/70 text-xs mb-1">Your Cut</p>
+                <p className="text-[#00ff88] font-black text-sm">10%</p>
+              </div>
+            </div>
+
+            {/* Tagline */}
+            <div className="flex items-center gap-2 mt-4 pt-4 border-t border-white/10">
+              <Sparkles className="w-3.5 h-3.5 text-[#00ff88]" />
+              <p className="text-white/40 text-xs">Earnings update in real-time as transactions complete</p>
+            </div>
+          </div>
+        </motion.div>
+
         {/* Main Stats Row */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard
