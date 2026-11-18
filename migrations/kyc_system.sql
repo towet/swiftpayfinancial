@@ -60,10 +60,22 @@ VALUES ('kyc-documents', 'kyc-documents', false)
 ON CONFLICT (id) DO NOTHING;
 
 -- Allow backend service role to manage the bucket
-CREATE POLICY IF NOT EXISTS "Service role full access on kyc-documents"
-ON storage.objects FOR ALL
-TO service_role
-USING (bucket_id = 'kyc-documents');
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'storage'
+      AND tablename  = 'objects'
+      AND policyname = 'Service role full access on kyc-documents'
+  ) THEN
+    EXECUTE $policy$
+      CREATE POLICY "Service role full access on kyc-documents"
+      ON storage.objects FOR ALL
+      TO service_role
+      USING (bucket_id = 'kyc-documents')
+    $policy$;
+  END IF;
+END $$;
 
 -- ── 5. Verification query ───────────────────────────────────
 SELECT

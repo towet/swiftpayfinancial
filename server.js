@@ -8746,23 +8746,19 @@ app.post('/api/super-admin/users/:id/toggle-status', verifyToken, verifySuperAdm
 // KYC — KNOW YOUR CUSTOMER
 // ================================================================
 
-// Helper: upload a base64 image to Supabase Storage
+// Helper: store KYC image as base64 text in DB (no Storage bucket needed)
 const uploadKycImage = async (base64DataUrl, userId, suffix) => {
   if (!base64DataUrl) return null;
   try {
-    const matches = base64DataUrl.match(/^data:([^;]+);base64,(.+)$/);
-    if (!matches) return null;
-    const mimeType = matches[1];
-    const base64Data = matches[2];
-    const ext = mimeType.split('/')[1] || 'jpg';
-    const fileName = `${userId}/${suffix}-${Date.now()}.${ext}`;
-    const buffer = Buffer.from(base64Data, 'base64');
-    const { data, error } = await supabase.storage
-      .from('kyc-documents')
-      .upload(fileName, buffer, { contentType: mimeType, upsert: true });
-    if (error) { console.error('[KYC Storage]', error.message); return null; }
-    const { data: { publicUrl } } = supabase.storage.from('kyc-documents').getPublicUrl(fileName);
-    return publicUrl;
+    // Validate it's a proper base64 data URL
+    if (!base64DataUrl.startsWith('data:')) return null;
+    // Optionally strip to just first 2MB to stay within DB limits
+    if (base64DataUrl.length > 2_000_000) {
+      console.warn('[KYC] Image too large, truncating not supported — rejecting');
+      return null;
+    }
+    // Return the base64 data URL directly — stored as text in the DB column
+    return base64DataUrl;
   } catch (err) {
     console.error('[KYC Upload Error]', err.message);
     return null;
