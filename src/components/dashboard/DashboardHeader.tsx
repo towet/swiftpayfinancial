@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import { NotificationBell } from "@/components/dashboard/NotificationBell";
 import { Search, Bell, ChevronDown, LogOut, Settings, HelpCircle, User, Zap, AlertTriangle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
@@ -21,7 +22,6 @@ interface UserProfile {
 }
 
 export function DashboardHeader({ title, breadcrumbs = [] }: DashboardHeaderProps) {
-  const [showNotifications, setShowNotifications] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -166,11 +166,6 @@ export function DashboardHeader({ title, breadcrumbs = [] }: DashboardHeaderProp
     },
   ];
 
-  const notifications = [
-    { id: 1, message: "New payment received: KES 5,000", time: "2 min ago" },
-    { id: 2, message: "API key was used from new IP", time: "15 min ago" },
-    { id: 3, message: "Weekly report is ready", time: "1 hour ago" },
-  ];
 
   return (
     <motion.header
@@ -209,6 +204,28 @@ export function DashboardHeader({ title, breadcrumbs = [] }: DashboardHeaderProp
             />
           </div>
 
+          {/* KYC Status Chip */}
+          {(() => {
+            try {
+              const u = JSON.parse(localStorage.getItem('user') || '{}');
+              const kycStatus = u?.kyc_status;
+              if (!kycStatus || kycStatus === 'verified') return null;
+              const cfg = kycStatus === 'submitted'
+                ? { label: '⏳ KYC Pending', cls: 'bg-yellow-500/10 text-yellow-500 border-yellow-500/30' }
+                : kycStatus === 'rejected'
+                ? { label: '❌ KYC Rejected', cls: 'bg-destructive/10 text-destructive border-destructive/30' }
+                : { label: '⚠ Verify ID', cls: 'bg-orange-500/10 text-orange-400 border-orange-400/30' };
+              return (
+                <a
+                  href="/dashboard/kyc"
+                  className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all hover:scale-105 ${cfg.cls}`}
+                >
+                  {cfg.label}
+                </a>
+              );
+            } catch { return null; }
+          })()}
+
           {/* Token Balance Chip */}
           {tokenBalance !== null && (
             <Link
@@ -230,35 +247,8 @@ export function DashboardHeader({ title, breadcrumbs = [] }: DashboardHeaderProp
             </Link>
           )}
 
-          {/* Notifications */}
-          <div className="relative">
-            <button
-              onClick={() => setShowNotifications(!showNotifications)}
-              className="relative p-2 rounded-lg bg-secondary hover:bg-secondary/70 transition-colors"
-            >
-              <Bell className="h-5 w-5 text-muted-foreground" />
-              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-primary animate-pulse" />
-            </button>
-
-            {showNotifications && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="absolute right-0 top-12 w-80 bg-card border border-border shadow-[0_16px_40px_-16px_hsl(222_58%_14%/0.25)] rounded-xl p-4 space-y-3"
-              >
-                <h3 className="font-semibold text-foreground">Notifications</h3>
-                {notifications.map((notif) => (
-                  <div
-                    key={notif.id}
-                    className="p-3 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors cursor-pointer"
-                  >
-                    <p className="text-sm text-foreground">{notif.message}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{notif.time}</p>
-                  </div>
-                ))}
-              </motion.div>
-            )}
-          </div>
+          {/* Notifications — real-time bell */}
+          <NotificationBell />
 
           {/* Profile */}
           <div className="relative">

@@ -3421,9 +3421,31 @@ app.post('/api/super-admin/reports/generate', verifyToken, verifySuperAdmin, asy
 // ==================== AUTH ROUTES ====================
 
 // Register
+
+// ── SwiftPay rate-limiter (brute-force protection) ──────────
+const _rlMap = new Map(); // key => { count, resetAt }
+function rateLimit(key, maxRequests = 5, windowMs = 15 * 60 * 1000) {
+  const now = Date.now();
+  let entry = _rlMap.get(key);
+  if (!entry || now > entry.resetAt) {
+    entry = { count: 0, resetAt: now + windowMs };
+    _rlMap.set(key, entry);
+  }
+  entry.count++;
+  if (entry.count > maxRequests) {
+    const retryAfterSec = Math.ceil((entry.resetAt - now) / 1000);
+    return { limited: true, retryAfterSec };
+  }
+  return { limited: false };
+}
+// ────────────────────────────────────────────────────────────
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { email, password, fullName, companyName } = req.body;
+
+    // Rate limit: 5 registration attempts per IP per 15 min
+    const rl = rateLimit(`register:${req.ip}`, 5);
+    if (rl.limited) return res.status(429).json({ status: 'error', message: `Too many attempts. Try again in ${rl.retryAfterSec}s.` });
 
     const normalizedEmail = normalizeEmail(email);
     const normalizedName = String(fullName || '').trim();
@@ -3821,6 +3843,10 @@ app.post('/api/auth/login', async (req, res) => {
     const { email, password, rememberMe } = req.body;
 
     const normalizedEmail = normalizeEmail(email);
+
+    // Rate limit: 5 login attempts per IP per 15 min
+    const rl = rateLimit(`login:${req.ip}`, 5);
+    if (rl.limited) return res.status(429).json({ status: 'error', message: `Too many login attempts. Try again in ${rl.retryAfterSec}s.` });
 
     if (!normalizedEmail || !password) {
       return res.status(400).json({ status: 'error', message: 'Email and password required' });
@@ -5166,6 +5192,11 @@ const processMpesaCallback = async (req, res) => {
             }
           }
 
+          // Notify merchant: wallet deposit successful
+          if (priorDeposit?.user_id) {
+            const _dAmt = amount || priorDeposit.amount;
+            try { await createNotification(priorDeposit.user_id, { type: 'payment_received', title: '💰 Wallet Topped Up', body: `KES ${Number(_dAmt).toLocaleString()} deposited to your wallet.${mpesaReceiptNumber ? ' Receipt: ' + mpesaReceiptNumber : ''}`, metadata: { amount: _dAmt, receipt: mpesaReceiptNumber } }); } catch(_) {}
+          }
           console.log('Wallet deposit marked success:', {
             id: priorDeposit.id,
             wallet_id: priorDeposit.wallet_id,
@@ -8885,6 +8916,7 @@ app.post('/api/super-admin/kyc/:submissionId/reject', verifyToken, verifySuperAd
       kyc_status: 'rejected', updated_at: new Date().toISOString(),
     }).eq('id', sub.user_id);
 
+    try { await createNotification(sub.user_id, { type: 'kyc_rejected', title: '❌ Verification Not Approved', body: admin_note ? `Your submission was rejected: ${admin_note}` : 'Your KYC submission was not approved. Please re-submit with clearer document images.' }); } catch(_) {}
     res.json({ status: 'success', message: 'KYC rejected' });
   } catch (error) {
     res.status(500).json({ status: 'error', message: error.message });
@@ -8906,6 +8938,132 @@ app.get('/api/super-admin/kyc-users', verifyToken, verifySuperAdmin, async (req,
 });
 
 
+
+// ── Notifications system ─────────────────────────────────────
+// createNotification helper — call this from anywhere in the backend
+async function createNotification(userId, { type, title, body, metadata = {} }) {
+  try {
+    await supabase.from('notifications').insert([{
+      user_id: userId,
+      type,
+      title,
+      body,
+      metadata,
+      read: false
+    }]);
+  } catch (e) {
+    console.error('[Notifications] Failed to insert:', e.message);
+  }
+}
+
+// GET /api/notifications — list user's notifications
+app.get('/api/notifications', verifyToken, async (req, res) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 20, 50);
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', req.userId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    const unread = (data || []).filter(n => !n.read).length;
+    res.json({ status: 'success', notifications: data || [], unread_count: unread });
+  } catch (e) {
+    res.status(500).json({ status: 'error', message: e.message });
+  }
+});
+
+// POST /api/notifications/mark-read — mark all or specific as read
+app.post('/api/notifications/mark-read', verifyToken, async (req, res) => {
+  try {
+    const { ids } = req.body; // optional array of ids; omit to mark all
+    let query = supabase.from('notifications').update({ read: true }).eq('user_id', req.userId);
+    if (Array.isArray(ids) && ids.length) query = query.in('id', ids);
+    const { error } = await query;
+    if (error) throw error;
+    res.json({ status: 'success' });
+  } catch (e) {
+    res.status(500).json({ status: 'error', message: e.message });
+  }
+});
+
+// DELETE /api/notifications — clear all notifications
+app.delete('/api/notifications', verifyToken, async (req, res) => {
+  try {
+    const { error } = await supabase.from('notifications').delete().eq('user_id', req.userId);
+    if (error) throw error;
+    res.json({ status: 'success' });
+  } catch (e) {
+    res.status(500).json({ status: 'error', message: e.message });
+  }
+});
+// ─────────────────────────────────────────────────────────────
+
+// PUT /api/auth/change-password
+app.put('/api/auth/change-password', verifyToken, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ status: 'error', message: 'Current and new password required' });
+    }
+    if (newPassword.length < 8) {
+      return res.status(400).json({ status: 'error', message: 'New password must be at least 8 characters' });
+    }
+    const { data: user, error: userErr } = await supabase
+      .from('users').select('password_hash').eq('id', req.userId).single();
+    if (userErr || !user) return res.status(404).json({ status: 'error', message: 'User not found' });
+    const match = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!match) return res.status(401).json({ status: 'error', message: 'Current password is incorrect' });
+    const hashed = await bcrypt.hash(newPassword, 10);
+    const { error: upErr } = await supabase.from('users').update({ password_hash: hashed }).eq('id', req.userId);
+    if (upErr) throw upErr;
+    await createNotification(req.userId, { type: 'security', title: '🔐 Password Changed', body: 'Your account password was changed. If this was not you, contact support immediately.' });
+    res.json({ status: 'success', message: 'Password changed successfully' });
+  } catch (e) {
+    res.status(500).json({ status: 'error', message: e.message });
+  }
+});
+
+// GET /api/transactions/export — download CSV
+app.get('/api/transactions/export', verifyToken, async (req, res) => {
+  try {
+    const { from, to, status: statusFilter, till_id } = req.query;
+    let query = supabase
+      .from('transactions')
+      .select('*, till:till_id(till_name)')
+      .eq('user_id', req.userId)
+      .order('created_at', { ascending: false })
+      .limit(5000);
+    if (from) query = query.gte('created_at', from);
+    if (to)   query = query.lte('created_at', to);
+    if (statusFilter) query = query.eq('status', statusFilter);
+    if (till_id) query = query.eq('till_id', till_id);
+    const { data, error } = await query;
+    if (error) throw error;
+    const rows = data || [];
+    const header = ['Date','Reference','Phone','Amount (KES)','Status','Till','Description'];
+    const escape = (v) => {
+      const s = String(v ?? '').replace(/"/g, '""');
+      return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s}"` : s;
+    };
+    const lines = [header.join(','), ...rows.map(r => [
+      new Date(r.created_at).toISOString().replace('T', ' ').slice(0, 19),
+      r.mpesa_receipt || r.checkout_request_id || r.id,
+      r.phone_number || '',
+      r.amount || 0,
+      r.status || '',
+      r.till?.till_name || r.till_id || '',
+      r.description || r.reference || ''
+    ].map(escape).join(','))];
+    const csv = lines.join('\n');
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="swiftpay-transactions-${Date.now()}.csv"`);
+    res.send(csv);
+  } catch (e) {
+    res.status(500).json({ status: 'error', message: e.message });
+  }
+});
 // Start Server
 const server = app.listen(PORT, () => {
   console.log(`🚀 SwiftPay API Server running on http://localhost:${PORT}`);

@@ -63,6 +63,26 @@ export default function DashboardTransactions() {
   const fetchTransactions = async () => {
     try {
       const token = localStorage.getItem("token");
+
+  const handleExportCSV = async () => {
+    try {
+      const params = new URLSearchParams();
+      if (search) params.set('search', search);
+      const resp = await fetch(`/api/transactions/export?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!resp.ok) throw new Error('Export failed');
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `swiftpay-transactions-${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      console.error('CSV export error:', err);
+    }
+  };
       const response = await axios.get("/api/transactions", {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -193,9 +213,9 @@ export default function DashboardTransactions() {
                 <Button variant="outline" size="icon">
                   <Filter className="h-4 w-4" />
                 </Button>
-                <Button variant="gradient">
+                <Button variant="gradient" onClick={handleExportCSV}>
                   <Download className="h-4 w-4 mr-2" />
-                  Export
+                  Export CSV
                 </Button>
               </div>
             </div>
