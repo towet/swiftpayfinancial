@@ -2555,33 +2555,29 @@ app.get('/api/super-admin/tills/:id/analytics', verifyToken, verifySuperAdmin, a
         endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
     }
 
-    // Get till details
-    let { data: till, error: tillError } = await supabase
+    // Get till details — two-query approach to avoid join issues
+    const { data: tillRow, error: tillError } = await supabase
       .from('tills')
-      .select('*, users:user_id (email, full_name, company_name)')
+      .select('*')
       .eq('id', id)
       .maybeSingle();
 
-    if (!till) {
-      const fallback = await supabase
-        .from('tills')
-        .select('*')
-        .eq('id', id)
-        .maybeSingle();
-
-      if (!fallback.data) {
-        return res.status(404).json({ status: 'error', message: 'Till not found' });
-      }
-      till = fallback.data;
-      if (till.user_id) {
-        const { data: u } = await supabase
-          .from('users')
-          .select('email, full_name, company_name')
-          .eq('id', till.user_id)
-          .maybeSingle();
-        till.users = u || null;
-      }
+    if (!tillRow) {
+      return res.status(404).json({ status: 'error', message: 'Till not found' });
     }
+
+    // Fetch owner separately to avoid join syntax issues
+    let till = { ...tillRow, users: null };
+    if (tillRow.user_id) {
+      const { data: u } = await supabase
+        .from('users')
+        .select('email, full_name, company_name')
+        .eq('id', tillRow.user_id)
+        .maybeSingle();
+      till.users = u || null;
+    }
+    // Alias: expose till.name so frontend works with either column name
+    if (!till.name && till.till_name) till.name = till.till_name;
 
     // Get all transactions for this till
     const { data: transactions, error: txError } = await supabase
@@ -8581,7 +8577,7 @@ app.get('/api/super-admin/users-overview', verifyToken, verifySuperAdmin, async 
     // 1. Fetch all users
     let userQuery = supabase
       .from('users')
-      .select('id, email, full_name, company_name, phone_number, role, created_at, is_active', { count: 'exact' })
+      .select('id, email, full_name, company_name, role, created_at, is_active, kyc_status', { count: 'exact' })
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 

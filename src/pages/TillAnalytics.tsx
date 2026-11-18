@@ -404,7 +404,7 @@ export default function TillAnalytics() {
               <div>
                 <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
                   <CreditCard className="w-6 h-6 text-primary" />
-                  {till.name}
+                  {till.till_name || till.name || 'Till Analytics'}
                 </h1>
                 <p className="text-sm text-muted-foreground">
                   {till.users?.company_name} • {till.users?.full_name}
