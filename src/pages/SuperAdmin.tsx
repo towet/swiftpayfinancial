@@ -235,7 +235,7 @@ interface WithdrawalRequest {
 
 export default function SuperAdmin() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<"overview" | "tills" | "transactions" | "wallets" | "withdrawals" | "activity" | "audit" | "anomalies" | "health" | "users">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "tills" | "transactions" | "wallets" | "withdrawals" | "activity" | "audit" | "anomalies" | "health" | "users" | "kyc">("overview");
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [tills, setTills] = useState<Till[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -271,6 +271,13 @@ export default function SuperAdmin() {
   const [loadingAdminRecipients, setLoadingAdminRecipients] = useState(false);
   const [savingAdminRecipients, setSavingAdminRecipients] = useState(false);
   const [testingAdminRecipients, setTestingAdminRecipients] = useState(false);
+  const [kycSubmissions, setKycSubmissions] = useState<any[]>([]);
+  const [kycCounts, setKycCounts] = useState<any>({});
+  const [kycFilter, setKycFilter] = useState<'all'|'submitted'|'verified'|'rejected'>('submitted');
+  const [loadingKyc, setLoadingKyc] = useState(false);
+  const [selectedKyc, setSelectedKyc] = useState<any | null>(null);
+  const [kycAdminNote, setKycAdminNote] = useState('');
+  const [processingKyc, setProcessingKyc] = useState(false);
   const [adminUsers, setAdminUsers] = useState<any[]>([]);
   const [adminUsersTotal, setAdminUsersTotal] = useState(0);
   const [adminUsersPage, setAdminUsersPage] = useState(1);
@@ -297,11 +304,38 @@ export default function SuperAdmin() {
     if (activeTab === "wallets") fetchWallets();
     if (activeTab === "withdrawals") fetchWithdrawalRequests();
     if (activeTab === "users") fetchAdminUsers();
+    if (activeTab === "kyc") fetchKycSubmissions();
   }, [activeTab, page, withdrawalsStatus, walletSearch]);
 
   useEffect(() => {
     if (activeTab === "users") fetchAdminUsers();
   }, [adminUsersPage, adminUsersSearch]);
+
+  useEffect(() => {
+    if (activeTab === "kyc") fetchKycSubmissions();
+  }, [kycFilter]);
+
+  const fetchKycSubmissions = async () => {
+    setLoadingKyc(true);
+    try {
+      const token = localStorage.getItem('token');
+      const { data } = await axios.get('/api/super-admin/kyc?status=' + kycFilter, { headers: { Authorization: 'Bearer ' + token } });
+      if (data.status === 'success') { setKycSubmissions(data.submissions || []); setKycCounts(data.counts || {}); }
+    } catch (err: any) {
+      toast({ title: 'Error', description: 'Failed to load KYC submissions', variant: 'destructive' });
+    } finally { setLoadingKyc(false); }
+  };
+
+  const handleKycAction = async (submissionId: string, action: 'verify' | 'reject') => {
+    setProcessingKyc(true);
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post('/api/super-admin/kyc/' + submissionId + '/' + action, { admin_note: kycAdminNote }, { headers: { Authorization: 'Bearer ' + token } });
+      toast({ title: action === 'verify' ? '✅ KYC Verified!' : '❌ KYC Rejected', description: action === 'verify' ? 'User can now accept payments.' : 'User has been notified.' });
+      setSelectedKyc(null); setKycAdminNote(''); fetchKycSubmissions();
+    } catch { toast({ title: 'Error', description: 'Action failed', variant: 'destructive' }); }
+    finally { setProcessingKyc(false); }
+  };
 
   const fetchAdminUsers = async () => {
     setLoadingAdminUsers(true);
@@ -1620,7 +1654,8 @@ export default function SuperAdmin() {
   { id: "audit", label: "Audit Trail", icon: History },
   { id: "anomalies", label: "Anomalies", icon: Brain },
   { id: "health", label: "System Health", icon: Server },
-  { id: "users", label: "Users", icon: Users }
+  { id: "users", label: "Users", icon: Users },
+  { id: "kyc", label: "KYC", icon: Shield }
 ].map((tab) => (
                 <Button
                   key={tab.id}

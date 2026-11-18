@@ -1035,6 +1035,12 @@ app.post('/api/wallet/deposits/stk-push', verifyToken, async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'Phone number is required' });
     }
 
+    // KYC gate — wallet deposit API STK push
+    const kycCheckWalletApi = await checkKycGate(req.userId);
+    if (!kycCheckWalletApi.allowed) {
+      return res.status(403).json({ status: 'error', message: 'KYC verification required before processing payments.', code: 'KYC_REQUIRED' });
+    }
+
     const wallet = await ensureWalletForUser(req.userId);
 
     const accountReference = `WALLET${String(wallet.id || '').replace(/-/g, '').slice(0, 6)}`;
@@ -4750,6 +4756,18 @@ app.post('/api/payment-links/:id/pay', async (req, res) => {
     const accountReference = `PAY${String(linkRow.id || '').replace(/-/g, '').slice(0, 8)}`;
 
     if (selectedTill?.id && selectedTill?.till_number) {
+      // ── KYC gate (payment link) ──
+      if (linkRow?.user_id) {
+        const kycCheck3 = await checkKycGate(linkRow.user_id);
+        if (!kycCheck3.allowed) {
+          return res.status(403).json({
+            status: 'error',
+            code: 'KYC_REQUIRED',
+            message: 'Payment unavailable: the merchant has not completed account verification.',
+          });
+        }
+      }
+
       // ── Token balance gate (payment link) ──
       if (linkRow?.user_id) {
         const gate3 = await checkTokenBalanceGate(linkRow.user_id, amount);
@@ -4948,6 +4966,17 @@ app.post('/api/mpesa/stk-push', verifyToken, async (req, res) => {
 
     if (!till) {
       return res.status(404).json({ status: 'error', message: 'Till not found' });
+    }
+
+    // ── KYC gate ──
+    const kycCheck1 = await checkKycGate(req.userId);
+    if (!kycCheck1.allowed) {
+      return res.status(403).json({
+        status: 'error',
+        code: 'KYC_REQUIRED',
+        message: kycCheck1.message || 'Account verification required. Please complete KYC at /dashboard/kyc.',
+        kyc_status: kycCheck1.kyc_status,
+      });
     }
 
     // ── Token balance gate ──
@@ -5606,6 +5635,12 @@ app.post('/api/mpesa/stk-push-api', verifyApiKey, async (req, res) => {
 
     if (!phone_number || !amount) {
       return res.status(400).json({ status: 'error', message: 'Phone number and amount required' });
+    }
+
+    // KYC gate — API key STK push
+    const kycCheckApi = await checkKycGate(req.userId);
+    if (!kycCheckApi.allowed) {
+      return res.status(403).json({ status: 'error', message: 'KYC verification required before processing payments.', code: 'KYC_REQUIRED' });
     }
 
     // Use till_id from request body or from API key
@@ -8600,6 +8635,269 @@ app.post('/api/super-admin/users/:id/toggle-status', verifyToken, verifySuperAdm
     const newStatus = !user.is_active;
     await supabase.from('users').update({ is_active: newStatus }).eq('id', req.params.id);
     res.json({ status: 'success', is_active: newStatus });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+
+
+// ================================================================
+// KYC — KNOW YOUR CUSTOMER
+// ================================================================
+
+// Helper: upload a base64 image to Supabase Storage
+const uploadKycImage = async (base64DataUrl, userId, suffix) => {
+  if (!base64DataUrl) return null;
+  try {
+    const matches = base64DataUrl.match(/^data:([^;]+);base64,(.+)$/);
+    if (!matches) return null;
+    const mimeType = matches[1];
+    const base64Data = matches[2];
+    const ext = mimeType.split('/')[1] || 'jpg';
+    const fileName = `${userId}/${suffix}-${Date.now()}.${ext}`;
+    const buffer = Buffer.from(base64Data, 'base64');
+    const { data, error } = await supabase.storage
+      .from('kyc-documents')
+      .upload(fileName, buffer, { contentType: mimeType, upsert: true });
+    if (error) { console.error('[KYC Storage]', error.message); return null; }
+    const { data: { publicUrl } } = supabase.storage.from('kyc-documents').getPublicUrl(fileName);
+    return publicUrl;
+  } catch (err) {
+    console.error('[KYC Upload Error]', err.message);
+    return null;
+  }
+};
+
+// ── KYC Gate helper: block if user is not verified and past deadline ──
+const checkKycGate = async (userId) => {
+  try {
+    const { data: user } = await supabase
+      .from('users')
+      .select('kyc_status, kyc_deadline')
+      .eq('id', userId)
+      .single();
+    if (!user) return { allowed: false, reason: 'User not found' };
+    if (user.kyc_status === 'verified') return { allowed: true };
+    // Grace period: if deadline hasn't passed yet, still allow
+    if (user.kyc_deadline && new Date(user.kyc_deadline) > new Date()) {
+      return { allowed: true, grace: true, deadline: user.kyc_deadline };
+    }
+    // Submitted but not yet reviewed — allow during review window
+    if (user.kyc_status === 'submitted') {
+      return { allowed: false, reason: 'kyc_pending_review', kyc_status: user.kyc_status };
+    }
+    return {
+      allowed: false,
+      reason: 'kyc_required',
+      kyc_status: user.kyc_status,
+      message: 'Account verification required. Please complete KYC at /dashboard/kyc before accepting payments.',
+    };
+  } catch (err) {
+    console.error('[KYC Gate Error]', err.message);
+    return { allowed: true }; // fail-open on DB error
+  }
+};
+
+// GET /api/kyc/status — current user KYC status
+app.get('/api/kyc/status', verifyToken, async (req, res) => {
+  try {
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('kyc_status, kyc_deadline, kyc_verified_at')
+      .eq('id', req.userId)
+      .single();
+    if (error || !user) return res.status(404).json({ status: 'error', message: 'User not found' });
+
+    const { data: submission } = await supabase
+      .from('kyc_submissions')
+      .select('id, full_name, id_type, status, submitted_at, admin_note')
+      .eq('user_id', req.userId)
+      .maybeSingle();
+
+    res.json({
+      status: 'success',
+      kyc_status:      user.kyc_status,
+      kyc_deadline:    user.kyc_deadline,
+      kyc_verified_at: user.kyc_verified_at,
+      is_verified:     user.kyc_status === 'verified',
+      grace_active:    user.kyc_deadline ? new Date(user.kyc_deadline) > new Date() : false,
+      submission,
+    });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+// POST /api/kyc/submit — submit KYC documents
+app.post('/api/kyc/submit', verifyToken, async (req, res) => {
+  try {
+    const { full_name, id_number, id_type, id_front_base64, id_back_base64, selfie_base64 } = req.body;
+
+    if (!full_name || !id_number || !id_type || !id_front_base64) {
+      return res.status(400).json({ status: 'error', message: 'full_name, id_number, id_type and id_front image are required' });
+    }
+
+    const validTypes = ['national_id', 'passport', 'driving_license'];
+    if (!validTypes.includes(id_type)) {
+      return res.status(400).json({ status: 'error', message: 'Invalid ID type' });
+    }
+
+    // Upload images to Supabase Storage
+    const [frontUrl, backUrl, selfieUrl] = await Promise.all([
+      uploadKycImage(id_front_base64, req.userId, 'front'),
+      id_back_base64  ? uploadKycImage(id_back_base64,  req.userId, 'back')   : Promise.resolve(null),
+      selfie_base64   ? uploadKycImage(selfie_base64,   req.userId, 'selfie') : Promise.resolve(null),
+    ]);
+
+    if (!frontUrl) {
+      return res.status(500).json({ status: 'error', message: 'Failed to upload ID front image. Please check Supabase Storage bucket "kyc-documents" exists.' });
+    }
+
+    // Upsert submission (replace if resubmitting)
+    const { data: submission, error: subError } = await supabase
+      .from('kyc_submissions')
+      .upsert([{
+        user_id:      req.userId,
+        full_name:    String(full_name).trim(),
+        id_number:    String(id_number).trim(),
+        id_type,
+        id_front_url: frontUrl,
+        id_back_url:  backUrl,
+        selfie_url:   selfieUrl,
+        status:       'submitted',
+        admin_note:   null,
+        reviewed_by:  null,
+        reviewed_at:  null,
+        submitted_at: new Date().toISOString(),
+        updated_at:   new Date().toISOString(),
+      }], { onConflict: 'user_id' })
+      .select()
+      .single();
+
+    if (subError) return res.status(400).json({ status: 'error', message: subError.message });
+
+    // Update user kyc_status to 'submitted'
+    await supabase.from('users')
+      .update({ kyc_status: 'submitted', updated_at: new Date().toISOString() })
+      .eq('id', req.userId);
+
+    res.json({ status: 'success', message: 'KYC submitted successfully. We will review within 24 hours.', submission });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+// ── SUPER ADMIN KYC ROUTES ──────────────────────────────────
+
+// GET /api/super-admin/kyc — list all submissions with filter
+app.get('/api/super-admin/kyc', verifyToken, verifySuperAdmin, async (req, res) => {
+  try {
+    const filter = req.query.status || 'all'; // all | submitted | verified | rejected
+    let query = supabase
+      .from('kyc_submissions')
+      .select('*, user:user_id (id, email, full_name, company_name, kyc_status, kyc_deadline, created_at)')
+      .order('submitted_at', { ascending: false });
+
+    if (filter !== 'all') query = query.eq('status', filter);
+
+    const { data, error } = await query;
+    if (error) return res.status(400).json({ status: 'error', message: error.message });
+
+    // Also count unverified users who haven't submitted yet
+    const { count: unsubmittedCount } = await supabase
+      .from('users')
+      .select('id', { count: 'exact', head: true })
+      .eq('kyc_status', 'unverified');
+
+    const { count: submittedCount }  = await supabase.from('kyc_submissions').select('id', { count: 'exact', head: true }).eq('status', 'submitted');
+    const { count: verifiedCount }   = await supabase.from('kyc_submissions').select('id', { count: 'exact', head: true }).eq('status', 'verified');
+    const { count: rejectedCount }   = await supabase.from('kyc_submissions').select('id', { count: 'exact', head: true }).eq('status', 'rejected');
+
+    res.json({
+      status: 'success',
+      submissions: data || [],
+      counts: {
+        unsubmitted: unsubmittedCount || 0,
+        submitted:   submittedCount   || 0,
+        verified:    verifiedCount    || 0,
+        rejected:    rejectedCount    || 0,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+// GET /api/super-admin/kyc/:submissionId — full submission with signed image URLs
+app.get('/api/super-admin/kyc/:submissionId', verifyToken, verifySuperAdmin, async (req, res) => {
+  try {
+    const { data: sub, error } = await supabase
+      .from('kyc_submissions')
+      .select('*, user:user_id (id, email, full_name, company_name, phone_number, kyc_status, kyc_deadline, created_at)')
+      .eq('id', req.params.submissionId)
+      .single();
+    if (error || !sub) return res.status(404).json({ status: 'error', message: 'Submission not found' });
+    res.json({ status: 'success', submission: sub });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+// POST /api/super-admin/kyc/:submissionId/verify — approve KYC
+app.post('/api/super-admin/kyc/:submissionId/verify', verifyToken, verifySuperAdmin, async (req, res) => {
+  try {
+    const { admin_note } = req.body;
+    const { data: sub } = await supabase.from('kyc_submissions').select('user_id').eq('id', req.params.submissionId).single();
+    if (!sub) return res.status(404).json({ status: 'error', message: 'Submission not found' });
+
+    await supabase.from('kyc_submissions').update({
+      status: 'verified', admin_note: admin_note || null,
+      reviewed_by: req.userId, reviewed_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    }).eq('id', req.params.submissionId);
+
+    await supabase.from('users').update({
+      kyc_status: 'verified', kyc_verified_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    }).eq('id', sub.user_id);
+
+    console.log('[KYC] User', sub.user_id, 'verified by admin', req.userId);
+    res.json({ status: 'success', message: 'KYC verified — user can now accept payments' });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+// POST /api/super-admin/kyc/:submissionId/reject — reject KYC with reason
+app.post('/api/super-admin/kyc/:submissionId/reject', verifyToken, verifySuperAdmin, async (req, res) => {
+  try {
+    const { admin_note } = req.body;
+    const { data: sub } = await supabase.from('kyc_submissions').select('user_id').eq('id', req.params.submissionId).single();
+    if (!sub) return res.status(404).json({ status: 'error', message: 'Submission not found' });
+
+    await supabase.from('kyc_submissions').update({
+      status: 'rejected', admin_note: admin_note || 'KYC documents rejected.',
+      reviewed_by: req.userId, reviewed_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    }).eq('id', req.params.submissionId);
+
+    await supabase.from('users').update({
+      kyc_status: 'rejected', updated_at: new Date().toISOString(),
+    }).eq('id', sub.user_id);
+
+    res.json({ status: 'success', message: 'KYC rejected' });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+// GET /api/super-admin/kyc-users — list all users with KYC status (for overview tab)
+app.get('/api/super-admin/kyc-users', verifyToken, verifySuperAdmin, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, email, full_name, company_name, kyc_status, kyc_deadline, kyc_verified_at, created_at')
+      .order('created_at', { ascending: false });
+    if (error) return res.status(400).json({ status: 'error', message: error.message });
+    res.json({ status: 'success', users: data || [] });
   } catch (error) {
     res.status(500).json({ status: 'error', message: error.message });
   }

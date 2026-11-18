@@ -1,6 +1,7 @@
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { TokenWarningBanner } from "@/components/dashboard/TokenWarningBanner";
+import { KYCBanner } from "@/components/dashboard/KYCBanner";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -145,6 +146,7 @@ export default function DashboardTransactions() {
           title="Transactions"
           breadcrumbs={["Dashboard", "Transactions"]}
         />
+        <KYCBanner />
         <TokenWarningBanner />
 
         <div className="p-6 space-y-6">

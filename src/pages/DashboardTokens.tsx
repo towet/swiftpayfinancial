@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
+import { KYCBanner } from "@/components/dashboard/KYCBanner";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -321,6 +322,7 @@ export default function DashboardTokens() {
       <DashboardSidebar />
       <main className="ml-20 lg:ml-64 transition-all duration-300">
         <DashboardHeader />
+        <KYCBanner />
 
         <div className="p-4 md:p-6 lg:p-8 space-y-8">
 

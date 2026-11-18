@@ -21,7 +21,8 @@ import {
   Link as LinkIcon,
   Store,
   Coins,
-  Zap
+  Zap,
+  ShieldCheck
 } from "lucide-react";
 
 const ShieldCheckIcon = ({ className }: { className?: string }) => (
@@ -41,6 +42,7 @@ const baseMenuItems = [
   { icon: LinkIcon, label: "Payment Links", path: "/dashboard/payment-links" },
   { icon: Wallet, label: "Wallet", path: "/dashboard/wallet" },
   { icon: Zap, label: "Tokens", path: "/dashboard/tokens" },
+  { icon: ShieldCheck, label: "KYC / Verify", path: "/dashboard/kyc" },
   { icon: DollarSign, label: "Withdrawals", path: "/dashboard/withdrawals" },
   { icon: Key, label: "API Keys", path: "/dashboard/api-keys" },
   { icon: CreditCard, label: "Accounts", path: "/dashboard/accounts" },
