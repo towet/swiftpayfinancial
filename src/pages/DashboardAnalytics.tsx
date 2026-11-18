@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { MobileBottomNav } from '@/components/dashboard/MobileBottomNav';
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { motion } from "framer-motion";
@@ -548,7 +549,7 @@ export default function DashboardAnalytics() {
     <div className="min-h-screen bg-background">
       <DashboardSidebar />
 
-      <main className="ml-20 lg:ml-64 transition-all duration-300">
+      <main className="ml-0 md:ml-0 md:ml-20 lg:ml-64 pb-20 md:pb-0 transition-all duration-300 pb-20 md:pb-0">
         <DashboardHeader 
           title="Advanced Analytics" 
           breadcrumbs={["Dashboard", "Analytics"]} 
@@ -1094,8 +1095,8 @@ export default function DashboardAnalytics() {
                             >
                               <td className="p-3 font-medium text-foreground">KES {a.amount.toLocaleString()}</td>
                               <td className="p-3 text-foreground">{a.totalCount}</td>
-                              <td className="p-3 text-green-400">{a.paidCount}</td>
-                              <td className="p-3 text-red-400">{a.failedCount}</td>
+                              <td className="p-3 text-green-700">{a.paidCount}</td>
+                              <td className="p-3 text-red-700">{a.failedCount}</td>
                               <td className="p-3 text-yellow-400">{a.pendingCount}</td>
                               <td className="p-3 text-foreground">{((a.totalCount > 0 ? (a.paidCount / a.totalCount) : 0) * 100).toFixed(1)}%</td>
                               <td className="p-3 text-foreground">{formatKES(a.paidRevenue)}</td>
@@ -1135,8 +1136,8 @@ export default function DashboardAnalytics() {
               </div>
               <div className={`px-2 py-1 rounded-full text-xs font-medium ${
                 effectiveAnomalyScore === 'high' 
-                  ? 'bg-red-500/20 text-red-400' 
-                  : 'bg-green-500/20 text-green-400'
+                  ? 'bg-red-500/20 text-red-700' 
+                  : 'bg-green-500/20 text-green-700'
               }`}>
                 Anomaly Score: {effectiveAnomalyScore}
               </div>
@@ -1163,10 +1164,10 @@ export default function DashboardAnalytics() {
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: 0.7 + index * 0.1 }}
                   className={`p-4 rounded-xl border ${
-                    insight.severity === 'error' ? 'bg-red-500/10 border-red-500/20' :
+                    insight.severity === 'error' ? 'bg-red-50 border-red-500/20' :
                     insight.severity === 'warning' ? 'bg-yellow-500/10 border-yellow-500/20' :
                     insight.severity === 'success' ? 'bg-green-500/10 border-green-500/20' :
-                    'bg-blue-500/10 border-blue-500/20'
+                    'bg-blue-50 border-blue-500/20'
                   }`}
                 >
                   <div className="flex items-start gap-3">
@@ -1176,10 +1177,10 @@ export default function DashboardAnalytics() {
                       insight.severity === 'success' ? 'bg-green-500/20' :
                       'bg-blue-500/20'
                     }`}>
-                      {insight.severity === 'error' ? <XCircle className="w-4 h-4 text-red-400" /> :
+                      {insight.severity === 'error' ? <XCircle className="w-4 h-4 text-red-700" /> :
                        insight.severity === 'warning' ? <AlertTriangle className="w-4 h-4 text-yellow-400" /> :
-                       insight.severity === 'success' ? <CheckCircle className="w-4 h-4 text-green-400" /> :
-                       <Eye className="w-4 h-4 text-blue-400" />}
+                       insight.severity === 'success' ? <CheckCircle className="w-4 h-4 text-green-700" /> :
+                       <Eye className="w-4 h-4 text-blue-700" />}
                     </div>
                     <div className="flex-1">
                       <h4 className="font-medium text-foreground mb-1">{insight.title}</h4>
@@ -1201,7 +1202,7 @@ export default function DashboardAnalytics() {
               className="glass rounded-xl p-6"
             >
               <div className="flex items-center gap-3 mb-6">
-                <BarChart3 className="w-6 h-6 text-blue-400" />
+                <BarChart3 className="w-6 h-6 text-blue-700" />
                 <h3 className="text-lg font-semibold text-foreground">7-Day Revenue Forecast</h3>
               </div>
               <div className="h-64">
@@ -1268,13 +1269,13 @@ export default function DashboardAnalytics() {
                   { 
                     name: 'Medium Value', 
                     data: analytics.aiInsights.customerSegments.mediumValue, 
-                    color: 'bg-blue-500/20 border-blue-500/30 text-blue-400',
+                    color: 'bg-blue-500/20 border-blue-500/30 text-blue-700',
                     icon: <TrendingUp className="w-4 h-4" />
                   },
                   { 
                     name: 'Low Value', 
                     data: analytics.aiInsights.customerSegments.lowValue, 
-                    color: 'bg-green-500/20 border-green-500/30 text-green-400',
+                    color: 'bg-green-500/20 border-green-500/30 text-green-700',
                     icon: <Users className="w-4 h-4" />
                   }
                 ].map((segment, index) => (
@@ -1319,19 +1320,19 @@ export default function DashboardAnalytics() {
               className="glass rounded-xl p-6 border-red-500/20"
             >
               <div className="flex items-center gap-3 mb-6">
-                <Shield className="w-6 h-6 text-red-400" />
+                <Shield className="w-6 h-6 text-red-700" />
                 <h3 className="text-lg font-semibold text-foreground">Fraud Detection Alerts</h3>
-                <div className="px-2 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-400">
+                <div className="px-2 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-700">
                   {analytics.aiInsights.fraudAlerts.length} Active Alerts
                 </div>
               </div>
               
               <div className="space-y-3">
                 {analytics.aiInsights.fraudAlerts.map((alert, index) => (
-                  <div key={index} className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
+                  <div key={index} className="p-4 bg-red-50 border border-red-500/20 rounded-xl">
                     <div className="flex items-start justify-between">
                       <div className="flex items-start gap-3">
-                        <AlertTriangle className="w-5 h-5 text-red-400 mt-0.5" />
+                        <AlertTriangle className="w-5 h-5 text-red-700 mt-0.5" />
                         <div>
                           <h4 className="font-medium text-foreground">Suspicious Activity Detected</h4>
                           <p className="text-sm text-muted-foreground mt-1">
@@ -1342,7 +1343,7 @@ export default function DashboardAnalytics() {
                           </p>
                         </div>
                       </div>
-                      <div className="px-2 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-400">
+                      <div className="px-2 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-700">
                         {alert.severity.toUpperCase()}
                       </div>
                     </div>
@@ -1361,7 +1362,7 @@ export default function DashboardAnalytics() {
               className="glass rounded-xl p-6"
             >
               <div className="flex items-center gap-3 mb-2">
-                <Clock className="w-5 h-5 text-blue-400" />
+                <Clock className="w-5 h-5 text-blue-700" />
                 <span className="text-muted-foreground text-sm">Avg Processing Time</span>
               </div>
               <div className="text-foreground text-xl font-bold">{analytics.advancedMetrics.avgProcessingTime} min</div>
@@ -1374,7 +1375,7 @@ export default function DashboardAnalytics() {
               className="glass rounded-xl p-6"
             >
               <div className="flex items-center gap-3 mb-2">
-                <DollarSign className="w-5 h-5 text-green-400" />
+                <DollarSign className="w-5 h-5 text-green-700" />
                 <span className="text-muted-foreground text-sm">Total Volume</span>
               </div>
               <div className="text-foreground text-xl font-bold">KES {analytics.advancedMetrics.totalVolume.toLocaleString()}</div>
@@ -1408,6 +1409,7 @@ export default function DashboardAnalytics() {
           </div>
         </div>
       </main>
+          <MobileBottomNav />
     </div>
   );
 }

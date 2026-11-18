@@ -90,8 +90,9 @@ export function DashboardSidebar() {
       initial={{ x: -100, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
       transition={{ duration: 0.5 }}
-      className={cn(
-        "fixed left-0 top-0 bottom-0 z-40 flex flex-col bg-card border-r border-border transition-all duration-300",
+      className={cn("hidden md:flex",
+        "fixed left-0 top-0 bottom-0 z-40 flex flex-col transition-all duration-300",
+        "bg-[hsl(222_72%_9%)] border-r border-[hsl(222_50%_16%)]",
         collapsed ? "w-20" : "w-64"
       )}
     >
@@ -105,9 +106,9 @@ export function DashboardSidebar() {
             <motion.span
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="text-xl font-bold text-foreground"
+              className="text-xl font-bold text-white"
             >
-              Swift<span className="text-primary">Pay</span>
+              Swift<span className="text-green-400">Pay</span>
             </motion.span>
           )}
         </Link>
@@ -125,8 +126,8 @@ export function DashboardSidebar() {
               className={cn(
                 "flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 group",
                 isActive
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                  ? "bg-green-500 text-white shadow-[0_0_12px_hsl(150_100%_33%/0.4)] shadow-sm"
+                  : "text-slate-400 hover:text-foreground hover:bg-secondary"
               )}
             >
               <item.icon className={cn(
@@ -156,7 +157,7 @@ export function DashboardSidebar() {
         {/* Developer Section */}
         {!collapsed && (
           <div className="px-4 py-2">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Developer</p>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Developer</p>
           </div>
         )}
         {developerItems.map((item) => {
@@ -168,8 +169,8 @@ export function DashboardSidebar() {
               className={cn(
                 "flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 group",
                 isActive
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                  ? "bg-green-500 text-white shadow-[0_0_12px_hsl(150_100%_33%/0.4)] shadow-sm"
+                  : "text-slate-400 hover:text-foreground hover:bg-secondary"
               )}
             >
               <item.icon className={cn(
@@ -198,7 +199,7 @@ export function DashboardSidebar() {
         {/* Collapse button */}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-all duration-200"
+          className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-lg text-slate-400 hover:text-foreground hover:bg-secondary transition-all duration-200"
         >
           {collapsed ? (
             <ChevronRight className="h-5 w-5" />
@@ -213,7 +214,7 @@ export function DashboardSidebar() {
         {/* Logout */}
         <button
           onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all duration-200"
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-400 hover:text-destructive hover:bg-destructive/10 transition-all duration-200"
         >
           <LogOut className="h-5 w-5 flex-shrink-0" />
           {!collapsed && <span className="font-medium">Log Out</span>}

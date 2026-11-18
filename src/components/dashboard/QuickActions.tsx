@@ -1,55 +1,62 @@
-import { motion } from "framer-motion";
-import { Key, Wallet, FileText, Link, Zap, ShieldCheck, Coins, BookOpen, ArrowRight } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { ArrowRight, QrCode, Zap, ShieldCheck, Key, BookOpen, Send } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
-const actions = [
+const ACTIONS = [
+  {
+    icon: Send,
+    label: 'Request Payment',
+    desc:  'Send STK push',
+    path:  '/dashboard/accounts',
+    bg:    'from-green-500 to-emerald-600',
+    light: 'bg-green-50 text-green-700 border-green-200',
+    glow:  'hover:shadow-[0_8px_32px_hsl(150_100%_33%/0.25)]',
+  },
+  {
+    icon: QrCode,
+    label: 'Create Pay Link',
+    desc:  'Share & get paid',
+    path:  '/dashboard/payment-links',
+    bg:    'from-blue-500 to-indigo-600',
+    light: 'bg-blue-50 text-blue-700 border-blue-200',
+    glow:  'hover:shadow-[0_8px_32px_hsl(217_91%_60%/0.25)]',
+  },
   {
     icon: Zap,
-    label: "Request Payment",
-    description: "Send STK push to customer",
-    path: "/dashboard/accounts",
-    color: "text-yellow-400",
-    bg: "bg-yellow-400/10 group-hover:bg-yellow-400",
-  },
-  {
-    icon: Link,
-    label: "Create Payment Link",
-    description: "Share a branded pay link",
-    path: "/dashboard/payment-links",
-    color: "text-blue-400",
-    bg: "bg-blue-400/10 group-hover:bg-blue-400",
-  },
-  {
-    icon: Coins,
-    label: "Top Up Tokens",
-    description: "Add payment credits",
-    path: "/dashboard/tokens",
-    color: "text-orange-400",
-    bg: "bg-orange-400/10 group-hover:bg-orange-400",
+    label: 'Top Up Tokens',
+    desc:  'Add processing credits',
+    path:  '/dashboard/tokens',
+    bg:    'from-orange-400 to-amber-500',
+    light: 'bg-orange-50 text-orange-700 border-orange-200',
+    glow:  'hover:shadow-[0_8px_32px_hsl(36_97%_50%/0.25)]',
   },
   {
     icon: ShieldCheck,
-    label: "Verify Identity",
-    description: "Complete KYC to unlock payments",
-    path: "/dashboard/kyc",
-    color: "text-green-400",
-    bg: "bg-green-400/10 group-hover:bg-green-400",
+    label: 'Verify KYC',
+    desc:  'Unlock full limits',
+    path:  '/dashboard/kyc',
+    bg:    'from-purple-500 to-violet-600',
+    light: 'bg-purple-50 text-purple-700 border-purple-200',
+    glow:  'hover:shadow-[0_8px_32px_hsl(263_70%_60%/0.25)]',
   },
   {
     icon: Key,
-    label: "Create API Key",
-    description: "Connect your app",
-    path: "/dashboard/api-keys",
-    color: "text-primary",
-    bg: "bg-primary/10 group-hover:bg-primary",
+    label: 'API Keys',
+    desc:  'Developer access',
+    path:  '/dashboard/api-keys',
+    bg:    'from-slate-600 to-slate-800',
+    light: 'bg-slate-100 text-slate-700 border-slate-200',
+    glow:  'hover:shadow-[0_8px_32px_hsl(220_15%_46%/0.25)]',
   },
   {
     icon: BookOpen,
-    label: "API Docs",
-    description: "Integration guides & SDKs",
-    path: "/developers/docs",
-    color: "text-purple-400",
-    bg: "bg-purple-400/10 group-hover:bg-purple-400",
+    label: 'API Docs',
+    desc:  'Integration guide',
+    path:  '/dashboard/api-keys',
+    bg:    'from-teal-500 to-cyan-600',
+    light: 'bg-teal-50 text-teal-700 border-teal-200',
+    glow:  'hover:shadow-[0_8px_32px_hsl(173_80%_40%/0.25)]',
   },
 ];
 
@@ -57,38 +64,39 @@ export function QuickActions() {
   const navigate = useNavigate();
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay: 0.15 }}
-      className="space-y-3"
-    >
-      <h3 className="text-lg font-semibold text-foreground">Quick Actions</h3>
-
-      {actions.map((action, index) => (
-        <motion.button
-          key={action.label}
-          onClick={() => navigate(action.path)}
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.3, delay: index * 0.07 }}
-          whileHover={{ x: 3 }}
-          className="w-full bg-card border border-border rounded-xl p-3.5 hover:border-primary/40 hover:shadow-[var(--shadow-lift)] transition-all duration-200 cursor-pointer group text-left"
-        >
-          <div className="flex items-center gap-3">
-            <div className={`p-2.5 rounded-lg transition-colors ${action.bg}`}>
-              <action.icon className={`h-4 w-4 transition-colors ${action.color} group-hover:text-white`} />
+    <div className="bg-card rounded-2xl border border-border shadow-[var(--shadow-card)] p-5">
+      <h3 className="text-base font-bold text-foreground mb-4">Quick Actions</h3>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        {ACTIONS.map(({ icon: Icon, label, desc, path, bg, light, glow }, i) => (
+          <motion.button
+            key={label}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.06, duration: 0.35 }}
+            whileHover={{ y: -3 }}
+            whileTap={{ scale: 0.96 }}
+            onClick={() => navigate(path)}
+            className={cn(
+              'group relative flex flex-col gap-2.5 p-4 rounded-2xl border text-left',
+              'bg-card transition-all duration-250',
+              light, glow
+            )}
+          >
+            {/* Icon with gradient bg */}
+            <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br text-white shadow-md', bg)}>
+              <Icon size={18} />
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-medium text-foreground text-sm group-hover:text-primary transition-colors">
-                {action.label}
-              </p>
-              <p className="text-xs text-muted-foreground truncate">{action.description}</p>
+            <div>
+              <p className="text-xs font-bold text-foreground leading-snug">{label}</p>
+              <p className="text-[11px] text-muted-foreground leading-snug mt-0.5">{desc}</p>
             </div>
-            <ArrowRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-primary group-hover:translate-x-1 transition-all flex-shrink-0" />
-          </div>
-        </motion.button>
-      ))}
-    </motion.div>
+            <ArrowRight
+              size={14}
+              className="absolute top-3 right-3 text-muted-foreground opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all duration-200"
+            />
+          </motion.button>
+        ))}
+      </div>
+    </div>
   );
 }

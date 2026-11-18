@@ -173,7 +173,7 @@ export function DashboardHeader({ title, breadcrumbs = [] }: DashboardHeaderProp
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="sticky top-0 z-30 bg-card border-b border-border px-6 py-4"
+      className="sticky top-0 z-30 bg-white/85 backdrop-blur-xl border-b border-border/70 shadow-sm px-3 md:px-6 py-4"
     >
       <div className="flex items-center justify-between">
         {/* Left side - Title & Breadcrumbs */}

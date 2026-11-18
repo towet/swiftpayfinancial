@@ -1,4 +1,5 @@
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
+import { MobileBottomNav } from '@/components/dashboard/MobileBottomNav';
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { TokenWarningBanner } from "@/components/dashboard/TokenWarningBanner";
 import { KYCBanner } from "@/components/dashboard/KYCBanner";
@@ -166,7 +167,7 @@ export default function DashboardTransactions() {
     <div className="min-h-screen bg-background">
       <DashboardSidebar />
 
-      <main className="ml-20 lg:ml-64 transition-all duration-300">
+      <main className="ml-0 md:ml-0 md:ml-20 lg:ml-64 pb-20 md:pb-0 transition-all duration-300 pb-20 md:pb-0">
         <DashboardHeader
           title="Transactions"
           breadcrumbs={["Dashboard", "Transactions"]}
@@ -324,7 +325,7 @@ export default function DashboardTransactions() {
                               title="Copy receipt"
                             >
                               {tx.mpesa_receipt}
-                              {copiedReceipt === tx.id ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100" />}
+                              {copiedReceipt === tx.id ? <Check className="w-3 h-3 text-green-700" /> : <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100" />}
                             </button>
                           ) : (
                             <span className="text-muted-foreground/40 text-xs">—</span>
@@ -344,6 +345,7 @@ export default function DashboardTransactions() {
           </motion.div>
         </div>
       </main>
+          <MobileBottomNav />
     </div>
   );
 }

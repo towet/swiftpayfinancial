@@ -1,4 +1,5 @@
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
+import { MobileBottomNav } from '@/components/dashboard/MobileBottomNav';
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -143,7 +144,7 @@ export default function DashboardApiKeys() {
     <div className="min-h-screen bg-background">
       <DashboardSidebar />
 
-      <main className="ml-20 lg:ml-64 transition-all duration-300">
+      <main className="ml-0 md:ml-0 md:ml-20 lg:ml-64 pb-20 md:pb-0 transition-all duration-300 pb-20 md:pb-0">
         <DashboardHeader 
           title="API Keys" 
           breadcrumbs={["Dashboard", "API Keys"]} 
@@ -323,6 +324,7 @@ export default function DashboardApiKeys() {
           </motion.div>
         </motion.div>
       )}
+          <MobileBottomNav />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { MobileBottomNav } from '@/components/dashboard/MobileBottomNav';
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { motion } from "framer-motion";
@@ -177,7 +178,7 @@ export default function DashboardAccounts() {
     <div className="min-h-screen bg-background">
       <DashboardSidebar />
 
-      <main className="ml-20 lg:ml-64 transition-all duration-300">
+      <main className="ml-0 md:ml-0 md:ml-20 lg:ml-64 pb-20 md:pb-0 transition-all duration-300 pb-20 md:pb-0">
         <DashboardHeader 
           title="Payment Accounts (Tills)" 
           breadcrumbs={["Dashboard", "Accounts"]} 
@@ -395,6 +396,7 @@ export default function DashboardAccounts() {
           </div>
         </div>
       </main>
+          <MobileBottomNav />
     </div>
   );
 }

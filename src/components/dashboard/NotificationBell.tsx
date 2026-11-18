@@ -16,11 +16,11 @@ interface Notification {
 
 const typeIcon = (type: string) => {
   switch (type) {
-    case 'payment_received': return <CreditCard className="w-4 h-4 text-green-400" />;
-    case 'kyc_verified':     return <ShieldCheck className="w-4 h-4 text-green-400" />;
+    case 'payment_received': return <CreditCard className="w-4 h-4 text-green-600" />;
+    case 'kyc_verified':     return <ShieldCheck className="w-4 h-4 text-green-600" />;
     case 'kyc_rejected':     return <Shield className="w-4 h-4 text-destructive" />;
     case 'token_topup':      return <Zap className="w-4 h-4 text-yellow-400" />;
-    case 'security':         return <AlertTriangle className="w-4 h-4 text-orange-400" />;
+    case 'security':         return <AlertTriangle className="w-4 h-4 text-orange-600" />;
     default:                 return <Info className="w-4 h-4 text-primary" />;
   }
 };

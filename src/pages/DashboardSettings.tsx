@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { MobileBottomNav } from '@/components/dashboard/MobileBottomNav';
 import axios from "axios";
 import { motion } from "framer-motion";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
@@ -150,7 +151,7 @@ export default function DashboardSettings() {
     <div className="min-h-screen bg-background">
       <DashboardSidebar />
 
-      <main className="ml-20 lg:ml-64 transition-all duration-300">
+      <main className="ml-0 md:ml-0 md:ml-20 lg:ml-64 pb-20 md:pb-0 transition-all duration-300 pb-20 md:pb-0">
         <DashboardHeader title="Settings" breadcrumbs={["Dashboard", "Settings"]} />
 
         <div className="p-6 space-y-6">
@@ -266,6 +267,7 @@ export default function DashboardSettings() {
 
         </div>
       </main>
+          <MobileBottomNav />
     </div>
   );
 }

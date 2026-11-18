@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { MobileBottomNav } from '@/components/dashboard/MobileBottomNav';
 import { useNavigate } from "react-router-dom";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
@@ -1504,7 +1505,7 @@ export default function SuperAdmin() {
                       variant="ghost"
                       size="sm"
                       onClick={() => handleDeleteTill(till.id)}
-                      className="text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                      className="text-red-500 hover:text-red-600 hover:bg-red-50"
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
@@ -1585,7 +1586,7 @@ export default function SuperAdmin() {
     return (
       <div className="min-h-screen bg-background">
         <DashboardSidebar />
-        <main className="ml-20 lg:ml-64 transition-all duration-300">
+        <main className="ml-0 md:ml-0 md:ml-20 lg:ml-64 pb-20 md:pb-0 transition-all duration-300 pb-20 md:pb-0">
           <DashboardHeader title="Super Admin" breadcrumbs={["Dashboard", "Super Admin"]} />
           <div className="p-6 flex items-center justify-center">
             <div className="text-muted-foreground">Loading...</div>
@@ -1599,7 +1600,7 @@ export default function SuperAdmin() {
     <div className="min-h-screen bg-background">
       <DashboardSidebar />
 
-      <main className="ml-20 lg:ml-64 transition-all duration-300">
+      <main className="ml-0 md:ml-0 md:ml-20 lg:ml-64 pb-20 md:pb-0 transition-all duration-300 pb-20 md:pb-0">
         <DashboardHeader title="Super Admin" breadcrumbs={["Dashboard", "Super Admin"]} />
 
         <div className="p-6">
@@ -1966,8 +1967,8 @@ export default function SuperAdmin() {
                           animate={{ opacity: 1, x: 0 }}
                           transition={{ delay: i * 0.05 }}
                           className={`p-4 rounded-lg border ${
-                            anomaly.severity === "critical" ? "bg-red-500/10 border-red-500/30" :
-                            anomaly.severity === "high" ? "bg-orange-500/10 border-orange-500/30" :
+                            anomaly.severity === "critical" ? "bg-red-50 border-red-500/30" :
+                            anomaly.severity === "high" ? "bg-orange-50 border-orange-500/30" :
                             anomaly.severity === "medium" ? "bg-yellow-500/10 border-yellow-500/30" :
                             "bg-secondary/30 border-border/30"
                           }`}
@@ -2333,6 +2334,7 @@ export default function SuperAdmin() {
           </motion.div>
         )}
       </AnimatePresence>
+          <MobileBottomNav />
     </div>
   );
 }
