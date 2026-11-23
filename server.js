@@ -8959,21 +8959,45 @@ app.get('/api/super-admin/kyc/:submissionId', verifyToken, verifySuperAdmin, asy
 app.post('/api/super-admin/kyc/:submissionId/verify', verifyToken, verifySuperAdmin, async (req, res) => {
   try {
     const { admin_note } = req.body;
-    const { data: sub } = await supabase.from('kyc_submissions').select('user_id').eq('id', req.params.submissionId).single();
-    if (!sub) return res.status(404).json({ status: 'error', message: 'Submission not found' });
+    const { data: sub, error: subErr } = await supabase.from('kyc_submissions').select('user_id').eq('id', req.params.submissionId).single();
+    if (subErr || !sub) return res.status(404).json({ status: 'error', message: 'Submission not found' });
 
-    await supabase.from('kyc_submissions').update({
-      status: 'verified', admin_note: admin_note || null,
-      reviewed_by: req.userId, reviewed_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    // Update kyc_submissions table
+    const { error: subUpdateErr } = await supabase.from('kyc_submissions').update({
+      status: 'verified',
+      admin_note: admin_note || null,
+      reviewed_by: req.userId,
+      reviewed_at: new Date().toISOString(),
     }).eq('id', req.params.submissionId);
+    if (subUpdateErr) console.error('[KYC] kyc_submissions update error:', subUpdateErr.message);
 
-    await supabase.from('users').update({
-      kyc_status: 'verified', kyc_verified_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    // Update users table — ONLY columns that exist (no updated_at)
+    const { error: userUpdateErr } = await supabase.from('users').update({
+      kyc_status: 'verified',
+      kyc_verified_at: new Date().toISOString(),
     }).eq('id', sub.user_id);
 
-    console.log('[KYC] User', sub.user_id, 'verified by admin', req.userId);
+    if (userUpdateErr) {
+      console.error('[KYC] users update error:', userUpdateErr.message);
+      return res.status(500).json({ status: 'error', message: 'Failed to update user KYC status: ' + userUpdateErr.message });
+    }
+
+    // Verify the update actually took effect
+    const { data: check } = await supabase.from('users').select('kyc_status').eq('id', sub.user_id).single();
+    console.log('[KYC] User', sub.user_id, 'kyc_status after update:', check?.kyc_status, '— verified by admin', req.userId);
+
+    // Send approval notification
+    try {
+      await createNotification(sub.user_id, {
+        type: 'kyc_verified',
+        title: '✅ KYC Verified!',
+        body: 'Your account has been verified. You can now accept live payments.',
+      });
+    } catch(_) {}
+
     res.json({ status: 'success', message: 'KYC verified — user can now accept payments' });
   } catch (error) {
+    console.error('[KYC verify] Error:', error.message);
     res.status(500).json({ status: 'error', message: error.message });
   }
 });
@@ -8990,9 +9014,11 @@ app.post('/api/super-admin/kyc/:submissionId/reject', verifyToken, verifySuperAd
       reviewed_by: req.userId, reviewed_at: new Date().toISOString(), updated_at: new Date().toISOString(),
     }).eq('id', req.params.submissionId);
 
-    await supabase.from('users').update({
-      kyc_status: 'rejected', updated_at: new Date().toISOString(),
+    // Update users table — ONLY columns that exist (no updated_at)
+    const { error: rejectUserErr } = await supabase.from('users').update({
+      kyc_status: 'rejected',
     }).eq('id', sub.user_id);
+    if (rejectUserErr) console.error('[KYC] reject user update error:', rejectUserErr.message);
 
     try { await createNotification(sub.user_id, { type: 'kyc_rejected', title: '❌ Verification Not Approved', body: admin_note ? `Your submission was rejected: ${admin_note}` : 'Your KYC submission was not approved. Please re-submit with clearer document images.' }); } catch(_) {}
     res.json({ status: 'success', message: 'KYC rejected' });
@@ -9016,6 +9042,44 @@ app.get('/api/super-admin/kyc-users', verifyToken, verifySuperAdmin, async (req,
 });
 
 
+
+// POST /api/super-admin/kyc/force-verify-user — directly set a user's kyc_status to verified
+// Use this to fix users whose KYC was approved in admin but users table wasn't updated
+app.post('/api/super-admin/kyc/force-verify-user', verifyToken, verifySuperAdmin, async (req, res) => {
+  try {
+    const { user_id } = req.body;
+    if (!user_id) return res.status(400).json({ status: 'error', message: 'user_id required' });
+
+    const { error } = await supabase.from('users').update({
+      kyc_status: 'verified',
+      kyc_verified_at: new Date().toISOString(),
+    }).eq('id', user_id);
+
+    if (error) return res.status(500).json({ status: 'error', message: error.message });
+
+    // Also update any pending kyc_submissions for this user to verified
+    await supabase.from('kyc_submissions').update({
+      status: 'verified',
+      reviewed_by: req.userId,
+      reviewed_at: new Date().toISOString(),
+    }).eq('user_id', user_id).neq('status', 'verified');
+
+    const { data: check } = await supabase.from('users').select('kyc_status, email').eq('id', user_id).single();
+    console.log('[KYC Force-Verify] user', user_id, 'email:', check?.email, 'status:', check?.kyc_status);
+
+    try {
+      await createNotification(user_id, {
+        type: 'kyc_verified',
+        title: '✅ Account Verified!',
+        body: 'Your KYC has been verified. You can now accept live payments.',
+      });
+    } catch(_) {}
+
+    res.json({ status: 'success', message: 'User KYC status set to verified', kyc_status: check?.kyc_status });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
 
 // ── Notifications system ─────────────────────────────────────
 // createNotification helper — call this from anywhere in the backend

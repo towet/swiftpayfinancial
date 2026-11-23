@@ -382,6 +382,19 @@ export default function SuperAdmin() {
     } catch { toast({ title: 'Error', description: 'Failed to update user status', variant: 'destructive' }); }
   };
 
+  const forceVerifyUserKyc = async (userId: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.post('/api/super-admin/kyc/force-verify-user', { user_id: userId }, { headers: { Authorization: 'Bearer ' + token } });
+      if (res.data.status === 'success') {
+        toast({ title: '✅ KYC Verified!', description: 'User KYC status has been set to verified — they can now accept payments.' });
+        fetchAdminUsers();
+      }
+    } catch (err: any) {
+      toast({ title: 'Error', description: err?.response?.data?.message || 'Failed to verify KYC', variant: 'destructive' });
+    }
+  };
+
   const fetchWallets = async () => {
     setLoadingWallets(true);
     try {
@@ -2386,13 +2399,26 @@ export default function SuperAdmin() {
                                   </span>
                                 </td>
                                 <td className="px-6 py-4 text-right">
-                                  <Button
-                                    size="sm"
-                                    variant={u.is_active !== false ? "destructive" : "default"}
-                                    onClick={() => toggleUserStatus(u.id, u.is_active !== false)}
-                                  >
-                                    {u.is_active !== false ? "Suspend" : "Activate"}
-                                  </Button>
+                                  <div className="flex items-center justify-end gap-2">
+                                    {u.kyc_status !== 'verified' && (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="text-emerald-600 border-emerald-300 hover:bg-emerald-50 text-xs px-2 py-1 h-7"
+                                        onClick={() => forceVerifyUserKyc(u.id)}
+                                        title="Force-approve KYC for this user"
+                                      >
+                                        ✅ Verify KYC
+                                      </Button>
+                                    )}
+                                    <Button
+                                      size="sm"
+                                      variant={u.is_active !== false ? "destructive" : "default"}
+                                      onClick={() => toggleUserStatus(u.id, u.is_active !== false)}
+                                    >
+                                      {u.is_active !== false ? "Suspend" : "Activate"}
+                                    </Button>
+                                  </div>
                                 </td>
                               </tr>
                             ))}
