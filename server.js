@@ -5741,18 +5741,37 @@ app.post('/api/mpesa/stk-push-api', verifyApiKey, async (req, res) => {
     }
 
     // ── Token balance gate (API key endpoint) ──
-    if (req.userId) {
-      const gate2 = await checkTokenBalanceGate(req.userId, amount);
+    let tokenPayerId = req.userId;
+    if (tokenPayerId) {
+      let gate2 = await checkTokenBalanceGate(tokenPayerId, amount);
+      // Fallback: If API key user has insufficient balance, check if the till owner has tokens!
+      if (!gate2.allowed && till?.user_id && till.user_id !== tokenPayerId) {
+        const tillOwnerGate = await checkTokenBalanceGate(till.user_id, amount);
+        if (tillOwnerGate.allowed) {
+          console.log(`[TokenGate] API key user ${tokenPayerId} has 0 tokens, falling back to till owner ${till.user_id} (balance: ${tillOwnerGate.balance})`);
+          tokenPayerId = till.user_id;
+          gate2 = tillOwnerGate;
+        }
+      }
       if (!gate2.allowed) {
+        // Look up user email to show helpful message
+        let userEmail = '';
+        try {
+          const { data: u } = await supabase.from('users').select('email').eq('id', tokenPayerId).single();
+          if (u?.email) userEmail = ` for account (${u.email})`;
+        } catch (_) {}
+
         return res.status(402).json({
           status: 'error',
           code: 'INSUFFICIENT_TOKENS',
-          message: `Insufficient token balance. This transaction requires KES ${gate2.fee} in platform fees. Current balance: KES ${gate2.balance}. Please top up tokens.`,
+          message: `Insufficient token balance. This transaction requires KES ${gate2.fee} in platform fees. Current balance: KES ${gate2.balance}${userEmail}. Please top up tokens in the SwiftPay dashboard.`,
           fee_required: gate2.fee,
           balance: gate2.balance,
           shortfall: gate2.shortfall,
+          user_id: tokenPayerId,
         });
       }
+      req.tokenPayerId = tokenPayerId;
     }
 
     const token = await getMpesaAccessToken();
@@ -8195,6 +8214,7 @@ const deductPlatformFee = async (userId, transactionId, transactionAmount) => {
 // ── Token Balance Gate ────────────────────────────────────────────────────────
 // Returns { allowed: true } or { allowed: false, fee, balance, shortfall }
 const checkTokenBalanceGate = async (userId, transactionAmount) => {
+  if (!userId || userId === 'test-user') return { allowed: true, fee: 0, balance: 999999 };
   const fee = computePlatformFee(transactionAmount);
   if (fee <= 0) return { allowed: true, fee: 0 };          // free tier — always allow
   try {

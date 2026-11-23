@@ -403,6 +403,31 @@ export default function SuperAdmin() {
     }
   };
 
+  const handleAdjustUserTokens = async (userId: string, currentBalance: number, userEmail: string) => {
+    const input = window.prompt(`Enter amount of tokens to ADD to ${userEmail} (Current balance: KES ${currentBalance}):`, "500");
+    if (!input) return;
+    const amount = Number(input.trim());
+    if (isNaN(amount) || amount <= 0) {
+      toast({ title: "Invalid amount", description: "Please enter a positive number", variant: "destructive" });
+      return;
+    }
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.post('/api/super-admin/tokens/adjust', {
+        user_id: userId,
+        amount,
+        entry_type: 'credit',
+        description: 'Admin manual credit'
+      }, { headers: { Authorization: 'Bearer ' + token } });
+      if (res.data.status === 'success') {
+        toast({ title: '✅ Tokens Credited!', description: `Added KES ${amount} tokens. New balance: KES ${res.data.newBalance}` });
+        fetchAdminUsers();
+      }
+    } catch (err: any) {
+      toast({ title: 'Error', description: err?.response?.data?.message || 'Failed to adjust tokens', variant: 'destructive' });
+    }
+  };
+
   const forceVerifyUserKyc = async (userId: string) => {
     try {
       const token = localStorage.getItem('token');
@@ -2384,6 +2409,7 @@ export default function SuperAdmin() {
                               <th className="px-6 py-3.5">User</th>
                               <th className="px-6 py-3.5">Company</th>
                               <th className="px-6 py-3.5">Role</th>
+                              <th className="px-6 py-3.5">Tokens</th>
                               <th className="px-6 py-3.5">KYC Status</th>
                               <th className="px-6 py-3.5">Status</th>
                               <th className="px-6 py-3.5 text-right">Actions</th>
@@ -2403,6 +2429,22 @@ export default function SuperAdmin() {
                                   <span className="text-xs px-2 py-0.5 rounded bg-secondary capitalize font-medium">
                                     {u.role || "merchant"}
                                   </span>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-bold text-xs text-foreground">
+                                      KES {(u.token_balance || 0).toLocaleString()}
+                                    </span>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-6 px-1.5 text-[10px] text-orange-600 hover:text-orange-700 hover:bg-orange-50 font-semibold"
+                                      onClick={() => handleAdjustUserTokens(u.id, u.token_balance || 0, u.email)}
+                                      title="Top up tokens for this user"
+                                    >
+                                      + Top Up
+                                    </Button>
+                                  </div>
                                 </td>
                                 <td className="px-6 py-4">
                                   <span
