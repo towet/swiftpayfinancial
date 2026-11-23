@@ -9287,12 +9287,11 @@ app.get('/api/search', verifyToken, async (req, res) => {
     res.status(500).json({ status: 'error', message: e.message });
   }
 });
-// Start Server
-const server = // Startup: Auto-verify legacy accounts created before KYC rollout (Nov 19, 2026)
+// Startup: Auto-verify legacy accounts created before KYC rollout (Nov 19, 2026)
 (async () => {
   try {
     const kycRolloutDate = new Date('2026-11-19T00:00:00+03:00').toISOString();
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('users')
       .update({ kyc_status: 'verified', kyc_verified_at: new Date().toISOString() })
       .lt('created_at', kycRolloutDate)
@@ -9305,7 +9304,8 @@ const server = // Startup: Auto-verify legacy accounts created before KYC rollou
   }
 })();
 
-app.listen(PORT, () => {
+// Start Server
+const server = app.listen(PORT, () => {
   console.log(`🚀 SwiftPay API Server running on http://localhost:${PORT}`);
   console.log(`📱 STK Push endpoint: POST http://localhost:${PORT}/api/mpesa/stk-push`);
   console.log(`💰 Balance endpoint: GET http://localhost:${PORT}/api/mpesa/balance`);
