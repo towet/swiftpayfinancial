@@ -382,6 +382,27 @@ export default function SuperAdmin() {
     } catch { toast({ title: 'Error', description: 'Failed to update user status', variant: 'destructive' }); }
   };
 
+  const [verifyingAll, setVerifyingAll] = useState(false);
+
+  const verifyAllExistingUsers = async () => {
+    if (!window.confirm("Are you sure you want to verify KYC for ALL existing accounts? This will unblock all payments immediately.")) {
+      return;
+    }
+    setVerifyingAll(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.post('/api/super-admin/kyc/verify-all-existing', {}, { headers: { Authorization: 'Bearer ' + token } });
+      if (res.data.status === 'success') {
+        toast({ title: '✅ All Accounts Verified!', description: 'All existing user accounts can now accept payments.' });
+        fetchAdminUsers();
+      }
+    } catch (err: any) {
+      toast({ title: 'Error', description: err?.response?.data?.message || 'Failed to verify accounts', variant: 'destructive' });
+    } finally {
+      setVerifyingAll(false);
+    }
+  };
+
   const forceVerifyUserKyc = async (userId: string) => {
     try {
       const token = localStorage.getItem('token');
@@ -2336,6 +2357,15 @@ export default function SuperAdmin() {
                       </div>
                       <Button variant="outline" size="sm" onClick={fetchAdminUsers} disabled={loadingAdminUsers}>
                         <RefreshCw className={`w-4 h-4 ${loadingAdminUsers ? "animate-spin" : ""}`} />
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 text-xs h-9"
+                        onClick={verifyAllExistingUsers}
+                        disabled={verifyingAll}
+                      >
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        {verifyingAll ? "Verifying..." : "⚡ Verify All Existing"}
                       </Button>
                     </div>
                   </div>
