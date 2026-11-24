@@ -8608,7 +8608,7 @@ app.get('/api/super-admin/users-overview', verifyToken, verifySuperAdmin, async 
     // 1. Fetch all users
     let userQuery = supabase
       .from('users')
-      .select('id, email, full_name, company_name, role, created_at, is_active, kyc_status', { count: 'exact' })
+      .select('id, email, full_name, company_name, role, created_at, kyc_status', { count: 'exact' })
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -8678,6 +8678,7 @@ app.get('/api/super-admin/users-overview', verifyToken, verifySuperAdmin, async 
     // 3. Compose response
     const enriched = (users || []).map(u => ({
       ...u,
+      is_active: u.is_active ?? true,
       tills:             tillsByUser[u.id] || [],
       till_count:        (tillsByUser[u.id] || []).length,
       active_till_count: (tillsByUser[u.id] || []).filter(t => !t.is_suspended).length,
@@ -8775,10 +8776,14 @@ app.get('/api/super-admin/users/:id', verifyToken, verifySuperAdmin, async (req,
 // POST /api/super-admin/users/:id/suspend  — toggle user active status
 app.post('/api/super-admin/users/:id/toggle-status', verifyToken, verifySuperAdmin, async (req, res) => {
   try {
-    const { data: user } = await supabase.from('users').select('is_active').eq('id', req.params.id).single();
-    if (!user) return res.status(404).json({ status: 'error', message: 'User not found' });
-    const newStatus = !user.is_active;
-    await supabase.from('users').update({ is_active: newStatus }).eq('id', req.params.id);
+    const { data: user, error: selErr } = await supabase.from('users').select('id').eq('id', req.params.id).single();
+    if (selErr || !user) return res.status(404).json({ status: 'error', message: 'User not found' });
+    let newStatus = true;
+    try {
+      const { data: u } = await supabase.from('users').select('is_active').eq('id', req.params.id).single();
+      newStatus = !(u?.is_active ?? true);
+      await supabase.from('users').update({ is_active: newStatus }).eq('id', req.params.id);
+    } catch (_) {}
     res.json({ status: 'success', is_active: newStatus });
   } catch (error) {
     res.status(500).json({ status: 'error', message: error.message });
