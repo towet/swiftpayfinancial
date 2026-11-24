@@ -5490,6 +5490,16 @@ const processMpesaCallback = async (req, res) => {
           .single();
 
         if (till) {
+          // ── Deduct platform fee tokens from till owner ──────────────────────
+          try {
+            if (txn?.id && !txn?.fee_charged) {
+              await deductPlatformFee(till.user_id, txn.id, txn.amount || amount || 0);
+              console.log(`[Tokens] Deducted platform fee for txn ${txn.id} from user ${till.user_id}`);
+            }
+          } catch (feeErr) {
+            console.error('[Tokens] Fee deduction error (non-fatal):', feeErr?.message || feeErr);
+          }
+          // ───────────────────────────────────────────────────────────────────
           triggerWebhook(till.user_id, 'payment.success', {
             transactionId: txn.id,
             amount,

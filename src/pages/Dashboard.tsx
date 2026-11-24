@@ -55,6 +55,9 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchDashboardStats();
+    // Poll every 30s so token balance & stats stay up-to-date after transactions
+    const poll = window.setInterval(fetchDashboardStats, 30_000);
+    return () => window.clearInterval(poll);
   }, []);
 
   useEffect(() => {

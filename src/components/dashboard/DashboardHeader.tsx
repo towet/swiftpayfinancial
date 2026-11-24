@@ -82,6 +82,9 @@ export function DashboardHeader({ title, breadcrumbs = [] }: DashboardHeaderProp
   useEffect(() => {
     fetchUserProfile();
     fetchTokenBalance();
+    // Poll token balance every 30s so deductions from transactions are reflected live
+    const tokenPoll = window.setInterval(fetchTokenBalance, 30_000);
+    return () => window.clearInterval(tokenPoll);
   }, []);
 
   const fetchUserProfile = async () => {
