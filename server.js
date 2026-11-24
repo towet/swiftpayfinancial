@@ -6219,6 +6219,7 @@ app.get('/api/dashboard/analytics', verifyToken, async (req, res) => {
     });
 
     console.log(`Analytics: Found ${transactions?.length || 0} transactions for user ${req.userId}`);
+    const txList = transactions || [];
 
     // Analytics Calculations
     const now = new Date();
