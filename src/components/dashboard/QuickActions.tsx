@@ -64,36 +64,41 @@ export function QuickActions() {
   const navigate = useNavigate();
 
   return (
-    <div className="bg-card rounded-2xl border border-border shadow-[var(--shadow-card)] p-5">
-      <h3 className="text-base font-bold text-foreground mb-4">Quick Actions</h3>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+    <div className="bg-card rounded-2xl border border-border shadow-[var(--shadow-card)] p-5 h-full flex flex-col">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-base font-bold text-foreground">Quick Actions</h3>
+        <span className="text-[11px] font-medium text-muted-foreground">Shortcuts</span>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-2 gap-3 flex-1">
         {ACTIONS.map(({ icon: Icon, label, desc, path, bg, light, glow }, i) => (
           <motion.button
             key={label}
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.06, duration: 0.35 }}
-            whileHover={{ y: -3 }}
-            whileTap={{ scale: 0.96 }}
+            whileHover={{ y: -2 }}
+            whileTap={{ scale: 0.97 }}
             onClick={() => navigate(path)}
             className={cn(
-              'group relative flex flex-col gap-2.5 p-4 rounded-2xl border text-left',
-              'bg-card transition-all duration-250',
+              'group relative min-w-0 overflow-hidden flex flex-col justify-between gap-2.5 p-3.5 rounded-xl border text-left',
+              'bg-card transition-all duration-200',
               light, glow
             )}
           >
-            {/* Icon with gradient bg */}
-            <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br text-white shadow-md', bg)}>
-              <Icon size={18} />
+            <div className="flex items-start justify-between gap-2">
+              {/* Icon with gradient bg */}
+              <div className={cn('w-9 h-9 shrink-0 rounded-xl flex items-center justify-center bg-gradient-to-br text-white shadow-sm', bg)}>
+                <Icon size={17} />
+              </div>
+              <ArrowRight
+                size={14}
+                className="text-muted-foreground opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200 shrink-0 mt-1"
+              />
             </div>
-            <div>
-              <p className="text-xs font-bold text-foreground leading-snug">{label}</p>
-              <p className="text-[11px] text-muted-foreground leading-snug mt-0.5">{desc}</p>
+            <div className="min-w-0">
+              <p className="text-[13px] font-bold text-foreground leading-tight truncate">{label}</p>
+              <p className="text-[11px] text-muted-foreground leading-snug mt-0.5 line-clamp-2">{desc}</p>
             </div>
-            <ArrowRight
-              size={14}
-              className="absolute top-3 right-3 text-muted-foreground opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all duration-200"
-            />
           </motion.button>
         ))}
       </div>

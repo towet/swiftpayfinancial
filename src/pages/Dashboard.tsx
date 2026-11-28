@@ -277,11 +277,11 @@ export default function Dashboard() {
           </div>
 
           {/* Charts and Quick Actions Row */}
-          <div className="grid lg:grid-cols-4 gap-6">
-            <div className="lg:col-span-3">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-stretch">
+            <div className="xl:col-span-2 min-w-0">
               <RevenueChart />
             </div>
-            <div className="lg:col-span-1">
+            <div className="xl:col-span-1 min-w-0">
               <QuickActions />
             </div>
           </div>
