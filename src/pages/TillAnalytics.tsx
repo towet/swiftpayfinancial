@@ -54,7 +54,7 @@ export default function TillAnalytics() {
   const [amountInsightsRange, setAmountInsightsRange] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
 
   // Commission earnings state
-  const [commissionRange, setCommissionRange] = useState<'today' | 'week' | 'custom'>('today');
+  const [commissionRange, setCommissionRange] = useState<'today' | 'week' | 'month' | 'all' | 'custom'>('today');
   const [customFrom, setCustomFrom] = useState<string>('');
   const [customTo, setCustomTo]     = useState<string>('');
   const [showCustomPicker, setShowCustomPicker] = useState(false);
@@ -224,6 +224,16 @@ export default function TillAnalytics() {
       const end   = new Date(now); end.setHours(23, 59, 59, 999);
       const start = new Date(now); start.setDate(now.getDate() - 6); start.setHours(0, 0, 0, 0);
       return { start, end, label: 'Last 7 days' };
+    }
+    if (commissionRange === 'month') {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      const end   = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      return { start, end, label: 'This Month' };
+    }
+    if (commissionRange === 'all') {
+      const start = new Date(2020, 0, 1);
+      const end   = new Date(now.getFullYear() + 1, 0, 1);
+      return { start, end, label: 'All Time' };
     }
     // custom
     const start = customFrom ? new Date(customFrom + 'T00:00:00') : new Date(now.getFullYear(), now.getMonth(), 1);
@@ -525,10 +535,12 @@ export default function TillAnalytics() {
                 </div>
               </div>
               {/* Period toggle pills */}
-              <div className="flex gap-1 p-1 rounded-xl bg-black/20 backdrop-blur-sm">
+              <div className="flex flex-wrap gap-1 p-1 rounded-xl bg-black/20 backdrop-blur-sm">
                 {([
                   { key: 'today', label: 'Today' },
                   { key: 'week',  label: 'Week'  },
+                  { key: 'month', label: 'Month' },
+                  { key: 'all',   label: 'All'   },
                   { key: 'custom', label: 'Custom' },
                 ] as const).map((opt) => (
                   <button

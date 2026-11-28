@@ -53,6 +53,25 @@ const paymentMethodsData = [
 ];
 
 interface AnalyticsData {
+  commissionAnalytics?: {
+    rate: number;
+    today: { revenue: number; commission: number; txCount: number };
+    week: { revenue: number; commission: number; txCount: number };
+    month: { revenue: number; commission: number; txCount: number };
+    year: { revenue: number; commission: number; txCount: number };
+    allTime: { revenue: number; commission: number; txCount: number };
+    custom?: { revenue: number; commission: number; txCount: number; start: string; end: string } | null;
+    dailySeries: Array<{ date: string; label: string; revenue: number; commission: number; txCount: number }>;
+    weeklySeries: Array<{ week: string; label: string; revenue: number; commission: number; txCount: number }>;
+    monthlySeries: Array<{ month: string; label: string; revenue: number; commission: number; txCount: number }>;
+    insights: {
+      bestDay: { date: string; label: string; revenue: number; commission: number; txCount: number } | null;
+      avgDailyCommission: number;
+      avgCommissionPerTx: number;
+      activeDays: number;
+      totalDaysInWindow: number;
+    };
+  };
   today: any;
   thisWeek: any;
   thisMonth: any;
@@ -156,6 +175,14 @@ export default function DashboardAnalytics() {
   const [selectedTillId, setSelectedTillId] = useState<string>('');
   const [geminiInsights, setGeminiInsights] = useState<GeminiInsightsResponse | null>(null);
   const [geminiLoading, setGeminiLoading] = useState(false);
+  const [commissionRange, setCommissionRange] = useState<'today' | 'week' | 'month' | 'allTime' | 'custom'>('today');
+  const [commissionStart, setCommissionStart] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 6);
+    return d.toISOString().slice(0, 10);
+  });
+  const [commissionEnd, setCommissionEnd] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [commissionView, setCommissionView] = useState<'daily' | 'weekly' | 'monthly'>('daily');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -175,7 +202,7 @@ export default function DashboardAnalytics() {
 
   useEffect(() => {
     fetchAnalyticsData();
-  }, [activeRange, selectedTillId]);
+  }, [activeRange, selectedTillId, commissionRange, commissionStart, commissionEnd]);
 
   useEffect(() => {
     const handler = () => {
@@ -275,6 +302,9 @@ export default function DashboardAnalytics() {
         params: {
           range: activeRange.toLowerCase(),
           ...(selectedTillId ? { tillId: selectedTillId } : {}),
+          ...(commissionRange === 'custom' && commissionStart && commissionEnd
+            ? { commissionStart, commissionEnd }
+            : {}),
         },
       });
       setAnalytics(response.data.analytics);
@@ -604,6 +634,265 @@ export default function DashboardAnalytics() {
               </button>
             </div>
           </motion.div>
+
+          {/* ── My Commission Earnings & Insights (10%) ─────────────────────────── */}
+          {(() => {
+            const ca = analytics.commissionAnalytics;
+            const fallbackSummary = (s: any) => {
+              const rev = Number(s?.totalRevenue || 0);
+              return { revenue: rev, commission: Number((rev * 0.1).toFixed(2)), txCount: Number(s?.successfulTransactions || 0) };
+            };
+            const periodMap = {
+              today: ca?.today || fallbackSummary(analytics.today),
+              week: ca?.week || fallbackSummary(analytics.thisWeek),
+              month: ca?.month || fallbackSummary(analytics.thisMonth),
+              allTime: ca?.allTime || fallbackSummary(analytics.allTime),
+              custom: ca?.custom || fallbackSummary(analytics.thisWeek),
+            };
+            const activeComm = periodMap[commissionRange] || periodMap.today;
+            const allTimeComm = periodMap.allTime;
+            const monthComm = periodMap.month;
+            const insights = ca?.insights;
+
+            const seriesData =
+              commissionView === 'daily'
+                ? (ca?.dailySeries || [])
+                : commissionView === 'weekly'
+                ? (ca?.weeklySeries || [])
+                : (ca?.monthlySeries || []);
+
+            const nonZeroDays = [...(ca?.dailySeries || [])].filter((d) => d.txCount > 0).reverse();
+
+            const rangeLabels: Record<string, string> = {
+              today: "Today's Commission (10%)",
+              week: "This Week's Commission (10%)",
+              month: "This Month's Commission (10%)",
+              allTime: "All-Time Total Commission (10%)",
+              custom: `Custom Range (${commissionStart} → ${commissionEnd})`,
+            };
+
+            return (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="rounded-2xl p-6 text-white shadow-xl border border-emerald-500/30"
+                style={{
+                  background: "linear-gradient(135deg, #064e3b 0%, #065f46 45%, #047857 100%)",
+                }}
+              >
+                {/* Header + Period Toggles */}
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 pb-5 border-b border-white/15">
+                  <div>
+                    <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/15 text-emerald-100 text-xs font-semibold mb-2">
+                      <DollarSign className="h-3.5 w-3.5" />
+                      10% Commission Earnings &amp; Insights
+                    </div>
+                    <h3 className="text-xl font-bold text-white">{rangeLabels[commissionRange]}</h3>
+                    <p className="text-emerald-100/80 text-xs mt-0.5">
+                      Calculated as 10% of paid M-Pesa transaction volume
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    {[
+                      { key: 'today', label: 'Today' },
+                      { key: 'week', label: 'Week' },
+                      { key: 'month', label: 'Month' },
+                      { key: 'allTime', label: 'All Time' },
+                      { key: 'custom', label: 'Custom' },
+                    ].map((opt) => (
+                      <button
+                        key={opt.key}
+                        onClick={() => setCommissionRange(opt.key as any)}
+                        className={cn(
+                          "px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all",
+                          commissionRange === opt.key
+                            ? "bg-white text-emerald-900 shadow"
+                            : "bg-white/10 text-white hover:bg-white/20"
+                        )}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Custom Date Pickers */}
+                {commissionRange === 'custom' && (
+                  <div className="flex flex-wrap items-center gap-3 pt-4 pb-2">
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="text-emerald-100/80">From:</span>
+                      <input
+                        type="date"
+                        value={commissionStart}
+                        onChange={(e) => setCommissionStart(e.target.value)}
+                        className="px-2.5 py-1.5 rounded-lg bg-white/15 border border-white/20 text-white text-xs"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="text-emerald-100/80">To:</span>
+                      <input
+                        type="date"
+                        value={commissionEnd}
+                        onChange={(e) => setCommissionEnd(e.target.value)}
+                        className="px-2.5 py-1.5 rounded-lg bg-white/15 border border-white/20 text-white text-xs"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Hero Commission Figure + Insights Strip */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 mt-5">
+                  <div className="lg:col-span-5 bg-white/10 rounded-xl p-5 border border-white/15 flex flex-col justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-wider text-emerald-100/80 font-semibold">
+                        Your 10% Commission
+                      </p>
+                      <p className="text-4xl font-extrabold text-white mt-1.5 tracking-tight">
+                        KES {activeComm.commission.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 mt-5 pt-4 border-t border-white/15 text-xs">
+                      <div>
+                        <p className="text-emerald-100/70">Paid Volume</p>
+                        <p className="text-sm font-bold text-white mt-0.5">
+                          KES {activeComm.revenue.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-emerald-100/70">Paid Transactions</p>
+                        <p className="text-sm font-bold text-white mt-0.5">
+                          {activeComm.txCount.toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Insights Grid */}
+                  <div className="lg:col-span-7 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="bg-white/10 rounded-xl p-4 border border-white/10">
+                      <p className="text-[11px] uppercase tracking-wider text-emerald-100/75 font-medium">All-Time Total</p>
+                      <p className="text-lg font-bold text-white mt-1">
+                        KES {allTimeComm.commission.toLocaleString('en-KE', { maximumFractionDigits: 0 })}
+                      </p>
+                      <p className="text-[11px] text-emerald-100/70 mt-1">
+                        {allTimeComm.txCount.toLocaleString()} paid tx
+                      </p>
+                    </div>
+
+                    <div className="bg-white/10 rounded-xl p-4 border border-white/10">
+                      <p className="text-[11px] uppercase tracking-wider text-emerald-100/75 font-medium">This Month</p>
+                      <p className="text-lg font-bold text-white mt-1">
+                        KES {monthComm.commission.toLocaleString('en-KE', { maximumFractionDigits: 0 })}
+                      </p>
+                      <p className="text-[11px] text-emerald-100/70 mt-1">
+                        {monthComm.txCount.toLocaleString()} paid tx
+                      </p>
+                    </div>
+
+                    <div className="bg-white/10 rounded-xl p-4 border border-white/10">
+                      <p className="text-[11px] uppercase tracking-wider text-emerald-100/75 font-medium">Daily Avg (30d)</p>
+                      <p className="text-lg font-bold text-white mt-1">
+                        KES {(insights?.avgDailyCommission ?? 0).toLocaleString('en-KE', { maximumFractionDigits: 0 })}
+                      </p>
+                      <p className="text-[11px] text-emerald-100/70 mt-1">
+                        {insights?.activeDays ?? 0} active days
+                      </p>
+                    </div>
+
+                    <div className="bg-white/10 rounded-xl p-4 border border-white/10">
+                      <p className="text-[11px] uppercase tracking-wider text-emerald-100/75 font-medium">Best Day</p>
+                      <p className="text-lg font-bold text-white mt-1">
+                        KES {(insights?.bestDay?.commission ?? 0).toLocaleString('en-KE', { maximumFractionDigits: 0 })}
+                      </p>
+                      <p className="text-[11px] text-emerald-100/70 mt-1">
+                        {insights?.bestDay?.label || 'No data yet'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Daily / Weekly / Monthly Commission Breakdown */}
+                <div className="mt-5 bg-white/10 rounded-xl p-4 border border-white/10">
+                  <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                    <div>
+                      <h4 className="text-sm font-semibold text-white">Commission Trend &amp; Breakdown</h4>
+                      <p className="text-xs text-emerald-100/75">
+                        Avg commission per paid tx: KES {(insights?.avgCommissionPerTx ?? 0).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                    <div className="flex gap-1 bg-black/20 p-1 rounded-lg">
+                      {(['daily', 'weekly', 'monthly'] as const).map((v) => (
+                        <button
+                          key={v}
+                          onClick={() => setCommissionView(v)}
+                          className={cn(
+                            "px-3 py-1 rounded-md text-xs font-semibold capitalize transition-all",
+                            commissionView === v
+                              ? "bg-white text-emerald-900"
+                              : "text-emerald-100 hover:text-white"
+                          )}
+                        >
+                          {v}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {seriesData.length > 0 ? (
+                    <div className="h-48 w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={seriesData}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.12)" />
+                          <XAxis dataKey="label" stroke="rgba(255,255,255,0.75)" fontSize={11} />
+                          <YAxis stroke="rgba(255,255,255,0.75)" fontSize={11} />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: '#064e3b',
+                              border: '1px solid rgba(255,255,255,0.2)',
+                              borderRadius: '8px',
+                              color: '#fff',
+                            }}
+                            formatter={(val: any) => [`KES ${Number(val).toLocaleString('en-KE', { minimumFractionDigits: 2 })}`, '10% Commission']}
+                          />
+                          <Bar dataKey="commission" fill="#34d399" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-emerald-100/75 py-6 text-center">No commission data available for this breakdown yet.</p>
+                  )}
+
+                  {commissionView === 'daily' && nonZeroDays.length > 0 && (
+                    <div className="mt-4 max-h-44 overflow-y-auto rounded-lg bg-black/15 border border-white/10">
+                      <table className="w-full text-xs text-left">
+                        <thead className="bg-black/20 text-emerald-100/80 uppercase text-[10px]">
+                          <tr>
+                            <th className="px-3 py-2">Date</th>
+                            <th className="px-3 py-2">Paid Tx</th>
+                            <th className="px-3 py-2">Paid Volume</th>
+                            <th className="px-3 py-2 text-right">10% Commission</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/10">
+                          {nonZeroDays.slice(0, 14).map((d) => (
+                            <tr key={d.date} className="hover:bg-white/5">
+                              <td className="px-3 py-2 font-medium text-white">{d.date}</td>
+                              <td className="px-3 py-2 text-emerald-100/90">{d.txCount}</td>
+                              <td className="px-3 py-2 text-emerald-100/90">KES {d.revenue.toLocaleString()}</td>
+                              <td className="px-3 py-2 text-right font-bold text-emerald-300">
+                                KES {d.commission.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            );
+          })()}
 
           {/* Stats Row */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
