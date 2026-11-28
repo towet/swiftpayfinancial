@@ -1172,43 +1172,52 @@ export default function DashboardAnalytics() {
               </div>
 
               <div className="grid lg:grid-cols-3 gap-6">
-                <div className="glass rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="text-sm font-semibold text-foreground">Top by Paid Revenue</h4>
-                    <span className="text-xs text-muted-foreground">Range: {amountAnalytics.range}</span>
+                <div className="glass rounded-xl p-5 border border-slate-200/80">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-sm font-bold text-slate-900">Top by Paid Revenue</h4>
+                    <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                      Range: {amountAnalytics.range}
+                    </span>
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2.5">
                     {amountAnalytics.topAmountsByPaidRevenue.map((a: any, idx: number) => {
                       const best = getBestHourForAmount(a.amount);
+                      const isSelected = selectedAmount === Number(a.amount);
                       return (
                         <button
                           key={a.amount}
                           onClick={() => setSelectedAmount(Number(a.amount))}
                           className={cn(
-                            "w-full text-left p-3 rounded-xl bg-secondary/50 hover:bg-secondary transition-all",
-                            selectedAmount === a.amount && "ring-1 ring-primary/40"
+                            "w-full text-left p-3.5 rounded-xl border transition-all",
+                            isSelected
+                              ? "bg-emerald-50/80 border-emerald-500 shadow-sm"
+                              : "bg-white/90 border-slate-200/80 hover:border-slate-300 hover:bg-white"
                           )}
                         >
-                          <div className="flex items-center justify-between">
-                            <div className="text-foreground font-semibold">
-                              <span className="text-muted-foreground">{idx + 1}.</span>{" "}
-                              <span className="text-sky-200 font-mono">KES {Number(a.amount).toLocaleString()}</span>
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className={cn(
+                                "inline-flex items-center justify-center w-5 h-5 rounded-full text-[11px] font-bold",
+                                isSelected ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-700"
+                              )}>
+                                {idx + 1}
+                              </span>
+                              <span className="text-slate-900 font-bold font-mono text-sm">
+                                KES {Number(a.amount).toLocaleString()}
+                              </span>
                             </div>
-                            <div className="text-emerald-300 text-sm font-semibold">{formatKES(a.paidRevenue)}</div>
+                            <div className="text-emerald-700 text-sm font-bold">{formatKES(a.paidRevenue)}</div>
                           </div>
-                          <div className="text-xs text-muted-foreground mt-1">
-                            <span className="text-emerald-300 font-medium">{a.paidCount} success</span>
-                            {" "}|{" "}
-                            <span className="text-red-300 font-medium">{a.failedCount} failed</span>
-                            {" "}|{" "}
-                            <span className="text-amber-300 font-medium">{a.pendingCount} pending</span>
-                            {best ? (
-                              <>
-                                {" "}|{" "}
-                                <span className="text-sky-200">peak: {best.hourLabel}</span>
-                              </>
-                            ) : (
-                              ""
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs mt-2">
+                            <span className="text-emerald-700 font-semibold">{a.paidCount} success</span>
+                            <span className="text-slate-300">•</span>
+                            <span className="text-rose-600 font-semibold">{a.failedCount} failed</span>
+                            <span className="text-slate-300">•</span>
+                            <span className="text-amber-700 font-semibold">{a.pendingCount} pending</span>
+                            {best && (
+                              <span className="ml-auto inline-flex items-center px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 font-medium text-[11px]">
+                                peak: {best.hourLabel}
+                              </span>
                             )}
                           </div>
                         </button>
@@ -1217,70 +1226,113 @@ export default function DashboardAnalytics() {
                   </div>
                 </div>
 
-                <div className="glass rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="text-sm font-semibold text-foreground">Best Success Rate</h4>
-                    <span className="text-xs text-muted-foreground">min 10 tx</span>
+                <div className="glass rounded-xl p-5 border border-slate-200/80">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-sm font-bold text-slate-900">Best Success Rate</h4>
+                    <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                      min 10 tx
+                    </span>
                   </div>
-                  <div className="space-y-2">
-                    {amountAnalytics.topAmountsBySuccessRate.slice(0, 5).map((a: any, idx: number) => (
-                      <button
-                        key={a.amount}
-                        onClick={() => setSelectedAmount(Number(a.amount))}
-                        className={cn(
-                          "w-full text-left p-3 rounded-xl bg-secondary/50 hover:bg-secondary transition-all",
-                          selectedAmount === a.amount && "ring-1 ring-primary/40"
-                        )}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="text-foreground font-semibold">
-                            <span className="text-muted-foreground">{idx + 1}.</span>{" "}
-                            <span className="text-sky-200 font-mono">KES {Number(a.amount).toLocaleString()}</span>
+                  <div className="space-y-2.5">
+                    {amountAnalytics.topAmountsBySuccessRate.slice(0, 5).map((a: any, idx: number) => {
+                      const isSelected = selectedAmount === Number(a.amount);
+                      const pct = ((Number(a.successRate || 0)) * 100).toFixed(1);
+                      return (
+                        <button
+                          key={a.amount}
+                          onClick={() => setSelectedAmount(Number(a.amount))}
+                          className={cn(
+                            "w-full text-left p-3.5 rounded-xl border transition-all",
+                            isSelected
+                              ? "bg-emerald-50/80 border-emerald-500 shadow-sm"
+                              : "bg-white/90 border-slate-200/80 hover:border-slate-300 hover:bg-white"
+                          )}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className={cn(
+                                "inline-flex items-center justify-center w-5 h-5 rounded-full text-[11px] font-bold",
+                                isSelected ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-700"
+                              )}>
+                                {idx + 1}
+                              </span>
+                              <span className="text-slate-900 font-bold font-mono text-sm">
+                                KES {Number(a.amount).toLocaleString()}
+                              </span>
+                            </div>
+                            <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold">
+                              {pct}%
+                            </span>
                           </div>
-                          <div className="text-emerald-300 text-sm font-semibold">
-                            {((Number(a.successRate || 0)) * 100).toFixed(1)}%
+                          <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden mt-2">
+                            <div
+                              className="h-full bg-emerald-500 rounded-full"
+                              style={{ width: `${Math.min(Number(pct), 100)}%` }}
+                            />
                           </div>
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-1">
-                          <span className="text-emerald-300 font-medium">{a.paidCount}</span>
-                          <span className="text-muted-foreground">/{a.totalCount} success</span>
-                          {" "}|{" "}
-                          <span className="text-sky-200">avg paid: {formatKES(a.avgPaidValue)}</span>
-                        </div>
-                      </button>
-                    ))}
+                          <div className="flex items-center justify-between text-xs mt-1.5">
+                            <span className="text-slate-600">
+                              <span className="text-emerald-700 font-semibold">{a.paidCount}</span>/{a.totalCount} success
+                            </span>
+                            <span className="text-slate-700 font-medium">avg paid: {formatKES(a.avgPaidValue)}</span>
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
-                <div className="glass rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="text-sm font-semibold text-foreground">Most Failed</h4>
-                    <span className="text-xs text-muted-foreground">Counts</span>
+                <div className="glass rounded-xl p-5 border border-slate-200/80">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-sm font-bold text-slate-900">Most Failed</h4>
+                    <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-rose-50 text-rose-700">
+                      Counts
+                    </span>
                   </div>
-                  <div className="space-y-2">
-                    {amountAnalytics.topFailedAmounts.slice(0, 5).map((a: any, idx: number) => (
-                      <button
-                        key={a.amount}
-                        onClick={() => setSelectedAmount(Number(a.amount))}
-                        className={cn(
-                          "w-full text-left p-3 rounded-xl bg-secondary/50 hover:bg-secondary transition-all",
-                          selectedAmount === a.amount && "ring-1 ring-primary/40"
-                        )}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="text-foreground font-semibold">
-                            <span className="text-muted-foreground">{idx + 1}.</span>{" "}
-                            <span className="text-sky-200 font-mono">KES {Number(a.amount).toLocaleString()}</span>
+                  <div className="space-y-2.5">
+                    {amountAnalytics.topFailedAmounts.slice(0, 5).map((a: any, idx: number) => {
+                      const isSelected = selectedAmount === Number(a.amount);
+                      const failPct = ((Number(a.failureRate || 0)) * 100).toFixed(1);
+                      return (
+                        <button
+                          key={a.amount}
+                          onClick={() => setSelectedAmount(Number(a.amount))}
+                          className={cn(
+                            "w-full text-left p-3.5 rounded-xl border transition-all",
+                            isSelected
+                              ? "bg-rose-50/70 border-rose-500 shadow-sm"
+                              : "bg-white/90 border-slate-200/80 hover:border-slate-300 hover:bg-white"
+                          )}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className={cn(
+                                "inline-flex items-center justify-center w-5 h-5 rounded-full text-[11px] font-bold",
+                                isSelected ? "bg-rose-600 text-white" : "bg-slate-100 text-slate-700"
+                              )}>
+                                {idx + 1}
+                              </span>
+                              <span className="text-slate-900 font-bold font-mono text-sm">
+                                KES {Number(a.amount).toLocaleString()}
+                              </span>
+                            </div>
+                            <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 text-xs font-bold">
+                              {a.failedCount} failed
+                            </span>
                           </div>
-                          <div className="text-red-300 text-sm font-semibold">{a.failedCount} failed</div>
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-1">
-                          <span className="text-muted-foreground">total: {a.totalCount}</span>
-                          {" "}|{" "}
-                          <span className="text-red-300">failure rate: {((Number(a.failureRate || 0)) * 100).toFixed(1)}%</span>
-                        </div>
-                      </button>
-                    ))}
+                          <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden mt-2">
+                            <div
+                              className="h-full bg-rose-500 rounded-full"
+                              style={{ width: `${Math.min(Number(failPct), 100)}%` }}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between text-xs mt-1.5">
+                            <span className="text-slate-600 font-medium">total: {a.totalCount}</span>
+                            <span className="text-rose-600 font-semibold">failure rate: {failPct}%</span>
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
